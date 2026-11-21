@@ -7,6 +7,6 @@
     "dev": "pnpm --filter @perfect-draw/web dev",
     "build": "pnpm --filter @perfect-draw/web build",
     "test": "pnpm --filter @perfect-draw/engine test",
-    "typecheck": "pnpm --filter @perfect-draw/web typecheck"
+    "typecheck": "pnpm --filter @perfect-draw/engine typecheck && pnpm --filter @perfect-draw/web typecheck"
   }
 }
