@@ -27,7 +27,7 @@ A video poker coach that (1) computes perfect play for any pay table, (2) reads 
   - *AC:* Results match a reference brute-force enumeration exactly (to 1e-9) on a 1,000-hand random test set per game family.
 - **F1.2** Full pay table analysis: return %, variance, hit frequency, probability of each payout line.
   - *AC:* Known returns (within ±0.005%): 9/6 Jacks or Better 99.54%; 8/5 Bonus Poker 99.17%; 10/7 Double Bonus 100.17%; 9/6 Double Double Bonus 98.98%; Full-Pay Deuces Wild 100.76%. (Check the reference values against two independent sources during QA.)
-  - *AC:* Analysis completes in < 30 s on server for a new pay table; then cached forever by pay table hash.
+  - *AC:* Library pay tables load instantly (precomputed at build time). A new pay table is analyzed on device in < 30 s with a progress bar, then cached by pay table hash.
 - **F1.3** Hold-pattern labeling: every hold maps to a canonical category label (e.g. `4RF`, `4FL`, `LP`, `KQJ_unsuited`, `3SF_t2`).
 - **F1.4** Strategy list generation: ordered list of categories (with penalty-card refinements) derived per pay table.
   - *AC:* Playing the generated "Expert" list over all hands reaches within 0.02% of optimal return; the actual gap is shown.
@@ -76,18 +76,19 @@ A video poker coach that (1) computes perfect play for any pay table, (2) reads 
   - *AC:* Switching sessions restores the exact state (including a hand mid-hold) in < 200 ms.
 
 ### F8 — AI Provider Settings
-- **F8.1** Settings: provider per task (`vision`, `coach`, `heuristics`) ∈ {OpenAI, Anthropic}; model per provider; key source = app key or BYO key.
+- **F8.1** Settings: user enters their own OpenAI and/or Anthropic API key (bring-your-own key only; no app-provided key). Provider per task (`vision`, `coach`, `heuristics`); model per provider. Web: "Remember key on this device" toggle (default off = session only). iOS: Keychain.
 - **F8.2** "Test connection" button for each provider.
 - **F8.3** Automatic fallback to the other provider if configured (optional toggle).
 - **F8.4** Usage log: tokens, estimated cost, per task.
+- **F8.5** With no key set, every AI feature shows a friendly "add a key" prompt; all non-AI features work fully.
 
 ## 5. Non-Functional Requirements
 
 | Area | Requirement |
 |---|---|
 | Performance | 32-hold analysis < 150 ms in a Web Worker on a mid-range laptop; drill feedback < 50 ms using precomputed/cached answers. |
-| Offline | Play, drills, stats work offline (PWA + IndexedDB); sync when online. |
-| Privacy | Photos stored only if the user opts in; auto-delete after 30 days by default. BYO API keys encrypted (AES-256-GCM). |
+| Offline / local | Guest mode only: all data on device (IndexedDB), no account, no cloud. Play, drills and stats work fully offline (PWA). Export/import backup file. |
+| Privacy | No servers receive user data. Photos and hand data go only to the AI provider the user picks, with their own key. Photos kept locally only if the user opts in. |
 | Accessibility | WCAG AA; full keyboard play; screen-reader card names; four-color deck. |
 | Compliance | Play money only; no purchasable coins; mature age rating on iOS for simulated gambling (check the current App Store guidelines when submitting). |
 
@@ -97,10 +98,17 @@ A video poker coach that (1) computes perfect play for any pay table, (2) reads 
 - Photo pay table extraction: ≥90% fully correct with no edits.
 - D7 retention ≥ 35% among users who complete one drill.
 
-## 7. Open Questions (for you to decide)
+## 7. Decisions (made)
 
-1. **Monetization:** free + BYO key only? Subscription with app-provided AI credits? One-time purchase?
-2. **Accounts:** require login for web (needed for sync), or allow local-only guest mode first?
-3. **Game coverage at launch:** proposed MVP = Jacks or Better, Bonus Poker, Bonus Poker Deluxe, Double Bonus, Double Double Bonus, Deuces Wild (full-pay & NSUD). Add Joker Poker / Triple Double Bonus in v1.1?
-4. **Ultimate X / multiplier games:** important to you early? (Significantly more engine work.)
-5. **iOS approach:** Capacitor wrapper of the web app (fastest, recommended) vs native Expo/React Native rebuild.
+| Topic | Decision |
+|---|---|
+| AI keys | **Bring your own key only** (OpenAI and/or Anthropic). No app-provided key. |
+| Accounts | **Local guest mode only** for now: no login, no backend, data on device + manual backup. Accounts and sync come later; data schemas are written to be sync-ready. |
+| Monetization | Not a concern for now. |
+| Launch games | Jacks or Better, Bonus Poker, Bonus Poker Deluxe, Double Bonus, Double Double Bonus, Deuces Wild (full-pay & NSUD). |
+| Multiplier games | Later. Engine and data hooks are built in now (Tech Spec §3.9, `06-MULTIPLIER-GAMES.md`). |
+| iOS | Capacitor wrapper of the web app. |
+
+### Still open (later)
+- When to add accounts/cloud sync, and with which auth provider.
+- Order of the next game families (Joker Poker, Triple Double Bonus, Aces & Faces, …).

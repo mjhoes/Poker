@@ -16,7 +16,7 @@ Legend: ⭐ = core differentiator, 🟢 = MVP, 🟡 = v1.x, 🔵 = later / stret
 | Full-game analysis: return %, variance, hit frequency, and how often each hand occurs | 🟢⭐ | Runs over all 134,459 suit-distinct starting hands; cached per pay table. |
 | Support for 52-card games, Deuces Wild, Joker Poker (53 cards), wild-card variants | 🟢 Jacks/Bonus/DB/DDB/Deuces · 🟡 Joker, TDB, Aces & Faces, etc. | Game "families" are defined by data, not code. |
 | Multi-play (Triple/Five/Ten/Fifty Play) | 🟡 | Same optimal strategy as single-line; variance differs. |
-| Ultimate X, Super Times Pay, Dream Card, Multi-Strike | 🔵 | Strategy changes with multipliers, so these need their own analysis models. |
+| Ultimate X, Super Times Pay, Dream Card, Multi-Strike | 🔵 | Hooks built in from day one (value-vector solver, variant state); see `06-MULTIPLIER-GAMES.md`. |
 | Strategy-list generation from the math (derived ordered hold list, not copied from published charts) | 🟢⭐ | Base for heuristics and focused drills. |
 | Tiered strategies (Beginner → Perfect) with the **cost of each simplification** in % return | 🟡⭐ | "Simple strategy costs you 0.08%." |
 | Rule-of-thumb validation: test any heuristic against every hand and report its cost | 🟡⭐ | "Your rule 'always hold 4-flush over low pair' costs 0.02% on this pay table." |
@@ -98,14 +98,15 @@ Legend: ⭐ = core differentiator, 🟢 = MVP, 🟡 = v1.x, 🔵 = later / stret
 | Session stats: hands, coin-in, win/loss, error rate, EV lost, biggest hits | 🟢 | |
 | Bankroll simulator: risk of ruin, session distributions, time-to-royal | 🟡 | |
 | **Casino Companion mode**: log real play (buy-in, cash-out, jackpots, comps) | 🟡 | Tracking only, no real-money wagering. |
-| Cloud sync across web & iOS | 🟡 | |
+| Export / import backup file | 🟢 | Guest mode keeps everything on device. |
+| Accounts + cloud sync across web & iOS | 🔵 | Later; schemas are sync-ready. |
 
 ## 8. AI Provider Flexibility
 
 | Feature | Tier | Notes |
 |---|---|---|
 | Choose **OpenAI or Anthropic Claude** per task (vision, coaching, heuristics) | 🟢⭐ | One provider adapter interface. |
-| Bring-your-own API key *or* app-provided key | 🟢 | BYO keys encrypted at rest. |
+| Bring-your-own API key | 🟢 | Key stays on device (web storage opt-in, iOS Keychain); calls go straight to the provider. |
 | Model picker per provider, with defaults | 🟢 | |
 | Fallback: if one provider fails, retry with the other | 🟡 | |
 | Usage and cost meter | 🟡 | |
