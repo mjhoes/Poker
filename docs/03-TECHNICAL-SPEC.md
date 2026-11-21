@@ -1,5 +1,7 @@
 # Technical Spec
 
+> **Primary goal:** cruise casino rewards at the lowest cost per point. The Rewards Tracker module is specified in `07-CRUISE-REWARDS.md` (its data model and services extend §4–§5).
+>
 > **Decided:** bring-your-own AI key, local guest mode (no accounts), no monetization for now, MVP games = JoB / Bonus / BPD / DB / DDB / Deuces (full-pay + NSUD), multiplier games later (hooks in §3.9 + `06-MULTIPLIER-GAMES.md`), iOS via Capacitor.
 >
 > **Consequence: the MVP is local-first with no backend.** All data lives on the device, the engine runs on the device, and AI calls go straight from the device to OpenAI/Anthropic with the user's own key. Replit hosts a static site. A server (accounts + sync) is a later, optional phase, and the local service layer (§5) is written so a server can implement the same contracts later.
@@ -185,6 +187,10 @@ heuristicCards(id, paytableId, targetLabelPair, ruleAst, ruleText, mnemonic, exc
                examples, costPct, status[active|mastered|archived], createdAt)
 uploads(id, kind[paytable|hand], imageBlob?, extracted, confirmed, provider, model, createdAt, expiresAt)
 scoutingLog(id, paytableId, casino, location, denominationCents, seenAt, notes)
+
+-- Cruise rewards (full definitions in 07-CRUISE-REWARDS.md §6):
+rewardsPrograms · trips · casinoSessions · rewardsReceived
+-- sessions also gain: activeMs, handsPerHour, virtualCoinInCents, virtualPoints
 ```
 
 **Data safety (no cloud in MVP):**
@@ -208,6 +214,7 @@ heuristicService: generate(paytableId, labelPair) · validate(ruleAst)
 strategyService: list(paytableId, tier) · printablePdf(paytableId, tier)
 aiService:       settings get/set · testConnection(provider) · usage()
 backupService:   export() · import(file)
+rewardsService · tripService (rollups, planner) · casinoSessionService (timer, coin-in derivation) · rewardsLedgerService · riskService (result percentiles via simulation in the worker)
 ```
 
 ## 6. Mistake Intelligence Algorithms

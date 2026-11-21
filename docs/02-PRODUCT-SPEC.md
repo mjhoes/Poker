@@ -4,6 +4,8 @@
 
 A video poker coach that (1) computes perfect play for any pay table, (2) reads pay tables and hands from photos, (3) learns *your* specific mistake patterns, and (4) trains them away with focused drills and memorable heuristics. Web first, then iOS.
 
+**Owner's primary goal:** earn cruise casino rewards (free cruises), starting with Royal Caribbean Casino Royale (Club Royale, 1 point per $15 coin-in), at the **lowest cost per point** and within the **limited casino hours** of a cruise. Accuracy lowers cost per point; speed lowers hours needed. The Rewards Tracker (F9, `07-CRUISE-REWARDS.md`) measures both.
+
 ## 2. Target Users
 
 | Persona | Need |
@@ -11,6 +13,7 @@ A video poker coach that (1) computes perfect play for any pay table, (2) reads 
 | **Advantage Player** | Masters several games at full-pay tables; needs <0.05% error cost; scouts casinos. |
 | **Serious Recreational** | Plays 1–2 games on trips; wants to stop losing to strategy errors; likes stats. |
 | **Beginner** | Doesn't know strategy exists; needs simple heuristics and gentle progression. |
+| **Cruise Rewards Player** (primary, the owner) | Plays to earn casino loyalty points for free cruises; wants minimum cost per point, enough speed to hit a target in the casino hours available, and honest tracking of real coin-in, losses and rewards. |
 
 ## 3. Design Principles
 
@@ -53,6 +56,7 @@ A video poker coach that (1) computes perfect play for any pay table, (2) reads 
 - **F4.4 Close Calls**: hands where |EV₁ − EV₂| < threshold.
 - **F4.5 Strategy Ladder**: progressive line-by-line learning.
 - **F4.6 Pay Table Switcher**: same hand shown under 2–3 pay tables.
+- **F4.8 Casino-Pace Mode** (MVP): train toward a target hands/hr while holding accuracy; reports the speed vs error-cost trade-off in $/point and hours saved.
 - **F4.7 Spaced repetition**: FSRS scheduling of "pattern cards".
   - *AC (all):* every decision is persisted with full context (see Tech Spec `decisions` table).
 
@@ -75,6 +79,17 @@ A video poker coach that (1) computes perfect play for any pay table, (2) reads 
 - **F7.4** Session summary on close: hands, coin-in, net, error rate, EV lost, biggest hits, top 3 mistakes.
   - *AC:* Switching sessions restores the exact state (including a hand mid-hold) in < 200 ms.
 
+### F9 — Cruise Rewards Tracker (MVP, full detail in `07-CRUISE-REWARDS.md`)
+- **F9.1** Rewards programs as config; built-in default: Royal Caribbean Club Royale (Casino Royale), $15 coin-in = 1 point. All rules editable.
+- **F9.2** Trips (cruises) with target points and planned casino hours per day (sea vs port days).
+- **F9.3** Real casino session logging: live start/pause/stop timer, cash in/out, free play, points before/after; coin-in derived from points delta, hands × bet, or time estimate.
+- **F9.4** Totals per trip and lifetime: coin-in, net win/loss, points, active hours, **actual cost per point**, **theoretical cost per point** (from your measured effective return), net cost after rewards received, points/hour, hands/hour.
+- **F9.5** Active play time tracking for both practice (idle detection) and real play (timer).
+- **F9.6** Target planner: hours, hands and expected cost to reach a target; on-track status; what-if on game/denomination/speed; risk band.
+- **F9.7** Rewards ledger: offers received with user-assigned value → value per point and ROI.
+- **F9.8** Practice sessions show virtual coin-in, points and pace, to rehearse a trip.
+  - *AC:* see `07-CRUISE-REWARDS.md` §7.
+
 ### F8 — AI Provider Settings
 - **F8.1** Settings: user enters their own OpenAI and/or Anthropic API key (bring-your-own key only; no app-provided key). Provider per task (`vision`, `coach`, `heuristics`); model per provider. Web: "Remember key on this device" toggle (default off = session only). iOS: Keychain.
 - **F8.2** "Test connection" button for each provider.
@@ -94,6 +109,7 @@ A video poker coach that (1) computes perfect play for any pay table, (2) reads 
 
 ## 6. Success Metrics
 
+- Owner's theoretical cost per point falls trip over trip, and trip point targets are reached within planned casino hours.
 - Users' effective return gap (optimal − actual) shrinks by ≥50% after 2 weeks of Weakness Trainer.
 - Photo pay table extraction: ≥90% fully correct with no edits.
 - D7 retention ≥ 35% among users who complete one drill.
@@ -108,6 +124,7 @@ A video poker coach that (1) computes perfect play for any pay table, (2) reads 
 | Launch games | Jacks or Better, Bonus Poker, Bonus Poker Deluxe, Double Bonus, Double Double Bonus, Deuces Wild (full-pay & NSUD). |
 | Multiplier games | Later. Engine and data hooks are built in now (Tech Spec §3.9, `06-MULTIPLIER-GAMES.md`). |
 | iOS | Capacitor wrapper of the web app. |
+| Rewards | Cruise rewards tracking is MVP. Launch program: Royal Caribbean Club Royale (Casino Royale), $15 coin-in per point. |
 
 ### Still open (later)
 - When to add accounts/cloud sync, and with which auth provider.

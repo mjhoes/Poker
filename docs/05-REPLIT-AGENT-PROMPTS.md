@@ -29,6 +29,9 @@
 ### Prompt 7 — Stats & mistake intelligence
 > Implement Tech Spec §6: per-category stats, confusion matrix, weakness score, effective return ("as drilled" and "real-play weighted"). Build the Stats screen (F5.1–F5.3) with charts, a sortable confusion matrix and a weakness list with a "Train this" button.
 
+### Prompt 7b — Cruise Rewards Tracker
+> Read `docs/07-CRUISE-REWARDS.md` fully. Implement its data model (§6) in Dexie with Zod schemas, seeding a built-in editable program "Royal Caribbean Club Royale" (casino: Casino Royale, $15 coin-in per point). Build trips, the live casino session screen with a timestamp-based start/pause/stop timer (survives reload) and pause reasons, coin-in derivation (points delta / hands × bet / estimate), session close, trip dashboard, rewards ledger, and the target planner (§4) with what-if controls and a risk band from a worker simulation using the engine's game analysis. Theoretical cost per point = $15 × (1 − effective return) using the Stats module's measured error cost. Add active-time tracking with idle detection to practice sessions, virtual points on practice sessions, and Casino-Pace Mode (Product Spec F4.8). Tests must reproduce the §4 worked example exactly.
+
 ### Prompt 8 — AI provider layer (bring your own key)
 > Implement Tech Spec §7.1–7.2 in `apps/web/src/ai`: OpenAI and Anthropic providers using the official SDKs called directly from the browser with `dangerouslyAllowBrowser: true`, the user's own key (in memory by default; IndexedDB only if "Remember key on this device" is on, with the warning text from §7.1), per-task provider/model settings, optional fallback, Zod validation with one retry, and the `aiUsage` log. Build the AI Settings screen with key entry, a "Test connection" button per provider, and model pickers. Add the Content-Security-Policy from §7.1. With no key, AI features show an "add a key" prompt.
 

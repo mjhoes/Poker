@@ -25,6 +25,8 @@ Build the engine first and prove it correct; everything else (training, mistake 
 - AI settings (bring-your-own OpenAI/Anthropic keys, direct client calls) + provider abstraction.
 - 📸 Pay table photo extraction + confirm grid. 📸 Hand photo extraction.
 - AI hand explanations (grounded).
+- 🛳️ **Cruise Rewards Tracker** (`07-CRUISE-REWARDS.md`): programs (Club Royale default), trips, live casino session timer, coin-in/points/cost per point, rewards ledger, target planner.
+- Casino-Pace Mode + practice session pace/virtual points.
 
 ## Phase 3 — Adaptive Training & Heuristics (weeks 6–9)
 - Weakness Trainer, Close Calls, Pay Table Switcher, Strategy Ladder.
@@ -42,6 +44,6 @@ Build the engine first and prove it correct; everything else (training, mistake 
 - Optional accounts + cloud sync (Fastify + Replit Postgres + Drizzle, mirroring the local schemas).
 - Joker Poker, Triple Double Bonus, Aces & Faces, Super Aces, Bonus Deuces, Loose Deuces…
 - Multi-play UI + variance/bankroll simulator.
-- Casino Companion (real-session logging), scouting log with map.
+- Scouting log with map; more rewards programs; iOS Live Activity timer for casino sessions.
 - Ultimate X / Super Times Pay / Multi-Strike variants via the existing hooks (`06-MULTIPLIER-GAMES.md`).
 - WASM engine port for speed.

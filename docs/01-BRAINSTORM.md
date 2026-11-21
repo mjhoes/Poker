@@ -57,7 +57,7 @@ Legend: ⭐ = core differentiator, 🟢 = MVP, 🟡 = v1.x, 🔵 = later / stret
 | **Strategy Ladder** | 🟡 | Learn the strategy list top-down, one line at a time, then mixed review. |
 | **Penalty Card Trainer** | 🟡 | Hands where a penalty card flips the decision. |
 | **Pay Table Switcher Drill** | 🟡⭐ | Same hand, different pay tables: learn which plays change. |
-| **Speed / Casino-Pace Mode** | 🟡 | Timed, mimicking 800–1,200 hands/hr; tracks whether accuracy holds up under speed. |
+| ⭐ **Speed / Casino-Pace Mode** | 🟢⭐ | Train to a target hands/hr while holding accuracy; shows the $/point cost of speed errors vs hours saved. |
 | **Flashcards with spaced repetition** | 🟡 | Card = canonical hand pattern; scheduled by FSRS. |
 | **Daily Workout** | 🟡 | 10-minute mix of review, weaknesses and new material, with streaks. |
 | **Exam / Certification** | 🔵 | 500 hands, aim for ≥99.9% of optimal EV. Badge per game. |
@@ -97,7 +97,9 @@ Legend: ⭐ = core differentiator, 🟢 = MVP, 🟡 = v1.x, 🔵 = later / stret
 | **Sessions**: start, pause and resume; several sessions open; switch in one tap and keep state | 🟢⭐ | A tab bar or "machine carousel" across the top. |
 | Session stats: hands, coin-in, win/loss, error rate, EV lost, biggest hits | 🟢 | |
 | Bankroll simulator: risk of ruin, session distributions, time-to-royal | 🟡 | |
-| **Casino Companion mode**: log real play (buy-in, cash-out, jackpots, comps) | 🟡 | Tracking only, no real-money wagering. |
+| ⭐ **Cruise Rewards Tracker**: trips, real casino sessions, coin-in, loss, points, cost per point, rewards received | 🟢⭐ | Owner's primary goal. Launch: Royal Caribbean Club Royale, $15 = 1 pt. See `07-CRUISE-REWARDS.md`. |
+| ⭐ **Active play time & pace planner**: hours/hands needed to hit a points target | 🟢⭐ | Casino hours on a cruise are limited. |
+| Other cruise/land programs (Celebrity, Carnival, NCL, MSC…) | 🔵 | Config only. |
 | Export / import backup file | 🟢 | Guest mode keeps everything on device. |
 | Accounts + cloud sync across web & iOS | 🔵 | Later; schemas are sync-ready. |
 

@@ -2,6 +2,8 @@
 
 A video poker trainer that computes perfect play for **any** pay table, reads pay tables and hands from **photos**, learns **your** mistake patterns, and trains them away with focused drills and engine-checked heuristics. It supports several machine sessions with separate wallets and lets you choose **OpenAI or Anthropic Claude** for its AI features.
 
+**Primary goal:** earn cruise casino rewards (free cruises) at the lowest cost per point, within the casino hours available on a cruise.
+
 Web first (Replit), then iOS (Capacitor). **Local-first:** guest mode, all data on device, bring-your-own AI key, no backend in the MVP.
 
 ## Documents
@@ -13,6 +15,7 @@ Web first (Replit), then iOS (Capacitor). **Local-first:** guest mode, all data 
 | [04 — Roadmap](docs/04-ROADMAP.md) | Phased milestones |
 | [05 — Replit Agent Prompts](docs/05-REPLIT-AGENT-PROMPTS.md) | Step-by-step prompts to build it on Replit |
 | [06 — Multiplier Games](docs/06-MULTIPLIER-GAMES.md) | Notes and hooks for Ultimate X, Super Times Pay, Multi-Strike (later) |
+| [07 — Cruise Rewards Tracker](docs/07-CRUISE-REWARDS.md) | Coin-in, loss, points, cost per point, play time, target planner (Royal Caribbean Club Royale first) |
 
 ## Core principle
 **Math is deterministic; AI only reads images and writes words.** Every EV, strategy line and statistic comes from the engine. LLM output is schema-validated, checked against engine data, and confirmed by the user when it comes from a photo.
