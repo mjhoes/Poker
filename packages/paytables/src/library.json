@@ -1,0 +1,66 @@
+[
+  {
+    "slug": "jacks-or-better-9-6",
+    "name": "9/6 Jacks or Better",
+    "familyId": "jacks_or_better",
+    "maxCoinPerCoin": [800, 50, 25, 9, 6, 4, 3, 2, 1, 0],
+    "referenceReturnPct": 99.543904,
+    "sources": ["https://wizardofodds.com/games/video-poker/tables/jacks-or-better/", "https://www.vpfree2.com/video-poker/jacks-or-better/523"]
+  },
+  {
+    "slug": "jacks-or-better-8-5",
+    "name": "8/5 Jacks or Better",
+    "familyId": "jacks_or_better",
+    "maxCoinPerCoin": [800, 50, 25, 8, 5, 4, 3, 2, 1, 0],
+    "referenceReturnPct": 97.2984,
+    "sources": ["https://wizardofodds.com/games/video-poker/tables/jacks-or-better/", "https://www.vpfree2.com/video-poker/jacks-or-better/519"]
+  },
+  {
+    "slug": "bonus-poker-8-5",
+    "name": "8/5 Bonus Poker",
+    "familyId": "bonus_poker",
+    "maxCoinPerCoin": [800, 50, 80, 40, 25, 8, 5, 4, 3, 2, 1, 0],
+    "referenceReturnPct": 99.1660,
+    "sources": ["https://wizardofodds.com/games/video-poker/tables/bonus-poker/", "https://www.vpfree2.com/video-poker/bonus-poker/438"]
+  },
+  {
+    "slug": "bonus-poker-deluxe-9-6",
+    "name": "9/6 Bonus Poker Deluxe",
+    "familyId": "bonus_poker_deluxe",
+    "maxCoinPerCoin": [800, 50, 80, 9, 6, 4, 3, 1, 1, 0],
+    "referenceReturnPct": 99.6417,
+    "sources": ["https://wizardofodds.com/games/video-poker/tables/bonus-poker-deluxe/", "https://www.vpfree2.com/video-poker/pay-table/bonus-deluxe"]
+  },
+  {
+    "slug": "double-bonus-10-7",
+    "name": "10/7 Double Bonus",
+    "familyId": "double_bonus",
+    "maxCoinPerCoin": [800, 50, 160, 80, 50, 10, 7, 5, 3, 1, 1, 0],
+    "referenceReturnPct": 100.1725,
+    "sources": ["https://wizardofodds.com/games/video-poker/tables/double-bonus/", "https://www.vpfree2.com/video-poker/double-bonus/501"]
+  },
+  {
+    "slug": "double-double-bonus-9-6",
+    "name": "9/6 Double Double Bonus",
+    "familyId": "double_double_bonus",
+    "maxCoinPerCoin": [800, 50, 400, 160, 160, 80, 50, 9, 6, 4, 3, 1, 1, 0],
+    "referenceReturnPct": 98.9808,
+    "sources": ["https://wizardofodds.com/games/video-poker/tables/double-double-bonus/", "https://www.vpfree2.com/video-poker/double-double-bonus/510"]
+  },
+  {
+    "slug": "deuces-wild-full-pay",
+    "name": "Full-Pay Deuces Wild",
+    "familyId": "deuces_wild",
+    "maxCoinPerCoin": [800, 200, 25, 15, 9, 5, 3, 2, 2, 1, 0],
+    "referenceReturnPct": 100.7620,
+    "sources": ["https://wizardofodds.com/games/video-poker/tables/deuces-wild/", "https://www.vpfree2.com/video-poker/pay-table/deuces-wild"]
+  },
+  {
+    "slug": "deuces-wild-nsud",
+    "name": "Not So Ugly Ducks (NSUD)",
+    "familyId": "deuces_wild",
+    "maxCoinPerCoin": [800, 200, 25, 16, 10, 4, 4, 3, 2, 1, 0],
+    "referenceReturnPct": 99.7283,
+    "sources": ["https://wizardofodds.com/games/video-poker/tables/deuces-wild/", "https://www.vpfree2.com/video-poker/deuces-wild-4-4/449"]
+  }
+]

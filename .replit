@@ -7,7 +7,7 @@ expertMode = true
 
 [deployment]
 deploymentTarget = "static"
-build = ["pnpm", "--filter", "@perfect-draw/web", "build"]
+build = ["pnpm", "build"]
 publicDir = "apps/web/dist"
 
 [workflows]

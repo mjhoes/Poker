@@ -27,8 +27,7 @@ const analysis = analyzeHand(parseHand("Ah Kh Qh Jh Ts"), values, family.id);
   `rankDist`, and EV. The counts are exact; division uses JS floating-point.
 - All 32 holds are returned, ordered by descending EV, then ascending mask for
   exact ties. A tied mask ordering is not a unique strategy recommendation.
-- Category labels, full-game analysis, pay-table library, workers, and UI are
-  intentionally outside Prompt 2.
+- Category labels, workers, and UI are deferred to later prompts.
 
 ## Enumeration and lookup
 
@@ -41,9 +40,37 @@ to warm a family, or `clearEvaluatorCache` to release the cached tables.
 The naive solver enumerates all C(52,5) finals and buckets each by its intersection
 with the original deal. This is equivalent to enumerating the undealt 47-card
 deck separately for each of 32 holds, with exactly C(47,5-heldCount) outcomes per
-hold. Discards cannot reappear. It is not the fast subset solver from Prompt 3.
+hold. Discards cannot reappear.
 
-Initialization and enumeration are synchronous; run them in a Web Worker when
+## Fast solver and full-game analysis
+
+`analyzeHandFast(cards, vector, familyId)` returns exactly the same shape/counts as
+the naive oracle, but uses per-rank subset tables and a superset Möbius transform.
+Sizes 0–4 are stored (about 11–16 MiB per distinct rank family); size 5 uses the
+existing evaluator. Equivalent JoB/BPD and Bonus/DB rank tables share memory.
+They are payout-independent. `clearSubsetCache()` releases them when switching
+families; `subsetTableBytes(familyId)` reports working storage.
+
+```ts
+const full = analyzeGame(family.id, values, progress => {
+  // initializing / analyzing / complete, with completed and total counts
+}, { betCoins: 5 });
+```
+
+`getCanonicalHands()` contains exactly 134,459 suit-isomorphic classes with
+integer orbit weights summing to C(52,5). Full analysis weights each class by
+that multiplicity, not equally. `returnPct` is a percentage; `rankProbs` and
+`hitFreq` are fractions. `variance` is the **single-line return variance per
+unit bet**. Use `betCoins: 5` for total five-coin payout vectors. Variance is not
+multiplay variance and does not include covariance between lines.
+
+The `perHand` map uses numeric packed canonical IDs. Masks in this index refer
+to the sorted canonical cards. Use `canonicalizeHand` and `restoreHoldMask`
+when looking up a hand entered in some other suit/card order. Ties use ascending
+mask order. EVs and second EVs remain in the supplied total-coin payout units.
+Semantic best/second category labels will be added with the Prompt 4 labeler.
+
+Initialization and analysis are synchronous; run them in a Web Worker when
 the client integration is added. This package itself imports no worker APIs.
 
 Run `pnpm test` at the repository root, or `pnpm --filter @perfect-draw/engine test`.

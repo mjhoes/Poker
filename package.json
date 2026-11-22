@@ -1,12 +1,20 @@
 {
   "name": "perfect-draw",
   "private": true,
+  "type": "module",
   "version": "0.1.0",
   "packageManager": "pnpm@10.26.1",
   "scripts": {
     "dev": "pnpm --filter @perfect-draw/web dev",
-    "build": "pnpm --filter @perfect-draw/web build",
-    "test": "pnpm --filter @perfect-draw/engine test",
-    "typecheck": "pnpm --filter @perfect-draw/engine typecheck && pnpm --filter @perfect-draw/web typecheck"
+    "precompute": "tsx scripts/precompute.ts && tsx scripts/copy-precomputed.ts",
+    "precompute:check": "tsx scripts/precompute.ts --check",
+    "build": "pnpm precompute && pnpm --filter @perfect-draw/web build",
+    "test": "pnpm --filter @perfect-draw/engine test && pnpm --filter @perfect-draw/precomputed test",
+    "typecheck": "pnpm --filter @perfect-draw/engine typecheck && pnpm --filter @perfect-draw/precomputed typecheck && pnpm --filter @perfect-draw/web typecheck && tsc -p scripts/tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
   }
 }
