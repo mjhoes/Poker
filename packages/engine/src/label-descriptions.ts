@@ -5,6 +5,11 @@ const NAMES: Record<string, string> = {
   RF: "Royal Flush", SF: "Straight Flush", "4K": "Four of a kind", FH: "Full House",
   FL: "Flush", ST: "Straight", "3K": "Three of a kind", "2P": "Two pair",
   HP: "High pair (Jacks or better)", LP: "Low pair (Tens or lower)",
+  HP_A: "Pair of Aces", LP_234: "Pair of 2s, 3s, or 4s", LP_5T: "Pair of 5s through Tens",
+  "3K_A": "Three Aces", "3K_234": "Three 2s, 3s, or 4s", "3K_5K": "Three 5s through Kings",
+  "3K_A_w234": "Three Aces with a held 2, 3, or 4 kicker",
+  "3K_234_wA234": "Three 2s, 3s, or 4s with a held Ace, 2, 3, or 4 kicker",
+  "2P_A": "Two pair including Aces",
   "4D": "Four deuces", WRF: "Wild Royal Flush", "5K": "Five of a kind",
   DRAW5: "Discard all five cards", HIGH_CARD: "High-card hand",
   "4RF": "4 to a Royal Flush", "4FL": "4 to a Flush",
@@ -26,10 +31,17 @@ export function describeLabel(label: string, familyId: GameFamilyId): string {
   const base = wild?.[2] ?? head;
   const count = wild ? Number(wild[1]) : undefined;
   let name = NAMES[base], match: RegExpMatchArray | null;
+  if (base === "HP" && (familyId === "bonus_poker" || familyId === "double_bonus" || familyId === "double_double_bonus")) {
+    name = "Pair of Jacks, Queens, or Kings";
+  }
+  if (base === "LP" && familyId === "deuces_wild") name = "Pair of 3s through Tens";
   if (base === "ONLY" && count !== undefined && count > 0) {
     name = `${["", "One deuce", "Two deuces", "Three deuces", "Four deuces"][count]} only`;
-  } else if ((match = base.match(/^3RF_h([0-3])$/))) {
+  } else if ((match = base.match(/^3RF_h([0-3])(?:_w([1-9])_d([01]))?$/))) {
     name = "3 to a Royal Flush"; details.push(highCards(match[1]));
+    if (match[2]) details.push(`${match[2]} straight patterns`, match[3] === "1" ? "low-end draw" : "no low-end pattern");
+  } else if ((match = base.match(/^([34])RF_w([1-9])_d([01])$/))) {
+    name = `${match[1]} to a Royal Flush`; details.push(`${match[2]} straight patterns`, match[3] === "1" ? "low-end draw" : "no low-end pattern");
   } else if ((match = base.match(/^2RF_([2-9TJQKA]{1,2})$/))) {
     name = "2 to a Royal Flush"; details.push(ranks(match[1]));
   } else if ((match = base.match(/^4(SF|ST)_(open|inside)(?:_h([0-4]))?$/))) {
@@ -37,6 +49,14 @@ export function describeLabel(label: string, familyId: GameFamilyId): string {
     if (match[3] !== undefined) details.push(highCards(match[3]));
   } else if ((match = base.match(/^3SF_t([1-3])$/))) {
     name = "3 to a Straight Flush"; details.push(`type ${match[1]}`);
+  } else if ((match = base.match(/^([234])(SF|ST)_g([0-4])_h([0-4])_w([1-9]|10)(?:_d([01]))?$/))) {
+    name = `${match[1]} to a ${match[2] === "SF" ? "Straight Flush" : "Straight (no flush)"}`;
+    details.push(`${match[3]} gap${match[3] === "1" ? "" : "s"}`, highCards(match[4]), `${match[5]} straight pattern${match[5] === "1" ? "" : "s"}`);
+    if (match[6]) details.push(match[6] === "1" ? "low-end draw" : "no low-end pattern");
+  } else if ((match = base.match(/^([34])(SF|ST)_g([0-4])_w([1-9])_d([01])$/))) {
+    name = `${match[1]} to a ${match[2] === "SF" ? "Straight Flush" : "Straight (no flush)"}`;
+    details.push(`${match[3]} gap${match[3] === "1" ? "" : "s"}`, `${match[4]} straight patterns`,
+      match[5] === "1" ? "low-end draw" : "no low-end pattern");
   } else if ((match = base.match(/^3FL_h([0-3])$/))) {
     name = "3 to a Flush"; details.push(highCards(match[1]));
   } else if ((match = base.match(/^([AKQJT]{2,3})_unsuited$/))) {

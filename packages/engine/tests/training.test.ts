@@ -71,7 +71,9 @@ describe("engine-derived strategy tiers", () => {
 
   it("uses labels and exceptions rather than silently falling back to the optimal hold", () => {
     let beginnerErrors = 0;
-    for (const cards of seededHands(300)) {
+    // Include a rare, low-card type-3 SF draw as the Beginner chart improves;
+    // a small random sample alone may contain no remaining chart mistakes.
+    for (const cards of [...seededHands(300), parseHand("5c 7c 9c 2d 3h")]) {
       const hand = analyzeHandFast(cards, values);
       for (const list of lists) {
         const mask = selectStrategyHold(hand, list);
@@ -83,7 +85,7 @@ describe("engine-derived strategy tiers", () => {
     }
     expect(beginnerErrors).toBeGreaterThan(0);
     expect(() => selectStrategyHold(analyzeHandFast(parseHand("As Ks Qs Js Ts"), values.map(value => value * 2)), lists[2])).toThrow(/payout/);
-    expect(() => selectStrategyHold(analyzeHandFast(parseHand("As Ks Qs Js Ts"), values), { ...lists[0], lines: [] })).toThrow(/matching/);
+    expect(selectStrategyHold(analyzeHandFast(parseHand("As Ks Qs Js Ts"), values), { ...lists[0], lines: [] })).toBe(0);
   }, 60_000);
 
   it("resolves remaining Double Bonus conflicts using explicit suit relationships", () => {
@@ -119,10 +121,13 @@ describe("engine-derived strategy tiers", () => {
       });
       let total = 0;
       for (let h = 0; h < hands.length; h++) {
-        let selectedRank = Infinity, selectedEv = -Infinity;
+        let selectedRank = Infinity, selectedEv = -Infinity, selectedPreference = -Infinity;
         for (let mask = 0; mask < 32; mask++) {
           const index = h * 32 + mask, rank = ranks[data.labels[list.refinement][index]], ev = data.evs[index];
-          if (rank < selectedRank || rank === selectedRank && ev > selectedEv) { selectedRank = rank; selectedEv = ev; }
+          const preference = data.preferences[index];
+          if (rank < selectedRank || rank === selectedRank && preference > selectedPreference) {
+            selectedRank = rank; selectedEv = ev; selectedPreference = preference;
+          }
         }
         total += selectedEv * hands[h].weight / 2598960;
       }
@@ -140,11 +145,50 @@ describe("engine-derived strategy tiers", () => {
     // Poisoning the supplied perfect-play answer cannot alter a chart's hold.
     for (const cards of seededHands(50)) {
       const analysis = analyzeHandFast(cards, values);
-      for (const list of lists.filter(item => item.forMemorization)) {
-        expect(selectStrategyHold({ ...analysis, best: analysis.results.at(-1)! }, list)).toBe(selectStrategyHold(analysis, list));
+      for (const list of lists.filter(item => item.tier !== "Perfect")) {
+        const poisoned = { ...analysis, best: analysis.results.at(-1)!,
+          results: [...analysis.results].reverse().map(hold => ({ ...hold, ev: 10_000 - 100 * hold.mask })) };
+        expect(selectStrategyHold(poisoned, list)).toBe(selectStrategyHold(analysis, list));
       }
     }
   }, 60_000);
+
+  it("uses higher ranks for equal-pattern pairs and ignores unnamed chart rules", () => {
+    const analysis = analyzeHandFast(parseHand("2c 2d 5c 5d 9s"), values);
+    const fallback = { label: "DRAW5", rank: 1, exceptions: [], freq: 0, costIfIgnored: null };
+    const pair = { ...fallback, label: "LP", rank: 0 };
+    const chart = { ...lists[0], lines: [pair, fallback] };
+    expect(selectStrategyHold(analysis, chart)).toBe(12);
+    const misleading = { ...analysis, results: analysis.results.map(hold => ({ ...hold, ev: hold.mask === 3 ? 1e9 : 0 })) };
+    expect(selectStrategyHold(misleading, chart)).toBe(12);
+    expect(selectStrategyHold(analysis, { ...chart, lines: [{ ...pair, label: "OTHER_2" }, fallback] })).toBe(0);
+  });
+
+  it("uses a visible suit-pattern tie even when it is not the highest-EV hold", () => {
+    const cards = parseHand("Jc Jd 7c 8d 2h");
+    const analysis = analyzeHandFast(cards, values);
+    const line = { label: "1H_J", rank: 0, exceptions: [], freq: 0, costIfIgnored: null };
+    const chart = { ...lists[0], lines: [line, { ...line, label: "DRAW5", rank: 1 }] };
+    expect(analysis.results.find(hold => hold.mask === 1)!.ev)
+      .toBeGreaterThan(analysis.results.find(hold => hold.mask === 2)!.ev);
+    expect(selectStrategyHold(analysis, chart)).toBe(2);
+    for (let shift = 0; shift < 4; shift++) {
+      const renamed = cards.map(card => (card & ~3) + ((card & 3) + shift) % 4).reverse();
+      expect(selectStrategyHold(analyzeHandFast(renamed, values), chart)).toBe(8);
+    }
+  });
+
+  it("returns measured target misses for custom tables instead of throwing", () => {
+    const customKey = "high-stakes-custom-target-miss";
+    const custom = analyzeGame("jacks_or_better", values.map(value => value * 100), undefined, { betCoins: 5 });
+    registerTrainingAnalysis(customKey, custom);
+    try {
+      const chart = generateStrategyList(customKey, "Beginner");
+      expect(chart.costVsOptimal).toBeGreaterThan(0.15);
+      expect(chart.meetsTarget).toBe(false);
+      expect(chart.returnPct + chart.costVsOptimal).toBeCloseTo(custom.returnPct, 8);
+    } finally { clearTrainingCache(customKey); }
+  }, 120_000);
 });
 
 describe("JSON heuristic validation", () => {

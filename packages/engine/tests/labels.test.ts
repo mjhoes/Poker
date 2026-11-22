@@ -14,7 +14,7 @@ describe("deterministic hold vocabulary", () => {
     ["Ah 2c 3d 4s 9h", 15, "4ST_inside_h1"],
     ["Kh Qs Jc 4d 2h", 7, "KQJ_unsuited"],
     ["Qh Jh 3s 6c 8d", 3, "2RF_QJ|pen:straight"],
-    ["Ah 2c 5d 8s 9h", 1, "1H_A"],
+    ["Ah 2c 5d 8s 9h", 1, "1H_A|pen:flush,straight"],
     ["Ah Kh Qh 7h 2c", 7, "3RF_h3|pen:flush"],
     ["Ah Kh Qh Jc 2s", 7, "3RF_h3|pen:straight"],
     ["Ah 2c 5d 8s 9h", 0, "DRAW5"],
@@ -44,6 +44,9 @@ describe("deterministic hold vocabulary", () => {
     ["4K_A_w234", "double_double_bonus", "Four Aces with a 2, 3, or 4 kicker"],
     ["RF / SF", "jacks_or_better", "First available: Royal Flush; Straight Flush"],
     ["D0_RF", "deuces_wild", "Natural Royal Flush (no deuces held)"],
+    ["HP", "double_double_bonus", "Pair of Jacks, Queens, or Kings"],
+    ["HP_A", "bonus_poker", "Pair of Aces"],
+    ["D0_LP", "deuces_wild", "Pair of 3s through Tens (no deuces held)"],
   ] as const)("describes %s without exposing its label syntax", (label, family, expected) => {
     expect(describeLabel(label, family)).toBe(expected);
   });
@@ -62,7 +65,19 @@ describe("deterministic hold vocabulary", () => {
     ["2s 2d 2h 2c As", 31, "double_double_bonus", "4K_234_wA234"],
     ["2s 2d 2h 2c As", 15, "deuces_wild", "D4_4D"],
     ["2c As Kd 7h 9c", 1, "deuces_wild", "D1_ONLY"],
-    ["Ah Kh Qh 2c 3s", 7, "deuces_wild", "D0_3RF_h3"],
+    ["Ah Kh Qh 2c 3s", 7, "deuces_wild", "D0_3RF_w1_d0"],
+    ["Ac Ad 2c 2d 3c", 3, "double_double_bonus", "HP_A"],
+    ["Ac Ad 2c 2d 3c", 15, "double_double_bonus", "2P_A"],
+    ["Ac Ad Ah 2c 2d", 7, "double_double_bonus", "3K_A"],
+    ["Ac Ad Ah 2c 2d", 15, "double_double_bonus", "3K_A_w234"],
+    ["3c 3d 3h Ac 7d", 15, "double_double_bonus", "3K_234_wA234"],
+    ["4c 4d 4h Ac 7d", 7, "bonus_poker", "3K_234"],
+    ["5c 5d 5h Ac 7d", 7, "double_bonus", "3K_5K"],
+    ["Ac Ad 2c 2d 3c", 3, "bonus_poker_deluxe", "HP"],
+    ["Ac Ad Ah 2c 2d", 7, "jacks_or_better", "3K"],
+    ["6c 8c Kd Qh 2d", 3, "jacks_or_better", "2SF_g1_h0_w3"],
+    ["4c 5d 6h Kc As", 7, "jacks_or_better", "3ST_g0_h0_w3"],
+    ["3c 7c Jc Qd Ah", 7, "jacks_or_better", "3FL_h1"],
   ] as const)("labels variant-aware holds in %s", (hand, mask, family, expected) => {
     expect(labelHold(parseHand(hand), mask, family)).toBe(expected);
   });

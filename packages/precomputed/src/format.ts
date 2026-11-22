@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ENGINE_VERSION, getGameFamily, strategyExceptionCount, strategyMeetsTarget, unpackHand } from "@perfect-draw/engine";
+import { CHART_TIE_RULE, ENGINE_VERSION, getGameFamily, isChartLabel, strategyExceptionCount, strategyMeetsTarget, strategyTarget, unpackHand } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import type { GameAnalysis, GameHandResult } from "@perfect-draw/engine";
 import type { StrategyList } from "@perfect-draw/engine";
@@ -30,6 +30,7 @@ const handRow = z.tuple([
 
 const strategySchema: z.ZodType<StrategyList> = z.object({
   analysisKey: hash,
+  familyId,
   tier: z.enum(["Beginner", "Intermediate", "Expert", "Reference", "Perfect"]),
   refinement: z.union([z.literal(0), z.literal(1), z.literal(2)]),
   returnPct: finite.nonnegative(),
@@ -37,6 +38,13 @@ const strategySchema: z.ZodType<StrategyList> = z.object({
   optimalDecisionFreq: finite.min(0).max(1),
   meetsTarget: z.boolean(),
   forMemorization: z.boolean(),
+  tieBreakRule: z.literal(CHART_TIE_RULE),
+  sections: z.array(z.object({
+    deucesHeld: z.number().int().min(0).max(4),
+    title: z.string().min(1),
+    startRank: z.number().int().nonnegative(),
+    endRank: z.number().int().nonnegative(),
+  }).strict()).length(5).optional(),
   lines: z.array(z.object({
     label: z.string().min(1),
     alternatives: z.array(z.string().min(1)).min(2).optional(),
@@ -55,7 +63,7 @@ const strategySchema: z.ZodType<StrategyList> = z.object({
 }).strict();
 
 export const serializedAnalysisSchema = z.object({
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   engineVersion: z.literal(ENGINE_VERSION),
   paytableId: hash,
   key: hash,
@@ -78,7 +86,7 @@ export const manifestEntrySchema = z.object({
 }).strict();
 
 export const manifestSchema = z.object({
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   engineVersion: z.literal(ENGINE_VERSION),
   compression: z.literal("gzip"),
   entries: z.array(manifestEntrySchema).length(8),
@@ -93,7 +101,7 @@ export function serializeAnalysis(analysis: GameAnalysis, paytableId: string, st
   if (analysis.engineVersion !== ENGINE_VERSION) throw new Error("Cannot serialize an outdated engine analysis.");
   const { perHand, ...summary } = analysis;
   return {
-    schemaVersion: 3, ...summary, valueVector: [...summary.valueVector], rankProbs: [...summary.rankProbs],
+    schemaVersion: 4, ...summary, valueVector: [...summary.valueVector], rankProbs: [...summary.rankProbs],
     engineVersion: ENGINE_VERSION, paytableId, key: analysisKey(analysis.familyId, analysis.valueVector, analysis.betCoins),
     hands: [...perHand].map(([id, hand]) => [
       id, hand.weight, hand.bestMask, hand.secondMask, hand.ev, hand.secondEv, hand.bestLabel, hand.secondLabel,
@@ -119,18 +127,29 @@ export function deserializeAnalysis(input: unknown, expected?: ManifestEntry): P
     throw new Error("Precomputed analysis does not match the manifest.");
   }
   if (new Set(data.strategyLists.map(list => list.tier)).size !== 5 ||
-      data.strategyLists.some(list => list.analysisKey !== data.key ||
+      data.strategyLists.some(list => list.analysisKey !== data.key || list.familyId !== data.familyId ||
         Math.abs(data.returnPct - list.returnPct - list.costVsOptimal) > 1e-8 ||
         list.meetsTarget !== strategyMeetsTarget(list) ||
         list.forMemorization !== (list.tier !== "Reference" && list.tier !== "Perfect") ||
-        list.lines.some((line, index) => line.rank !== index ||
+        list.lines.some((line, index) => line.rank !== index || !isChartLabel(line.label) ||
+          line.exceptions.some(rule => !isChartLabel(rule.prefer)) ||
           line.alternatives && line.label !== line.alternatives.join(" / ")) ||
-        list.tier === "Beginner" && (list.lines.length > 15 || list.refinement !== 0 ||
+        list.tier === "Beginner" && (list.lines.length > strategyTarget(list.tier, list.familyId).maxLines || list.refinement !== 0 ||
           list.lines.some(line => line.label.includes("|") || line.exceptions.length)) ||
-        list.tier === "Expert" && (list.lines.length > 60 || strategyExceptionCount(list) > 15 ||
+        list.tier === "Expert" && (list.lines.length > strategyTarget(list.tier, list.familyId).maxLines || strategyExceptionCount(list) > 15 ||
           list.lines.some(line => line.exceptions.length || /[|](?:r|p|d):/.test(line.label))) ||
         list.tier === "Perfect" && (list.costVsOptimal !== 0 || list.lines.length !== 0))) {
     throw new Error("Precomputed strategy lists are inconsistent.");
+  }
+  for (const list of data.strategyLists) {
+    if (list.familyId === "deuces_wild" && list.tier !== "Perfect") {
+      if (!list.sections || list.sections.some((section, index) => section.deucesHeld !== 4 - index ||
+          section.startRank !== (index ? list.sections![index - 1].endRank : 0) ||
+          section.endRank < section.startRank ||
+          list.lines.slice(section.startRank, section.endRank).some(line =>
+            (line.alternatives ?? [line.label]).some(label => !label.startsWith(`D${section.deucesHeld}_`)))) ||
+          list.sections[4].endRank !== list.lines.length) throw new Error("Invalid Deuces chart sections.");
+    } else if (list.sections !== undefined) throw new Error("Unexpected chart sections.");
   }
   const perHand = new Map<number, GameHandResult>();
   let weightSum = 0;

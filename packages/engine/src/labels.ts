@@ -78,6 +78,12 @@ export function describeHoldUnchecked(cards: readonly Card[], mask: number, fami
   }
   const unique = bitsCount(bits) === n - wilds;
   const straightWindows = unique ? WINDOWS.filter(window => (bits & ~window) === 0) : [];
+  const wheelAce = ranks.includes(12) && ranks.some(rank => rank < 4);
+  const spanRanks = wheelAce ? ranks.map(rank => rank === 12 ? -1 : rank) : ranks;
+  const gaps = spanRanks.length ? Math.max(...spanRanks) - Math.min(...spanRanks) + 1 - spanRanks.length : 0;
+  const rankAware = familyId === "bonus_poker" || familyId === "double_bonus" || familyId === "double_double_bonus";
+  const lowEnd = Number(straightWindows.some(window => !!(window & 1)));
+  const wildDrawDetail = familyId === "deuces_wild" ? `_w${straightWindows.length}_d${lowEnd}` : "";
   let base: string;
   if (n === 0) base = "DRAW5";
   else if (n === 5) base = MADE[evaluateHand(cards, familyId)];
@@ -91,29 +97,45 @@ export function describeHoldUnchecked(cards: readonly Card[], mask: number, fami
   else if (!wilds && pairCount === 1) base = pairRank >= 9 ? "HP" : "LP";
   else if (suited && unique && bits && (bits & ~ROYAL_BITS) === 0 && n >= 2) {
     const royalRanks = [...ranks].reverse().map(rank => RANK_NAMES[rank]).join("");
-    base = n === 4 ? "4RF" : n === 3 ? `3RF_h${highCards}` : `2RF_${royalRanks}`;
+    base = n === 4 ? "4RF" : n === 3 ? familyId === "deuces_wild" ? "3RF" : `3RF_h${highCards}` : `2RF_${royalRanks}`;
+    if (n >= 3) base += wildDrawDetail;
   } else if (n === 4 && suited && straightWindows.length) {
-    base = `4SF_${straightWindows.length >= 2 ? "open" : "inside"}`;
+    base = familyId === "deuces_wild" ? `4SF_g${gaps}${wildDrawDetail}` :
+      `4SF_${straightWindows.length >= 2 ? "open" : "inside"}`;
   } else if (n === 4 && suited) base = "4FL";
-  else if (n === 4 && straightWindows.length) base = `4ST_${straightWindows.length >= 2 ? "open" : "inside"}_h${highCards}`;
+  else if (n === 4 && straightWindows.length) base = familyId === "deuces_wild" ?
+    `4ST_g${gaps}${wildDrawDetail}` : `4ST_${straightWindows.length >= 2 ? "open" : "inside"}_h${highCards}`;
   else if (n === 3 && suited && straightWindows.length) {
-    const wheelAce = ranks.includes(12) && ranks.some(rank => rank < 4);
-    const gaps = ranks.length ? ranks[ranks.length - 1] - ranks[0] + 1 - ranks.length : 0;
     const is234 = bits === 7;
     // Wizard of Odds' standard JoB convention explicitly puts ace-low and
     // 234 in type 2; type 3 is a two-gap draw without a high card.
     const type = wheelAce || is234 ? 2 : highCards >= gaps ? 1 : highCards + 1 >= gaps ? 2 : 3;
-    base = `3SF_t${type}`;
+    base = familyId === "deuces_wild" ? `3SF_g${gaps}${wildDrawDetail}` : `3SF_t${type}`;
   } else if (maxCount + wilds >= 3) base = "3K";
   else if (n === 3 && bits === ((1 << 9) | (1 << 10) | (1 << 11))) base = "KQJ_unsuited";
   else if (n === 3 && suited) base = `3FL_h${highCards}`;
+  else if (n === 3 && straightWindows.length) base = `3ST_g${gaps}_h${highCards}_w${straightWindows.length}${familyId === "deuces_wild" ? `_d${lowEnd}` : ""}`;
+  else if (n === 2 && suited && straightWindows.length) base = `2SF_g${gaps}_h${highCards}_w${straightWindows.length}${familyId === "deuces_wild" ? `_d${lowEnd}` : ""}`;
   else if (n === 2 && highCards === 2) {
     base = [...ranks].reverse().map(rank => RANK_NAMES[rank]).join("") + "_unsuited";
   } else if (n === 1 && highCards === 1) base = `1H_${RANK_NAMES[ranks[0]]}`;
   else base = `OTHER_${n}`;
 
+  if (rankAware) {
+    if (base === "HP" && pairRank === 12) base = "HP_A";
+    else if (base === "LP") base = pairRank <= 2 ? "LP_234" : "LP_5T";
+    else if (base === "2P" && counts[12] === 2) base = "2P_A";
+    else if (base === "3K") {
+      const trip = ranks.find(rank => counts[rank] === 3)!;
+      base = trip === 12 ? "3K_A" : trip <= 2 ? "3K_234" : "3K_5K";
+      if (familyId === "double_double_bonus" && n === 4 &&
+          (trip === 12 || trip <= 2) && ranks.some(rank => rank !== trip && (rank <= 2 || trip <= 2 && rank === 12))) {
+        base += trip === 12 ? "_w234" : "_wA234";
+      }
+    }
+  }
   if (familyId === "deuces_wild") base = `D${wilds}_${base}`;
-  const isDraw = /(?:RF|SF|FL|ST)/.test(base) && n >= 2 && n < 5;
+  const isDraw = unique && bits !== 0 && n > 0 && n < 5;
   const flushPenalty = isDraw && suited && naturalSuit >= 0
     ? discarded.filter(card => (card & 3) === naturalSuit && !(familyId === "deuces_wild" && card >> 2 === 0)).length : 0;
   const outBits = straightWindows.reduce((union, window) => union | window, 0) & ~bits;

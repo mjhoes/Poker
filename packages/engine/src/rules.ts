@@ -130,10 +130,12 @@ export function evaluateRule(rule: RuleAST, analysisKey: string): RuleEvaluation
       const canPrefer = canPreferLabel[code], canOver = canOverLabel[code];
       if (!canPrefer && !canOver) continue;
       const pattern = describeHoldUnchecked(hands[h].hand, mask, context.analysis.familyId);
-      if (canPrefer && matchesHoldSelector(pattern, rule.prefer) && data.evs[index] > preferredEv) {
+      if (canPrefer && matchesHoldSelector(pattern, rule.prefer) &&
+          (preferredMask < 0 || data.preferences[index] > data.preferences[h * 32 + preferredMask])) {
         preferredMask = mask; preferredEv = data.evs[index];
       }
-      if (canOver && matchesHoldSelector(pattern, rule.over) && data.evs[index] > overEv) {
+      if (canOver && matchesHoldSelector(pattern, rule.over) &&
+          (overMask < 0 || data.preferences[index] > data.preferences[h * 32 + overMask])) {
         overMask = mask; overEv = data.evs[index];
       }
     }

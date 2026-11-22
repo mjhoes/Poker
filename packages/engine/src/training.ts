@@ -4,9 +4,11 @@ import { describeHoldUnchecked, refinementKey } from "./labels";
 import { getSubsetTables } from "./subsets";
 import { ENGINE_VERSION } from "./game-analysis";
 import type { GameAnalysis } from "./game-analysis";
+import { canonicalMaskOrder, holdPreference } from "./hold-policy";
 
 export interface TrainingData {
   readonly evs: Float64Array;
+  readonly preferences: Float64Array;
   readonly labels: readonly [Uint16Array, Uint16Array, Uint16Array];
   readonly names: readonly [readonly string[], readonly string[], readonly string[]];
 }
@@ -25,6 +27,7 @@ export class TrainingContext {
     const tables = getSubsetTables(this.analysis.familyId);
     const scratch = new Int32Array(32 * tables.width);
     const evs = new Float64Array(hands.length * 32);
+    const preferences = new Float64Array(evs.length);
     const labels: [Uint16Array, Uint16Array, Uint16Array] = [new Uint16Array(evs.length), new Uint16Array(evs.length), new Uint16Array(evs.length)];
     const names: [string[], string[], string[]] = [[], [], []];
     const dictionaries = [new Map<string, number>(), new Map<string, number>(), new Map<string, number>()];
@@ -32,12 +35,14 @@ export class TrainingContext {
       const { hand, id } = hands[h];
       if (!this.analysis.perHand.has(id)) throw new Error("Training analysis has missing canonical hands.");
       fillFastCounts(hand, tables, scratch);
+      const maskOrder = canonicalMaskOrder(hand);
       for (let mask = 0; mask < 32; mask++) {
         const index = h * 32 + mask;
         let sum = 0;
         for (let rank = 0; rank < tables.width; rank++) sum += scratch[mask * tables.width + rank] * this.analysis.valueVector[rank];
         evs[index] = sum / DRAW_COUNTS[mask];
         const pattern = describeHoldUnchecked(hand, mask, this.analysis.familyId);
+        preferences[index] = holdPreference(pattern) * 32 + 31 - maskOrder[mask];
         for (let level = 0; level <= 2; level++) {
           if (level === 2 && !dictionaries[2].has(pattern.base)) {
             dictionaries[2].set(pattern.base, names[2].length);
@@ -55,7 +60,7 @@ export class TrainingContext {
         }
       }
     }
-    this.data = { evs, labels, names };
+    this.data = { evs, preferences, labels, names };
     return this.data;
   }
 }

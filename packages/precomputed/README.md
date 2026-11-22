@@ -26,18 +26,26 @@ The file's contents are gzip-compressed JSON; the loader uses
 include the SHA-256 analysis key (family + vector + normalization + engine
 version); the manifest separately records the compressed payload's SHA-256.
 
-The current payload schema is version 3 and the engine identity is 3.0.0.
+The current payload schema is version 4 and the engine identity is 4.0.0.
 Old payloads are rejected explicitly: regenerate them with `pnpm precompute`.
-Strategy validation checks all five tiers, matching analysis keys, the 15-line
-Beginner limit and the 60-line/15-exception Expert limits. Accurate
+Strategy validation checks all five tiers, matching analysis keys and families,
+the 15-line Beginner / 60-line Expert limits (20 / 75 for Deuces), and the
+15-exception Expert limit. Accurate
 `meetsTarget: false` payloads are valid; the loader never upgrades them to
 perfect play or rejects them merely for missing a target.
 
-The precompute script enforces the requested 9/6 JoB Beginner (≤0.15 pp) and
-Expert (≤0.03 pp) build gates and validates Reference on every library table.
+The precompute script enforces Expert ≤0.03 percentage points on every library
+table. Beginner must be within 0.15 pp for JoB, Bonus, and BPD, or 0.35 pp for
+Double Bonus, DDB, and Deuces. Reference is also validated on every library table.
 Library snapshots report actual gaps and target flags for all eight tables.
 Descriptions are tested for every label used by their charts and Reference
 policies. Only the first three tiers are for memorization.
+
+Unnamed `OTHER_n` patterns are diagnostic only and cannot be chart lines. If no
+named rule matches, the policy discards all five. Within a named rule, choices
+use visible-card penalty counts, held-card count, ranks, and suit patterns, never
+EV. Grouped alternatives remain explicitly ordered. Deuces charts include five
+ordered sections by deuces held: 4, 3, 2, 1, 0; `formatStrategyChart` prints them.
 
 The app fetches static files from its own origin; nothing is calculated by a
 server and no user data is sent anywhere. Loading or caching these indices in

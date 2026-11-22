@@ -27,7 +27,7 @@ beforeAll(() => {
   compressed = Uint8Array.from(gzipSync(JSON.stringify(serialized)));
   const sha256 = createHash("sha256").update(compressed).digest("hex");
   manifest = {
-    schemaVersion: 3, engineVersion: ENGINE_VERSION, compression: "gzip",
+    schemaVersion: 4, engineVersion: ENGINE_VERSION, compression: "gzip",
     entries: PAY_TABLE_LIBRARY.map(item => {
       const valueVector = standardVariant.valueVector(item, 5, {});
       const key = analysisKey(item.familyId, valueVector, 5);

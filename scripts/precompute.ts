@@ -13,10 +13,7 @@ const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest(
 
 function assertLibraryTargets(slug: string, lists: readonly StrategyList[]): void {
   for (const list of lists) {
-    // The requested bounded-chart accuracy targets are for 9/6 JoB. Other
-    // tables retain honest measured gaps/flags, not a substituted perfect chart.
-    const required = list.tier === "Reference" ||
-      slug === "jacks-or-better-9-6" && (list.tier === "Beginner" || list.tier === "Expert");
+    const required = list.tier === "Reference" || list.tier === "Beginner" || list.tier === "Expert";
     if (required && !list.meetsTarget) throw new Error(`${slug} ${list.tier} misses its library target: ${list.costVsOptimal} pp`);
   }
 }
@@ -37,7 +34,7 @@ async function verify(): Promise<void> {
 
 async function generate(): Promise<void> {
   await mkdir(output, { recursive: true });
-  const manifest: PrecomputedManifest = { schemaVersion: 3, engineVersion: ENGINE_VERSION, compression: "gzip", entries: [] };
+  const manifest: PrecomputedManifest = { schemaVersion: 4, engineVersion: ENGINE_VERSION, compression: "gzip", entries: [] };
   for (const table of PAY_TABLE_LIBRARY) {
     const started = performance.now();
     const vector = standardVariant.valueVector(table, 5, {});
