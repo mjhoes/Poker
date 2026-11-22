@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import type { Machine, Session, WalletLedger } from "@perfect-draw/shared";
@@ -8,6 +8,7 @@ import { useAppStore } from "./state/app-store";
 import { machineService } from "./services/machines";
 import { walletService } from "./services/wallets";
 import { sessionService } from "./services/sessions";
+import { playService } from "./services/play";
 import { backupService } from "./services/backup";
 import { engineClient } from "./worker/client";
 import type { AnalysisSummary } from "./worker/engine-api";
@@ -53,6 +54,10 @@ function App() {
   const [analysisError, setAnalysisError] = useState("");
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisRetry, setAnalysisRetry] = useState(0);
+  const [analysisRequested, setAnalysisRequested] = useState(false);
+  const [playError, setPlayError] = useState("");
+  const playRetryRef = useRef<(() => Promise<unknown>) | null>(null);
+  const busyRef = useRef(false);
   const [importing, setImporting] = useState(false);
 
   const openSessions = useMemo(() => Object.values(sessions).filter(session => session.status !== "closed").sort((a, b) => a.startedAt - b.startedAt), [sessions]);
@@ -87,18 +92,22 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openSessions]);
   useEffect(() => {
-    if (route !== "/session" || !shownSession || shownSession.status === "closed") {
-      setAnalysis(null); setAnalysisError(""); setAnalysisLoading(false);
-      return;
-    }
+    setAnalysis(null); setAnalysisError(""); setAnalysisLoading(false); setAnalysisRequested(false);
+  }, [route, shownSession?.id, shownSession?.machineSnapshot.paytableId]);
+  useEffect(() => {
+    setPlayError("");
+    playRetryRef.current = null;
+  }, [shownSession?.id]);
+  useEffect(() => {
+    if (route !== "/session" || !shownSession || shownSession.status === "closed" || !analysisRequested) return;
     let cancelled = false;
-    setAnalysis(null); setAnalysisError(""); setAnalysisLoading(true);
+    setAnalysisError(""); setAnalysisLoading(true);
     Promise.resolve().then(() => engineClient().loadAnalysis(shownSession.machineSnapshot.paytableId))
       .then(result => { if (!cancelled) setAnalysis(result); })
       .catch(reason => { if (!cancelled) setAnalysisError(String(reason instanceof Error ? reason.message : reason)); })
       .finally(() => { if (!cancelled) setAnalysisLoading(false); });
     return () => { cancelled = true; };
-  }, [route, shownSession?.id, shownSession?.machineSnapshot.paytableId, analysisRetry]);
+  }, [route, shownSession?.id, shownSession?.machineSnapshot.paytableId, analysisRequested, analysisRetry]);
   useEffect(() => {
     if (!selectedWallet) { setLedger([]); return; }
     let cancelled = false;
@@ -107,10 +116,19 @@ function App() {
   }, [selectedWallet, wallets, decisionCount]);
 
   async function run(action: () => Promise<unknown>, success?: string) {
-    setBusy(true); setError(""); setNotice("");
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setError(""); setNotice("");
     try { await action(); if (success) setNotice(success); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setBusy(false); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+  async function runPlay(action: () => Promise<unknown>, remember = true) {
+    if (busyRef.current) return;
+    if (remember) playRetryRef.current = action;
+    busyRef.current = true; setBusy(true); setPlayError("");
+    try { await action(); }
+    catch (reason) { setPlayError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { busyRef.current = false; setBusy(false); }
   }
   async function activateSession(id: string) {
     setSessionViewId(null);
@@ -161,7 +179,7 @@ function App() {
     await run(async () => {
       const created = await sessionService.start({ machineId: machine.id, walletId: machineWallet, mode: startMode });
       setSessionViewId(null); setModal(null); navigate("/session");
-      setNotice(`${modeName(created.mode)} session prepared. Deal, draw, feedback, and Rapid Drill arrive in Prompt 6.`);
+      setNotice(`${modeName(created.mode)} session ready. Your saved hand and every play action are recorded locally.`);
     });
   }
   async function createWallet(event: FormEvent) {
@@ -190,11 +208,27 @@ function App() {
   async function changeStatus(action: "pause" | "resume" | "close", session: Session) {
     if (action === "close" && !window.confirm("Close this session? Its saved hand and summary will remain in local history.")) return;
     const fn = action === "pause" ? sessionService.pause : action === "resume" ? sessionService.resume : sessionService.close;
-    await run(() => fn(session.id), action === "close" ? "Session closed and saved." : action === "pause" ? "Session paused." : "Session resumed.");
+    await run(async () => {
+      await fn(session.id);
+      if (action === "close") setSessionViewId(session.id);
+    }, action === "close" ? "Session closed and saved." : action === "pause" ? "Session paused." : "Session resumed.");
   }
   async function toggleHeld(session: Session, index: number) {
     const nextMask = session.state.heldMask ^ (1 << index);
-    await run(() => sessionService.applyAction(session.id, { type: "hold", heldMask: nextMask }), "Saved hold selection.");
+    await runPlay(() => sessionService.applyAction(session.id, { type: "hold", heldMask: nextMask, handId: session.state.handId }));
+  }
+  async function setHeldMask(session: Session, heldMask: number) {
+    await runPlay(() => sessionService.applyAction(session.id, { type: "hold", heldMask, handId: session.state.handId }));
+  }
+  async function dealHand(session: Session) {
+    await runPlay(() => playService.deal(session.id, session.state.handId));
+  }
+  async function submitHand(session: Session, confirmMistake = false) {
+    if (!session.state.handId) return;
+    await runPlay(() => playService.submit(session.id, session.state.handId!, confirmMistake));
+  }
+  async function setFeedback(session: Session, feedbackMode: Session["state"]["feedbackMode"]) {
+    await runPlay(() => sessionService.applyAction(session.id, { type: "feedback", feedbackMode }));
   }
   async function exportBackup() {
     await run(async () => {
@@ -259,11 +293,11 @@ function App() {
       {route === "/" && <HomePage machines={machines} wallets={wallets} sessions={sessions} machine={machine} selectedMachine={selectedMachine} busy={busy} onSelect={setSelectedMachine} onCreate={startNewMachine} onEdit={editMachine} onDelete={deleteMachine} onStart={beginStart} onWallets={() => navigate("/wallets")} />}
       {route === "/wallets" && <WalletsPage wallets={wallets} selectedWallet={selectedWallet} ledger={ledger} onSelect={setSelectedWallet} onCreate={() => { setError(""); setWalletName(""); setInitialAmount(""); setModal("wallet"); }} onRename={wallet => { setWalletTarget(wallet.id); setWalletName(wallet.name); setModal("rename"); }} onTopup={wallet => { setWalletTarget(wallet.id); setAmountInput(""); setModal("topup"); }} onTransfer={wallet => { setWalletTarget(wallet.id); setTransferTarget(wallets.find(item => item.id !== wallet.id)?.id ?? ""); setAmountInput(""); setModal("transfer"); }} busy={busy} />}
       {route === "/settings" && <SettingsPage storageStatus={storageStatus} decisionCount={decisionCount} backupDue={backupDue} lastBackupAt={lastBackupAt} busy={busy || importing} onExport={() => void exportBackup()} onImport={event => void importBackup(event)} />}
-      {route === "/session" && <SessionPage session={shownSession} sessions={historySessions} analysis={analysis} analysisError={analysisError} analysisLoading={analysisLoading} busy={busy} onPause={session => void changeStatus("pause", session)} onResume={session => void changeStatus("resume", session)} onClose={session => void changeStatus("close", session)} onSelect={id => {
+      {route === "/session" && <SessionPage session={shownSession} sessions={historySessions} analysis={analysis} analysisError={analysisError} analysisLoading={analysisLoading} busy={busy} playError={playError} onRetryPlay={() => { const retry = playRetryRef.current; if (retry) void runPlay(retry, false); }} onPause={session => void changeStatus("pause", session)} onResume={session => void changeStatus("resume", session)} onClose={session => void changeStatus("close", session)} onSelect={id => {
         const selected = sessions[id];
         if (selected?.status === "closed") { setSessionViewId(id); setNotice(""); setError(""); }
         else void activateSession(id);
-      }} onHold={toggleHeld} onRetry={() => setAnalysisRetry(value => value + 1)} />}
+      }} onHold={toggleHeld} onSetMask={setHeldMask} onDeal={dealHand} onSubmit={submitHand} onFeedback={setFeedback} onRetry={() => { setAnalysisRequested(true); setAnalysisRetry(value => value + 1); }} />}
       <div className="footer-note">PLAY MONEY ONLY · NO PURCHASES · LOCAL STORAGE IS NOT A GUARANTEED BACKUP</div>
     </main>
 
@@ -288,9 +322,9 @@ function App() {
         <div className="terms-box"><strong>Snapshot terms:</strong> {machine.name} · {PAY_TABLE_LIBRARY.find(table => table.id === machine.paytableId)?.name ?? "Saved paytable"} · {machine.coins} coins · {machine.lines} lines · {money(machine.denominationCents)} denomination. Editing the machine later will not change this session.</div>
         <div className="form-grid">
           <Field label="Practice wallet"><select aria-label="Practice wallet" required value={machineWallet} onChange={event => setMachineWallet(event.target.value)}>{wallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name} · {money(wallet.balanceCents)}</option>)}</select></Field>
-          <Field label="Session mode"><select aria-label="Session mode" value={startMode} onChange={event => setStartMode(event.target.value as "free_play" | "drill")}><option value="free_play">Free Play — workspace only for now</option><option value="drill">Rapid Drill — prepared for Prompt 6</option></select></Field>
+           <Field label="Session mode"><select aria-label="Session mode" value={startMode} onChange={event => setStartMode(event.target.value as "free_play" | "drill")}><option value="free_play">Free Play — wager and settle play-money hands</option><option value="drill">Rapid Drill — no wager, immediate feedback</option></select></Field>
         </div>
-        <div className="terms-box">This creates and saves a session only. Deal/draw controls, feedback, and Rapid Drill gameplay are not part of this phase. No play is simulated here.</div>
+         <div className="terms-box">{startMode === "drill" ? "Rapid Drill practices one line at the configured coin count. It never bets or pays from your wallet, and feedback is immediate." : "Free Play uses the configured coins, lines, and denomination. Bets, outcomes, and payouts are persisted by the local play engine. No real-money features."}</div>
         <div className="form-actions"><button className="btn secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="btn gold" type="submit" disabled={busy}>{busy ? "Preparing…" : "Prepare session"}</button></div>
       </form>}
       {modal === "wallet" && <form onSubmit={event => void createWallet(event)}><div className="form-grid">

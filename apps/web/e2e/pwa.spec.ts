@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readPlayState } from "./play-helpers";
 
 test("production app, saved sessions and cached worker analysis reopen fully offline", async ({ page, context }) => {
   const errors: string[] = [];
@@ -20,17 +21,34 @@ test("production app, saved sessions and cached worker analysis reopen fully off
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Prepare session", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Prepare session", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByText("Optional table analysis", { exact: true }).click();
   await expect(page.getByText("99.544%", { exact: true })).toBeVisible({ timeout: 45_000 });
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Offline Jacks", exact: true })).toBeVisible();
+  await page.getByText("Optional table analysis", { exact: true }).click();
   await expect(page.getByText("99.544%", { exact: true })).toBeVisible({ timeout: 45_000 });
+  await page.getByRole("button", { name: "Silent report", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Silent report", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Deal hand", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Draw", exact: true })).toBeEnabled();
+  const pending = (await readPlayState(page)).sessions[0];
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Draw", exact: true })).toBeEnabled();
+  expect((await readPlayState(page)).sessions[0].state).toEqual(pending.state);
+  await page.getByRole("button", { name: "Draw", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
+  const played = await readPlayState(page);
+  expect(played.decisions).toHaveLength(1);
+  const walletCents = 5000 - 125 + Math.round(played.sessions[0].state.outcome!.totalPayoutCoins * 25);
+  expect(played.wallets[0].balanceCents).toBe(walletCents);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   // A click starts an async IndexedDB transaction; wait for its saved-state acknowledgment.
   await expect(page.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Select wallet Offline practice" })).toContainText("$50.00");
+  await expect(page.getByRole("button", { name: "Select wallet Offline practice" })).toContainText(new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(walletCents / 100));
   expect(errors).toEqual([]);
 });

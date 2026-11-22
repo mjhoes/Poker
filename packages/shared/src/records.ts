@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { v7 } from "uuid";
+import { drawDecksSchema, feedbackModeSchema, gradeSchema, handAnalysisSchema, outcomeSchema } from "./play-state";
 
 export const newId = () => v7();
 export const uuid = z.string().uuid().refine(id => id[14] === "7", "Expected a UUIDv7");
@@ -65,14 +66,31 @@ export const sessionStateSchema = z.object({
   hand: handSchema.default([]), heldMask: z.number().int().min(0).max(31).default(0),
   phase: z.enum(["ready", "holding", "complete"]).default("ready"),
   credits: z.number().finite().nonnegative().default(0), variantState: variantStateSchema,
+  handId: uuid.nullable().default(null), handIndex: z.number().int().nonnegative().default(0),
+  dealtAt: timestamp.nullable().default(null), decisionStartedAt: timestamp.nullable().default(null),
+  decisionElapsedMs: timestamp.default(0), analysis: handAnalysisSchema.nullable().default(null),
+  drawDecks: drawDecksSchema.default([]), feedbackMode: feedbackModeSchema.default("warn_before_draw"),
+  warning: gradeSchema.nullable().default(null), feedback: gradeSchema.nullable().default(null),
+  outcome: outcomeSchema.nullable().default(null), attempts: z.number().int().nonnegative().default(0),
+  priorOutcome: z.string().nullable().default(null),
 }).superRefine((state, ctx) => {
   if (state.hand.length === 0 && (state.heldMask !== 0 || state.phase !== "ready")) ctx.addIssue({ code: "custom", message: "A non-ready state needs a hand" });
+  if (state.handId) {
+    if (!state.analysis || state.dealtAt === null || state.handIndex < 1 || !state.drawDecks.length) {
+      ctx.addIssue({ code: "custom", message: "A dealt round requires its analysis, draw decks, timestamp and index" });
+    } else {
+      if (state.drawDecks.some(deck => deck.some(card => state.analysis!.hand.includes(card)))) ctx.addIssue({ code: "custom", message: "Draw decks must exclude all originally dealt cards" });
+      if (state.phase === "holding" && state.hand.some((card, index) => card !== state.analysis!.hand[index])) ctx.addIssue({ code: "custom", message: "Holding cards must match the original deal" });
+    }
+    if (state.phase === "complete" && !state.feedback) ctx.addIssue({ code: "custom", message: "A completed round requires saved feedback" });
+  }
 });
 export const sessionSummarySchema = z.object({
   hands: z.number().int().nonnegative().default(0), coinInCents: cents.nonnegative().default(0),
   netCents: cents.default(0), errors: z.number().int().nonnegative().default(0),
   evLost: z.number().finite().nonnegative().default(0), biggestWinCents: cents.nonnegative().default(0),
   topMistakes: z.array(z.object({ label: z.string(), count: z.number().int().nonnegative() })).default([]),
+  mistakeCounts: z.record(z.number().int().nonnegative()).default({}),
 }).default({});
 export const sessionSchema = z.object({
   ...entity, machineId: uuid, walletId: uuid,
@@ -94,6 +112,9 @@ export const decisionSchema = z.object({
   chosenLabel: z.string(), bestLabel: z.string(), gapToSecond: z.number().finite().nonnegative(),
   decisionMs: z.number().finite().nonnegative(), handIndexInSession: z.number().int().nonnegative(),
   msSinceSessionStart: z.number().finite().nonnegative(), priorOutcome: z.string().nullable(), createdAt: timestamp,
+  handId: uuid.nullable().default(null), isCorrection: z.boolean().default(false), attemptIndex: z.number().int().nonnegative().default(0),
+  coins: z.number().int().min(1).max(5).default(5), lines: z.number().int().min(1).max(10).default(1),
+  denominationCents: positiveCents.default(25),
 });
 export type Machine = z.infer<typeof machineSchema>;
 export type MachineDraft = z.infer<typeof machineDraftSchema>;

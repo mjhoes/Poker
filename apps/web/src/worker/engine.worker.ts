@@ -1,6 +1,6 @@
 import { expose } from "comlink";
 import {
-  analyzeGame, analyzeHandFast, clearSubsetCache, clearTrainingCache, ENGINE_VERSION, generateHand, generateStrategyList, registerTrainingAnalysis, standardVariant, STRATEGY_TIERS,
+  analyzeGame, analyzeHandFast, clearSubsetCache, clearTrainingCache, dealRound, ENGINE_VERSION, generateHand, generateStrategyList, registerTrainingAnalysis, resolveRound, standardVariant, STRATEGY_TIERS,
 } from "@perfect-draw/engine";
 import { analysisKey, getLibraryPayTable, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { deserializeAnalysis, loadPrecomputedAnalysis, loadPrecomputedManifest, serializeAnalysis } from "@perfect-draw/precomputed";
@@ -38,6 +38,15 @@ async function cache(analysis: PrecomputedGameAnalysis, paytableId: string) {
   return value;
 }
 const api: EngineAPI = {
+  async prepareRound(paytableId, coins, lines) {
+    const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+    const dealt = dealRound(lines, random);
+    return { analysis: await api.analyzeHand(dealt.hand, paytableId, coins), drawDecks: dealt.drawDecks };
+  },
+  async resolveRound(hand, mask, decks, paytableId, coins) {
+    const table = await db.records("paytables").get(paytableId) ?? getLibraryPayTable(paytableId);
+    return resolveRound(hand, mask, decks, table.familyId, standardVariant.valueVector(table, coins, {}));
+  },
   async analyzeHand(cards, paytableId, coins) {
     const table = await db.records("paytables").get(paytableId) ?? getLibraryPayTable(paytableId);
     if ("deletedAt" in table && table.deletedAt != null) throw new Error("This pay table was deleted.");

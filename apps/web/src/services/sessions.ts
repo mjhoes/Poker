@@ -36,8 +36,14 @@ export const sessionService: SessionService = {
     return db.transaction("rw", db.records("sessions"), async () => {
       const current = await requireRecord("sessions", id);
       if (current.status !== "active") throw new Error("Resume the session before changing it.");
+      if (action.type === "feedback") {
+        const next = sessionSchema.parse({ ...current, updatedAt: Date.now(), state: { ...current.state, feedbackMode: action.feedbackMode, warning: null } });
+        await db.records("sessions").put(next); return next;
+      }
       if (action.type === "hold" && current.state.phase !== "holding") throw new Error("There is no hand to hold.");
-      const state = action.type === "hold" ? { ...current.state, heldMask: action.heldMask }
+      if (action.type === "hold" && action.handId !== undefined && action.handId !== current.state.handId) throw new Error("This hand is no longer current.");
+      if (action.type === "saveHand" && current.state.handId) throw new Error("Use the game loop to change a dealt hand.");
+      const state = action.type === "hold" ? { ...current.state, heldMask: action.heldMask, warning: action.heldMask === current.state.heldMask ? current.state.warning : null }
         : { ...current.state, hand: action.hand, heldMask: action.heldMask, phase: "holding" };
       const next = sessionSchema.parse({ ...current, state, updatedAt: Date.now() });
       await db.records("sessions").put(next); return next;
@@ -53,7 +59,17 @@ async function changeStatus(id: string, status: Session["status"]) {
   return db.transaction("rw", [db.records("sessions"), db.records("profile")], async () => {
     const session = await requireRecord("sessions", id);
     if (session.status === "closed") throw new Error("This session is already closed.");
-    const next = sessionSchema.parse({ ...session, status, endedAt: status === "closed" ? Date.now() : null, updatedAt: Date.now() });
+    if (status === session.status) return session;
+    if (status === "closed" && session.mode === "free_play" && session.state.handId && session.state.phase === "holding") throw new Error("Finish the paid hand before closing this session.");
+    const now = Date.now();
+    const state = { ...session.state };
+    if (state.phase === "holding") {
+      if (status === "paused" && state.decisionStartedAt !== null) {
+        state.decisionElapsedMs += Math.max(0, now - state.decisionStartedAt);
+        state.decisionStartedAt = null;
+      } else if (status === "active") state.decisionStartedAt = now;
+    }
+    const next = sessionSchema.parse({ ...session, state, status, endedAt: status === "closed" ? now : null, updatedAt: now });
     await db.records("sessions").put(next);
     if (status === "closed") {
       const profile = await requireRecord("profile", "local");

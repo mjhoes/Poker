@@ -1,13 +1,15 @@
 import { z } from "zod";
 import * as r from "./records";
 import * as f from "./future-records";
+import { feedbackModeSchema } from "./play-state";
 
 export const walletCreateSchema = z.object({ name: r.nameSchema, initialCents: r.cents.nonnegative().default(0) });
 export const walletTopupSchema = z.object({ walletId: r.uuid, amountCents: r.positiveCents });
 export const walletTransferSchema = z.object({ fromId: r.uuid, toId: r.uuid, amountCents: r.positiveCents }).refine(x => x.fromId !== x.toId, "Choose two different wallets");
 export const sessionStartSchema = z.object({ machineId: r.uuid, walletId: r.uuid.optional(), mode: r.sessionSchema.shape.mode });
 export const sessionActionSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("hold"), heldMask: z.number().int().min(0).max(31) }),
+  z.object({ type: z.literal("hold"), heldMask: z.number().int().min(0).max(31), handId: r.uuid.nullable().optional() }),
+  z.object({ type: z.literal("feedback"), feedbackMode: feedbackModeSchema }),
   // Full state is validated; credits, bankroll, payouts and summary are never client-writable.
   z.object({ type: z.literal("saveHand"), hand: r.handSchema.refine(x => x.length === 5), heldMask: z.number().int().min(0).max(31).default(0) }),
 ]);
@@ -22,6 +24,18 @@ export const recordSchemas = {
 export type TableName = keyof typeof recordSchemas;
 export type Records = { [K in TableName]: z.infer<(typeof recordSchemas)[K]> };
 export type SessionAction = z.input<typeof sessionActionSchema>;
+export const decisionQuerySchema = z.object({
+  sessionId: r.uuid.optional(), paytableId: r.hash.optional(), since: r.timestamp.optional(),
+  includeCorrections: z.boolean().default(false),
+});
+export interface DecisionService {
+  record(input: z.input<typeof r.decisionSchema>): Promise<Records["decisions"]>;
+  query(input?: z.input<typeof decisionQuerySchema>): Promise<Records["decisions"][]>;
+}
+export interface PlayService {
+  deal(id: string, expectedHandId: string | null): Promise<r.Session>;
+  submit(id: string, handId: string, confirmMistake?: boolean): Promise<r.Session>;
+}
 export interface MachineService {
   list(): Promise<r.Machine[]>;
   save(input: z.input<typeof r.machineDraftSchema>, id?: string): Promise<r.Machine>;

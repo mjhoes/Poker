@@ -12,3 +12,13 @@ paths that are absent in Nix. The system wrapper supplies its library environmen
 **How to apply:** Prefer the configured system browser rather than repeatedly
 downloading browser binaries or changing the application's runtime. Browser caches
 and test results are disposable generated files and must stay out of Git and deployment.
+
+Playwright runs test-file imports through Node's ESM loader, not Vite's bundler.
+
+**Why:** A workspace barrel that imports bare JSON can work in the app and Vitest
+yet fail before Playwright discovers tests because Node requires JSON import
+attributes.
+
+**How to apply:** Keep browser-test workspace imports type-only or JSON-free.
+Check library metadata in Vitest or in the browser instead of importing its raw
+JSON-dependent barrel into the Playwright runner.

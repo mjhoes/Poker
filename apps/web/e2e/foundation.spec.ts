@@ -29,8 +29,9 @@ test("machines, wallets, sessions, worker and backup survive reload", async ({ p
   await createWallet(page);
   await createMachine(page);
   await prepareSession(page);
+  await page.getByText("Optional table analysis", { exact: true }).click();
   await expect(page.getByText("99.544%", { exact: true })).toBeVisible({ timeout: 45_000 });
-  // Seed a legitimate pending hand through the session service. The deal/draw UI belongs to Prompt 6.
+  // Retain the legacy saved-hand persistence regression from the foundation phase.
   const ids = await page.evaluate(async () => {
     const { useAppStore } = await import("/src/state/app-store.ts" as string) as typeof import("../src/state/app-store");
     const { sessionService } = await import("/src/services/sessions.ts" as string) as typeof import("../src/services/sessions");
@@ -161,7 +162,8 @@ test("unavailable workers do not prevent wallet management", async ({ page }) =>
   await createWallet(page);
   await createMachine(page);
   await prepareSession(page);
-  await expect(page.getByRole("alert").filter({ hasText: "Analysis could not be loaded" })).toBeVisible();
+  await page.getByText("Optional table analysis", { exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Table analysis unavailable" })).toBeVisible();
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
   await expect(page.getByRole("button", { name: "Select wallet Cruise practice", exact: true })).toContainText("$100.00");
 });

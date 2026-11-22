@@ -61,8 +61,8 @@ hold masks must be remapped to the user's original card order before use.
 - Wallet ledger writes and shared-session credit updates are one transaction.
   Ledger entries are append-only. Transfers have two matching entries.
 - Session terms are snapshots: machine edits never change an open session.
-  Opening/switching/pausing sessions does not spend credits. `saveHand` is a
-  state-persistence primitive for the Prompt 6 game loop, not a payout action.
+  Opening/switching/pausing sessions does not spend credits. Legacy `saveHand`
+  previews are unfinanced; that action cannot overwrite a real dealt round.
 - JSON backups exclude API keys and regenerable analysis caches. Restore is
   explicitly replace-only, validates records/references/ledger balances before
   writing, and atomically replaces the dataset. The UI requires confirmation
@@ -73,5 +73,27 @@ hold masks must be remapped to the user's original card order before use.
   Browser tests use system Chromium when available (provided by Nix here).
 - Cached library analyses work offline after first use. Unopened tables need
   one online load. Persistence permission is best-effort, not a backup.
-- Free Play deal/draw, feedback, decision logging and drills remain Prompt 6.
-  AI settings/key entry remain Prompt 8; cruise workflows remain Prompt 7b.
+- AI settings/key entry remain Prompt 8; cruise workflows remain Prompt 7b.
+
+## Free Play and Rapid Drill (Prompt 6)
+
+- Pure dealing, hold grading and payout resolution are exported from
+  `packages/engine`. Worker preparation caches all 32 hold EVs for the actual
+  configured coins, so submitting a drill does not wait for another analysis.
+- Free Play supports 1–5 coins and 1/3/5/10 independent draw lines. Its saved
+  hand, draw orders, holds, feedback mode, warnings and settlements survive
+  reloads and backups. Rapid Drill has no wallet wager or payout.
+- The play service atomically commits bets, payouts, decisions and session
+  state through Dexie. Round identity guards repeat/stale actions. A paid
+  unfinished hand may be paused but must be completed before session close.
+- All decision-table fields are recorded, including original-order masks,
+  engine EVs/categories, configured-bet analysis key, timing and prior outcome.
+  Extra round/attempt metadata identifies corrections. Decision queries default
+  to primary attempts; explicitly request corrections when reviewing them.
+- Feedback modes are warn-before-draw, show-after-draw and silent-until-report.
+  Closed reports show hands, coin-in, net, errors/rate, EV loss, largest hit and
+  the top three mistakes. Cards and controls support 1–5 and Space/Enter without
+  stealing form input or Ctrl+1–9 session switching.
+- `pnpm test:e2e` includes ten-hand multi-line play, keyboard use, corrections,
+  full decision audits and mobile drill feedback timing. `pnpm test:offline`
+  also reloads a pending production hand and completes it while offline.

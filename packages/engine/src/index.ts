@@ -1,5 +1,7 @@
 export * from "./types";
 export * from "./cards";
+export { dealRound, resolveRound, gradeDecision } from "./play";
+export type { DecisionGrade, DrawLine, RoundOutcome } from "./play";
 export { GAME_FAMILIES, getGameFamily } from "./families";
 export { choose } from "./combinations";
 export { evaluateHand, initializeEvaluator, clearEvaluatorCache } from "./evaluator";
