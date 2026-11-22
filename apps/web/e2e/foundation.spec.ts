@@ -148,6 +148,7 @@ test("wallet transfers and machine editing/deletion are wired to persistent serv
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Dollar Jacks");
   await page.getByRole("textbox", { name: "Denomination in dollars", exact: true }).fill("1.00");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Dollar Jacks", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
