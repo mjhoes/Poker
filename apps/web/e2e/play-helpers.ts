@@ -12,9 +12,9 @@ export async function preparePlaySession(page: Page, mode: "free_play" | "drill"
 export async function createPlayTable(page: Page, options: { mode?: "free_play" | "drill"; lines?: number; amount?: string } = {}) {
   await page.goto("/");
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
-  await page.getByRole("button", { name: "Create play-money wallet", exact: true }).click();
+  await page.getByRole("button", { name: "Set up a wallet", exact: true }).click();
   await page.getByRole("textbox", { name: "Wallet name", exact: true }).fill("Play test wallet");
-  await page.getByRole("textbox", { name: "Opening play-money amount", exact: true }).fill(options.amount ?? "100");
+  await page.getByRole("textbox", { name: "Starting balance", exact: true }).fill(options.amount ?? "100");
   await page.getByRole("button", { name: "Create wallet", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("link", { name: "Machines", exact: true }).click();

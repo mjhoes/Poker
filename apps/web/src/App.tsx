@@ -3,7 +3,10 @@ import type { FormEvent } from "react";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import type { Machine, Session, WalletLedger } from "@perfect-draw/shared";
 import { machineDraftSchema } from "@perfect-draw/shared";
-import { Field, Modal, creditLabel, familyName, modeName, money } from "./components/UiHelpers";
+import { Field, Modal, creditLabel, modeName, money, plural } from "./components/UiHelpers";
+import { ToastViewport, clearToasts, toast } from "./components/Toasts";
+import { useConfirm } from "./components/ConfirmDialog";
+import { FeltPicker, feltFor } from "./components/Felt";
 import { useAppStore } from "./state/app-store";
 import { machineService } from "./services/machines";
 import { walletService } from "./services/wallets";
@@ -37,7 +40,6 @@ function App() {
   const [modal, setModal] = useState<ModalKind>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [selectedMachine, setSelectedMachine] = useState(0);
   const [sessionViewId, setSessionViewId] = useState<string | null>(null);
   const [machineForm, setMachineForm] = useState<MachineForm>(blankMachine());
@@ -60,6 +62,9 @@ function App() {
   const playRetryRef = useRef<(() => Promise<unknown>) | null>(null);
   const busyRef = useRef(false);
   const [importing, setImporting] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const modalRef = useRef<ModalKind>(null);
+  modalRef.current = modal;
 
   const openSessions = useMemo(() => Object.values(sessions).filter(session => session.status !== "closed").sort((a, b) => a.startedAt - b.startedAt), [sessions]);
   const historySessions = useMemo(() => Object.values(sessions).filter(session => session.status === "closed").sort((a, b) => b.startedAt - a.startedAt), [sessions]);
@@ -72,6 +77,7 @@ function App() {
     const syncRoute = () => {
       const next = (window.location.hash.slice(1) || "/") as Route;
       setRoute(["/", "/wallets", "/settings", "/session", "/stats"].includes(next) ? next : "/");
+      clearToasts("error");
     };
     window.addEventListener("hashchange", syncRoute);
     return () => window.removeEventListener("hashchange", syncRoute);
@@ -112,15 +118,19 @@ function App() {
   useEffect(() => {
     if (!selectedWallet) { setLedger([]); return; }
     let cancelled = false;
-    walletService.ledger(selectedWallet).then(rows => { if (!cancelled) setLedger(rows); }).catch(reason => { if (!cancelled) setError(String(reason)); });
+    walletService.ledger(selectedWallet).then(rows => { if (!cancelled) setLedger(rows); }).catch(reason => { if (!cancelled) toast.error(String(reason)); });
     return () => { cancelled = true; };
   }, [selectedWallet, wallets, decisionCount]);
 
   async function run(action: () => Promise<unknown>, success?: string) {
     if (busyRef.current) return;
-    busyRef.current = true; setBusy(true); setError(""); setNotice("");
-    try { await action(); if (success) setNotice(success); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    busyRef.current = true; setBusy(true); setError("");
+    try { await action(); if (success) toast.success(success); }
+    catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      // Errors from a dialog stay in that dialog; everything else becomes a toast that waits to be dismissed.
+      if (modalRef.current) setError(message); else toast.error(message);
+    }
     finally { busyRef.current = false; setBusy(false); }
   }
   async function runPlay(action: () => Promise<unknown>, remember = true) {
@@ -133,10 +143,10 @@ function App() {
   }
   async function activateSession(id: string) {
     setSessionViewId(null);
-    await run(async () => { await sessionService.activate(id); navigate("/session"); }, "Session selected. Its saved hand was not changed.");
+    await run(async () => { await sessionService.activate(id); navigate("/session"); });
   }
   function startNewMachine() {
-    if (!wallets.length) { setNotice("Create a play-money wallet first. Machine configurations need a default wallet."); navigate("/wallets"); return; }
+    if (!wallets.length) { toast.info("Set up a wallet first. Each machine plays from a default wallet."); navigate("/wallets"); return; }
     setEditingId(null); setMachineForm(blankMachine(wallets[0].id)); setError(""); setModal("machine");
   }
   function editMachine(value: Machine) {
@@ -167,20 +177,22 @@ function App() {
     await run(async () => {
       await machineService.save(parsedDraft.data, editingId ?? undefined);
       setModal(null);
-    }, editingId ? "Machine configuration updated." : "Machine configuration saved.");
+    }, editingId ? "Machine updated." : "Machine added.");
   }
   async function deleteMachine(value: Machine) {
-    if (!window.confirm(`Delete “${value.name}”? Any open session using this machine must be closed first. Closed session records remain saved.`)) return;
-    await run(() => machineService.remove(value.id), "Machine configuration deleted.");
+    if (!await confirm({
+      title: `Delete “${value.name}”?`, tone: "danger", icon: "trash", confirmLabel: "Delete machine",
+      body: <p>Reports from its closed sessions stay in your history. If a session on this machine is still open, close it first.</p>,
+    })) return;
+    await run(() => machineService.remove(value.id), "Machine deleted.");
     setSelectedMachine(0);
   }
   async function startSession(event: FormEvent) {
     event.preventDefault();
-    if (!machine || !machineWallet) { setError("Choose a play-money wallet."); return; }
+    if (!machine || !machineWallet) { setError("Choose a wallet."); return; }
     await run(async () => {
-      const created = await sessionService.start({ machineId: machine.id, walletId: machineWallet, mode: startMode });
+      await sessionService.start({ machineId: machine.id, walletId: machineWallet, mode: startMode });
       setSessionViewId(null); setModal(null); navigate("/session");
-      setNotice(`${modeName(created.mode)} session ready. Your saved hand and every play action are recorded locally.`);
     });
   }
   async function createWallet(event: FormEvent) {
@@ -190,7 +202,7 @@ function App() {
     await run(async () => {
       const wallet = await walletService.create({ name: walletName.trim(), initialCents: centsValue });
       setSelectedWallet(wallet.id); setWalletName(""); setInitialAmount(""); setModal(null);
-    }, "Play-money wallet created.");
+    }, "Wallet created.");
   }
   async function renameWallet(event: FormEvent) {
     event.preventDefault();
@@ -204,15 +216,29 @@ function App() {
       if (modal === "topup") await walletService.topup({ walletId: walletTarget, amountCents: centsValue });
       else await walletService.transfer({ fromId: walletTarget, toId: transferTarget, amountCents: centsValue });
       setAmountInput(""); setModal(null);
-    }, modal === "topup" ? "Play-money top-up recorded in the ledger." : "Play-money transfer recorded in both wallets.");
+    }, modal === "topup" ? "Credits added." : "Transfer complete.");
   }
   async function changeStatus(action: "pause" | "resume" | "close", session: Session) {
-    if (action === "close" && !window.confirm("Close this session? Its saved hand and summary will remain in local history.")) return;
+    if (action === "close") {
+      const { hands, netCents, errors } = session.summary;
+      const ok = await confirm({
+        title: "Close this session?", icon: "door", confirmLabel: "Close session",
+        body: <>
+          <dl className="confirm-summary">
+            <div><dt>Hands</dt><dd>{hands.toLocaleString()}</dd></div>
+            {session.mode === "free_play" && <div><dt>Net</dt><dd className={netCents < 0 ? "negative" : "positive"}>{money(netCents)}</dd></div>}
+            <div><dt>Mistakes</dt><dd>{errors.toLocaleString()}</dd></div>
+          </dl>
+          <p>You'll get the full session report, and it stays in your history.</p>
+        </>,
+      });
+      if (!ok) return;
+    }
     const fn = action === "pause" ? sessionService.pause : action === "resume" ? sessionService.resume : sessionService.close;
     await run(async () => {
       await fn(session.id);
       if (action === "close") setSessionViewId(session.id);
-    }, action === "close" ? "Session closed and saved." : action === "pause" ? "Session paused." : "Session resumed.");
+    });
   }
   async function toggleHeld(session: Session, index: number) {
     const nextMask = session.state.heldMask ^ (1 << index);
@@ -239,27 +265,32 @@ function App() {
       anchor.href = url; anchor.download = `perfect-draw-backup-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(anchor); anchor.click(); anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }, "Backup exported. Keep a copy somewhere separate from this device.");
+    }, "Backup downloaded. Keep a copy somewhere other than this device.");
   }
   async function importBackup(event: FormEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
     if (!file) return;
-    if (file.size > 100_000_000) { setError("Backup exceeds the 100 MB import limit. No data was changed."); return; }
-    if (!window.confirm("Restore this backup? This REPLACES all local data, including wallets, machines, sessions, and financial history. Remembered API keys are erased. This cannot be undone.")) return;
-    setImporting(true); setError(""); setNotice("");
+    if (file.size > 100_000_000) { toast.error("That backup is over the 100 MB limit. Nothing was changed."); return; }
+    if (!await confirm({
+      title: "Restore from this backup?", tone: "danger", icon: "restore", confirmLabel: "Replace my data",
+      body: <p>Everything on this device (wallets, machines, sessions and history) will be replaced with the contents of <strong>{file.name}</strong>. Saved API keys are erased. This can't be undone.</p>,
+      acknowledge: "I understand this replaces all data on this device.",
+    })) return;
+    setImporting(true); clearToasts();
     try {
       const text = await file.text();
       const result = await backupService.import(text);
       setAnalysis(null); setAnalysisError("");
-      setNotice(`Backup restored: ${result.records} records replaced. Reloading to clear the local worker cache…`);
+      toast.success(`Backup restored: ${result.records} records replaced. Reloading…`);
       window.setTimeout(() => window.location.reload(), 900);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    } catch (reason) { toast.error(reason instanceof Error ? reason.message : String(reason)); }
     finally { setImporting(false); }
   }
 
   if (!ready) return <div className="app-shell"><div className="topline" /><div className="main-content loading-screen">{storeError ? <div className="error-banner" role="alert">Local storage could not be opened. {storeError}<br />Refresh to retry after checking browser storage permissions.</div> : <><div className="skeleton" /><p className="eyebrow" style={{ marginTop: 18 }}>Opening your private training room…</p></>}</div></div>;
-  return <div className="app-shell">
+  const roomFelt = route === "/session" && shownSession ? feltFor(shownSession, machines) : undefined;
+  return <div className="app-shell" data-room-felt={roomFelt}>
     <div className="topline" />
     <header className="app-header">
       <div className="header-inner">
@@ -271,11 +302,10 @@ function App() {
           <a className={`nav-link ${route === "/stats" ? "active" : ""}`} href="#/stats">Statistics</a>
           <a className={`nav-link ${route === "/settings" ? "active" : ""}`} href="#/settings">Settings</a>
         </nav>
-        <div className="header-status"><span className="status-pip" />PRIVATE · ON THIS DEVICE</div>
       </div>
-      <div className="session-rail" aria-label="Open sessions">
+      {openSessions.length > 0 && <div className="session-rail" aria-label="Open sessions">
         <span className="rail-label">OPEN SESSIONS</span>
-        {openSessions.length ? openSessions.map((session, index) => {
+        {openSessions.map((session, index) => {
           const config = session.machineSnapshot;
           const creditsCount = creditLabel(session.state);
           const amount = money(Math.round(session.state.credits * config.denominationCents) + session.state.creditRemainderCents);
@@ -285,62 +315,63 @@ function App() {
             <span className="chip-meta">{creditsCount} · {amount} · {modeName(session.mode)}</span>
             {session.status === "paused" && <span className="chip-meta">PAUSED</span>}
           </button>;
-        }) : <span className="chip-meta">No open tables</span>}
-        {openSessions.length > 0 && <span className="chip-meta" aria-hidden="true">CTRL + 1–9</span>}
-      </div>
+        })}
+        <span className="chip-meta rail-hint" aria-hidden="true">CTRL + 1–9</span>
+      </div>}
     </header>
     <main className="main-content">
       {retentionError && <div className="error-banner" role="alert">{retentionError}</div>}
-      {backupDue && route !== "/settings" && <div className="success-banner" role="status">You have recorded 500 or more decisions since your last backup. Back up your data when convenient.<button className="text-button" type="button" disabled={busy} onClick={() => void exportBackup()}>Export backup</button></div>}
-      {(error || storeError) && <div className="error-banner" role="alert">{error || storeError}<button className="text-button" type="button" onClick={() => setError("")} aria-label="Dismiss error">Dismiss</button></div>}
-      {notice && <div className="success-banner" role="status">{notice}<button className="text-button" type="button" onClick={() => setNotice("")} aria-label="Dismiss message">Dismiss</button></div>}
+      {backupDue && route !== "/settings" && <div className="backup-nudge" role="status"><span className="backup-nudge-dot" aria-hidden="true" /><span>Backup due: 500 or more decisions since your last backup.</span><button className="btn secondary small" type="button" disabled={busy} onClick={() => void exportBackup()}>Export backup</button></div>}
+      {storeError && <div className="error-banner" role="alert">{storeError}</div>}
       {route === "/" && <HomePage machines={machines} wallets={wallets} sessions={sessions} machine={machine} selectedMachine={selectedMachine} busy={busy} onSelect={setSelectedMachine} onCreate={startNewMachine} onEdit={editMachine} onDelete={deleteMachine} onStart={beginStart} onWallets={() => navigate("/wallets")} />}
       {route === "/wallets" && <WalletsPage wallets={wallets} selectedWallet={selectedWallet} ledger={ledger} onSelect={setSelectedWallet} onCreate={() => { setError(""); setWalletName(""); setInitialAmount(""); setModal("wallet"); }} onRename={wallet => { setWalletTarget(wallet.id); setWalletName(wallet.name); setModal("rename"); }} onTopup={wallet => { setWalletTarget(wallet.id); setAmountInput(""); setModal("topup"); }} onTransfer={wallet => { setWalletTarget(wallet.id); setTransferTarget(wallets.find(item => item.id !== wallet.id)?.id ?? ""); setAmountInput(""); setModal("transfer"); }} busy={busy} />}
       {route === "/settings" && <SettingsPage storageStatus={storageStatus} decisionCount={decisionCount} backupDue={backupDue} lastBackupAt={lastBackupAt} busy={busy || importing} onExport={() => void exportBackup()} onImport={event => void importBackup(event)} />}
       {route === "/stats" && <StatsPage machines={machines} decisionCount={decisionCount} onTrainStarted={() => { setSessionViewId(null); navigate("/session"); }} onGoMachines={() => navigate("/")} />}
-      {route === "/session" && <SessionPage session={shownSession} sessions={historySessions} analysis={analysis} analysisError={analysisError} analysisLoading={analysisLoading} busy={busy} playError={playError} onRetryPlay={() => { const retry = playRetryRef.current; if (retry) void runPlay(retry, false); }} onPause={session => void changeStatus("pause", session)} onResume={session => void changeStatus("resume", session)} onClose={session => void changeStatus("close", session)} onSelect={id => {
+      {route === "/session" && <SessionPage session={shownSession} felt={roomFelt ?? "felt"} sessions={historySessions} analysis={analysis} analysisError={analysisError} analysisLoading={analysisLoading} busy={busy} playError={playError} onRetryPlay={() => { const retry = playRetryRef.current; if (retry) void runPlay(retry, false); }} onPause={session => void changeStatus("pause", session)} onResume={session => void changeStatus("resume", session)} onClose={session => void changeStatus("close", session)} onSelect={id => {
         const selected = sessions[id];
-        if (selected?.status === "closed") { setSessionViewId(id); setNotice(""); setError(""); }
+        if (selected?.status === "closed") setSessionViewId(id);
         else void activateSession(id);
       }} onHold={toggleHeld} onSetMask={setHeldMask} onDeal={dealHand} onSubmit={submitHand} onFeedback={setFeedback} onRetry={() => { setAnalysisRequested(true); setAnalysisRetry(value => value + 1); }} />}
-      <div className="footer-note">PLAY MONEY ONLY · NO PURCHASES · LOCAL STORAGE IS NOT A GUARANTEED BACKUP</div>
+      <div className="footer-note">PRACTICE CREDITS ONLY · NO REAL MONEY · YOUR DATA STAYS ON THIS DEVICE</div>
     </main>
+    <ToastViewport />
+    {confirmDialog}
 
-    {modal && <Modal error={error} title={modal === "machine" ? editingId ? "Edit machine" : "New machine configuration" : modal === "start" ? "Prepare a session" : modal === "wallet" ? "Create play-money wallet" : modal === "rename" ? "Rename wallet" : modal === "topup" ? "Add play-money credits" : "Transfer play-money"} subtitle={modal === "machine" ? "Set the exact paytable and table terms you want to practice against." : modal === "start" ? "The session and its configuration snapshot will be saved on this device." : "These balances are simulated practice funds, never real money."} onClose={() => setModal(null)}>
+    {modal && <Modal error={error} title={modal === "machine" ? editingId ? "Edit machine" : "New machine" : modal === "start" ? "Prepare a session" : modal === "wallet" ? "New wallet" : modal === "rename" ? "Rename wallet" : modal === "topup" ? "Add credits" : "Transfer credits"} subtitle={modal === "machine" ? "Pick the game, pay table and bet you want to practice." : modal === "start" ? "Choose how you want to play this machine." : undefined} onClose={() => setModal(null)}>
       {modal === "machine" && <form onSubmit={event => void saveMachine(event)}>
         <div className="form-grid">
           <Field label="Machine name"><input aria-label="Machine name" required maxLength={100} value={machineForm.name} onChange={event => setMachineForm({ ...machineForm, name: event.target.value })} placeholder="e.g. Main practice table" /></Field>
-          <Field label="Paytable library"><select aria-label="Paytable library" required value={machineForm.paytableId} onChange={event => setMachineForm({ ...machineForm, paytableId: event.target.value })}>{PAY_TABLE_LIBRARY.map(table => <option key={table.id} value={table.id}>{table.name} · {familyName(table.familyId)}</option>)}</select><small>Eight built-in library tables. Analysis is computed by the engine when a session is open.</small></Field>
-          <Field label="Denomination (USD)"><input aria-label="Denomination in dollars" inputMode="decimal" required value={machineForm.denomination} onChange={event => setMachineForm({ ...machineForm, denomination: event.target.value })} /><small>Positive amount, at most two decimal places.</small></Field>
+          <Field label="Pay table"><select aria-label="Paytable library" required value={machineForm.paytableId} onChange={event => setMachineForm({ ...machineForm, paytableId: event.target.value })}>{PAY_TABLE_LIBRARY.map(table => <option key={table.id} value={table.id}>{table.name}</option>)}</select></Field>
+          <Field label="Denomination (USD)"><input aria-label="Denomination in dollars" inputMode="decimal" required value={machineForm.denomination} onChange={event => setMachineForm({ ...machineForm, denomination: event.target.value })} /></Field>
           <Field label="Coins per hand"><select aria-label="Coins per hand" value={machineForm.coins} onChange={event => setMachineForm({ ...machineForm, coins: event.target.value })}>{[1, 2, 3, 4, 5].map(value => <option key={value} value={value}>{value} coin{value === 1 ? "" : "s"}</option>)}</select></Field>
           <Field label="Lines"><select aria-label="Lines" value={machineForm.lines} onChange={event => setMachineForm({ ...machineForm, lines: event.target.value })}>{[1, 3, 5, 10].map(value => <option key={value} value={value}>{value} line{value === 1 ? "" : "s"}</option>)}</select></Field>
-          <Field label="Table appearance"><select aria-label="Table appearance" value={machineForm.theme} onChange={event => setMachineForm({ ...machineForm, theme: event.target.value as MachineForm["theme"] })}><option value="felt">Felt</option><option value="midnight">Midnight</option><option value="classic">Classic</option></select></Field>
+          <div className="field full"><span className="field-label">Table felt</span><FeltPicker value={machineForm.theme} onChange={theme => setMachineForm({ ...machineForm, theme })} /></div>
           <Field label="Table speed"><select aria-label="Table speed" value={machineForm.speed} onChange={event => setMachineForm({ ...machineForm, speed: event.target.value as MachineForm["speed"] })}><option value="relaxed">Relaxed</option><option value="normal">Normal</option><option value="fast">Fast</option></select></Field>
           <Field label="Default wallet"><select aria-label="Default wallet" required value={machineForm.defaultWalletId} onChange={event => setMachineForm({ ...machineForm, defaultWalletId: event.target.value })}>{wallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name} · {money(wallet.balanceCents)}</option>)}</select></Field>
           <Field label="Casino or venue (optional)"><input aria-label="Casino or venue" maxLength={120} value={machineForm.casinoName} onChange={event => setMachineForm({ ...machineForm, casinoName: event.target.value })} /></Field>
           <Field label="Location (optional)"><input aria-label="Location" maxLength={200} value={machineForm.location} onChange={event => setMachineForm({ ...machineForm, location: event.target.value })} /></Field>
-          <Field label="Private notes (optional)" full><textarea aria-label="Private notes" maxLength={2000} value={machineForm.notes} onChange={event => setMachineForm({ ...machineForm, notes: event.target.value })} /></Field>
+          <Field label="Notes (optional)" full><textarea aria-label="Private notes" maxLength={2000} value={machineForm.notes} onChange={event => setMachineForm({ ...machineForm, notes: event.target.value })} /></Field>
         </div>
         <div className="form-actions"><button className="btn secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : editingId ? "Save changes" : "Save configuration"}</button></div>
       </form>}
       {modal === "start" && machine && <form onSubmit={event => void startSession(event)}>
-        <div className="terms-box"><strong>Snapshot terms:</strong> {machine.name} · {PAY_TABLE_LIBRARY.find(table => table.id === machine.paytableId)?.name ?? "Saved paytable"} · {machine.coins} coins · {machine.lines} lines · {money(machine.denominationCents)} denomination. Editing the machine later will not change this session.</div>
+        <div className="terms-box"><strong>{machine.name}</strong> · {PAY_TABLE_LIBRARY.find(table => table.id === machine.paytableId)?.name ?? "Custom pay table"} · {money(machine.denominationCents)} · {plural(machine.coins, "coin")} × {plural(machine.lines, "line")}</div>
         <div className="form-grid">
-          <Field label="Practice wallet"><select aria-label="Practice wallet" required value={machineWallet} onChange={event => setMachineWallet(event.target.value)}>{wallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name} · {money(wallet.balanceCents)}</option>)}</select></Field>
-           <Field label="Session mode"><select aria-label="Session mode" value={startMode} onChange={event => setStartMode(event.target.value as "free_play" | "drill")}><option value="free_play">Free Play — wager and settle play-money hands</option><option value="drill">Rapid Drill — no wager, immediate feedback</option></select></Field>
+          <Field label="Wallet"><select aria-label="Practice wallet" required value={machineWallet} onChange={event => setMachineWallet(event.target.value)}>{wallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name} · {money(wallet.balanceCents)}</option>)}</select></Field>
+           <Field label="Session mode"><select aria-label="Session mode" value={startMode} onChange={event => setStartMode(event.target.value as "free_play" | "drill")}><option value="free_play">Free Play: full hands with bets and payouts</option><option value="drill">Rapid Drill: decisions only, instant feedback</option></select></Field>
         </div>
-         <div className="terms-box">{startMode === "drill" ? "Rapid Drill practices one line at the configured coin count. It never bets or pays from your wallet, and feedback is immediate." : "Free Play uses the configured coins, lines, and denomination. Bets, outcomes, and payouts are persisted by the local play engine. No real-money features."}</div>
+         <p className="form-hint">{startMode === "drill" ? "One line at a time. Nothing is bet from your wallet." : "Bets and payouts come from the wallet you choose."}</p>
         <div className="form-actions"><button className="btn secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="btn gold" type="submit" disabled={busy}>{busy ? "Preparing…" : "Prepare session"}</button></div>
       </form>}
       {modal === "wallet" && <form onSubmit={event => void createWallet(event)}><div className="form-grid">
         <Field label="Wallet name"><input aria-label="Wallet name" required maxLength={100} value={walletName} onChange={event => setWalletName(event.target.value)} placeholder="e.g. Cruise practice" /></Field>
-        <Field label="Opening play-money amount (USD)"><input aria-label="Opening play-money amount" inputMode="decimal" value={initialAmount} onChange={event => setInitialAmount(event.target.value)} placeholder="0.00" /><small>Optional. An opening amount is recorded as a top-up ledger entry.</small></Field>
-      </div><div className="terms-box">Play-money credits are just for practice bankroll tracking. There are no purchases or real-money transactions.</div><div className="form-actions"><button className="btn secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="btn" type="submit" disabled={busy}>{busy ? "Creating…" : "Create wallet"}</button></div></form>}
+        <Field label="Starting balance (USD)"><input aria-label="Starting balance" inputMode="decimal" value={initialAmount} onChange={event => setInitialAmount(event.target.value)} placeholder="500.00" /></Field>
+      </div><p className="form-hint">Wallets hold practice credits for tracking your bankroll. They are not real money and can't be bought or cashed out.</p><div className="form-actions"><button className="btn secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="btn" type="submit" disabled={busy}>{busy ? "Creating…" : "Create wallet"}</button></div></form>}
       {modal === "rename" && <form onSubmit={event => void renameWallet(event)}><Field label="Wallet name"><input aria-label="Wallet name" required maxLength={100} value={walletName} onChange={event => setWalletName(event.target.value)} /></Field><div className="form-actions"><button className="btn secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : "Save name"}</button></div></form>}
       {(modal === "topup" || modal === "transfer") && <form onSubmit={event => void topupWallet(event)}><div className="form-grid">
         {modal === "transfer" && <Field label="Transfer to"><select aria-label="Transfer to wallet" required value={transferTarget} onChange={event => setTransferTarget(event.target.value)}>{wallets.filter(wallet => wallet.id !== walletTarget).map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name} · {money(wallet.balanceCents)}</option>)}</select></Field>}
-        <Field label="Amount (USD)"><input aria-label="Amount in dollars" inputMode="decimal" required value={amountInput} onChange={event => setAmountInput(event.target.value)} placeholder="25.00" /><small>Positive amount; up to two decimal places. Transfers require enough balance.</small></Field>
-      </div><div className="form-actions"><button className="btn secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="btn" type="submit" disabled={busy || (modal === "transfer" && wallets.length < 2)}>{busy ? "Saving…" : modal === "topup" ? "Record top-up" : "Transfer credits"}</button></div></form>}
+        <Field label="Amount (USD)"><input aria-label="Amount in dollars" inputMode="decimal" required value={amountInput} onChange={event => setAmountInput(event.target.value)} placeholder="25.00" /></Field>
+      </div><div className="form-actions"><button className="btn secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="btn" type="submit" disabled={busy || (modal === "transfer" && wallets.length < 2)}>{busy ? "Saving…" : modal === "topup" ? "Add credits" : "Transfer credits"}</button></div></form>}
     </Modal>}
   </div>;
 }

@@ -1,18 +1,21 @@
 import { expect, test } from "@playwright/test";
+import { fileURLToPath } from "node:url";
 import { canonicalizeHand } from "@perfect-draw/engine";
 import type { HandAnalysis } from "@perfect-draw/engine";
 import type { Records, Session } from "@perfect-draw/shared";
 import { chooseMask, createPlayTable, preparePlaySession, readPlayState } from "./play-helpers";
+
+// Vite serves workspace packages from their absolute path; resolve it here instead of assuming one checkout location.
+const fsPath = (relative: string) => `/@fs${fileURLToPath(new URL(relative, import.meta.url))}`;
+const sourcePaths = { enginePath: fsPath("../../../packages/engine/src/index.ts"), sharedPath: fsPath("../../../packages/shared/src/index.ts") };
 
 test.describe("local-day retention and estimated returns", () => {
   test.use({ timezoneId: "America/New_York" });
   test("startup rollup keeps estimates, local dates, backup contents and the 500-decision reminder", async ({ page }) => {
     test.setTimeout(120_000);
     await createPlayTable(page, { mode: "drill" });
-    const expectedDay = await page.evaluate(async () => {
+    const expectedDay = await page.evaluate(async ({ enginePath, sharedPath }) => {
       const dbPath = "/src/data/db.ts", clientPath = "/src/worker/client.ts";
-      const enginePath = "/@fs/home/runner/workspace/packages/engine/src/index.ts";
-      const sharedPath = "/@fs/home/runner/workspace/packages/shared/src/index.ts";
       const [{ db }, { engineClient }, engine, shared] = await Promise.all([import(dbPath), import(clientPath), import(enginePath), import(sharedPath)]);
       const session = await db.records("sessions").toCollection().first() as Session;
       const paytableId = session.machineSnapshot.paytableId;
@@ -43,7 +46,7 @@ test.describe("local-day retention and estimated returns", () => {
         chosenMask: rows[0].bestMask, chosenEv: rows[0].bestEv, evLoss: 0, chosenLabel: rows[0].bestLabel });
       await db.records("decisions").bulkAdd(rows);
       return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/New_York" }).format(at);
-    });
+    }, sourcePaths);
     await page.reload();
     await expect.poll(async () => page.evaluate(async () => {
       const path = "/src/data/db.ts"; const { db } = await import(path);

@@ -51,7 +51,7 @@ export const walletService: WalletService = {
     return db.transaction("rw", tables(), async () => {
       await requireRecord("wallets", toId);
       const from = await requireRecord("wallets", fromId);
-      if (from.balanceCents < amountCents) throw new Error("Insufficient play-money balance.");
+      if (from.balanceCents < amountCents) throw new Error("Insufficient balance for this transfer.");
       const transferId = newId();
       await postLedger(fromId, -amountCents, "transfer", { transferId });
       await postLedger(toId, amountCents, "transfer", { transferId });

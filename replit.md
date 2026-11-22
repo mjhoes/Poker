@@ -151,3 +151,28 @@ hold masks must be remapped to the user's original card order before use.
 - Backups include and validate aggregates, and their decision counters include
   archived history. A gentle global backup reminder appears after about 500
   decisions since export, rather than only inside Settings.
+
+## Interface polish (docs/08-UI-POLISH-PLAN.md)
+
+The interface plan and its confirmed decisions live in `docs/08-UI-POLISH-PLAN.md`.
+Work happens in phases; each phase keeps `pnpm build` (the Static Deployment) green.
+
+Phase 1 (done):
+- No native browser dialogs. Use `useConfirm()` from `src/components/ConfirmDialog.tsx`
+  (`if (!await confirm({ title, body, confirmLabel, tone })) return;`). Danger dialogs
+  focus Cancel first; restore also requires a checkbox acknowledgement.
+- Notices are toasts (`toast.success/info/error` from `src/components/Toasts.tsx`).
+  Success/info auto-dismiss; errors persist until dismissed; errors raised while a
+  dialog is open stay inside that dialog. Don't add a notice for something the screen
+  already shows.
+- Felt themes are CSS tokens (`--felt-*`) selected by `data-felt` on a table/cabinet and
+  `data-room-felt` on the app shell. An open session follows its machine's current felt
+  (`feltFor` in `src/components/Felt.tsx`); felt is appearance, not frozen session terms.
+- Cards use `--suit-red` / `--suit-black`. Final-hand cards stay full opacity.
+- Copy: say "practice credits / not real money" only on the welcome card, the New wallet
+  dialog and the footer. Use `familyName`, `handRankName` and `plural` from `UiHelpers`
+  rather than raw ids.
+- e2e: the statistics test resolves workspace source paths from the test file, so it runs
+  outside `/home/runner/workspace`. Known pre-existing failure: the legacy `saveHand`
+  check in `foundation.spec.ts` ("…backup survive reload") is rejected by the current
+  session schema; it fails the same way before Phase 1.

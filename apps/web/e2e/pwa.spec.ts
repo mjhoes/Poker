@@ -9,9 +9,9 @@ test("production app, saved sessions and cached worker analysis reopen fully off
   await page.reload(); // Ensure this page and its new worker are controlled by the installed SW.
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
-  await page.getByRole("button", { name: "Create play-money wallet", exact: true }).click();
+  await page.getByRole("button", { name: "Set up a wallet", exact: true }).click();
   await page.getByRole("textbox", { name: "Wallet name", exact: true }).fill("Offline practice");
-  await page.getByRole("textbox", { name: "Opening play-money amount", exact: true }).fill("50");
+  await page.getByRole("textbox", { name: "Starting balance", exact: true }).fill("50");
   await page.getByRole("button", { name: "Create wallet", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("link", { name: "Machines", exact: true }).click();

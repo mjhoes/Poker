@@ -412,3 +412,111 @@ h1 { margin-bottom: 0; font-size: clamp(35px, 5vw, 58px); letter-spacing: -.065e
   .return-compare { grid-template-columns: 1fr; }
   .stats-chart { height: 220px; }
 }
+
+/* ───────────── Phase 1 polish: felts, suits, toasts, dialogs ───────────── */
+
+/* Felt themes. Applied with data-felt on a table or cabinet, and data-room-felt on the app shell. */
+:root, [data-felt="felt"], [data-room-felt="felt"] {
+  --felt-hi: #2d7058; --felt-mid: #1d5946; --felt-lo: #123d32; --felt-flat: #174d3e; --felt-edge: #527667;
+  --felt-ink: #f4f1e4; --felt-muted: #d1dfd2; --felt-shadow: #09271d; --felt-accent: #f0c95f; --felt-tint: #e2eae0;
+}
+[data-felt="midnight"], [data-room-felt="midnight"] {
+  --felt-hi: #33507f; --felt-mid: #213766; --felt-lo: #121e3d; --felt-flat: #1c2e57; --felt-edge: #55689a;
+  --felt-ink: #eef1f8; --felt-muted: #c8d1e6; --felt-shadow: #060c1e; --felt-accent: #f2c96b; --felt-tint: #e0e5f0;
+}
+[data-felt="classic"], [data-room-felt="classic"] {
+  --felt-hi: #8e3340; --felt-mid: #6d222d; --felt-lo: #43121a; --felt-flat: #601d27; --felt-edge: #9c5c64;
+  --felt-ink: #f8eee9; --felt-muted: #eed3d1; --felt-shadow: #24060b; --felt-accent: #ecc55e; --felt-tint: #f0e2df;
+}
+/* Cloth grain: tiny inline SVG noise instead of decorative stripes. */
+:root { --felt-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+.app-shell[data-room-felt] { background: linear-gradient(180deg, var(--felt-tint) 0, var(--paper) 720px) no-repeat, var(--paper); transition: background .3s ease; }
+.app-shell[data-room-felt] .app-header { background: color-mix(in srgb, var(--felt-tint) 92%, transparent); }
+.app-shell[data-room-felt] .topline { background: var(--felt-mid); }
+
+.play-table { border-color: var(--felt-edge); background: radial-gradient(ellipse at 52% 40%, var(--felt-hi) 0%, var(--felt-mid) 56%, var(--felt-lo) 100%); color: var(--felt-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--felt-ink) 6%, transparent), inset 0 -40px 80px color-mix(in srgb, var(--felt-shadow) 35%, transparent), 0 18px 40px color-mix(in srgb, var(--felt-shadow) 18%, transparent); }
+.play-table:before { opacity: .09; background: var(--felt-grain); mix-blend-mode: overlay; }
+.play-table:after { border-color: color-mix(in srgb, var(--felt-ink) 14%, transparent); box-shadow: 0 0 0 26px color-mix(in srgb, var(--felt-ink) 4%, transparent), 0 0 0 74px color-mix(in srgb, var(--felt-ink) 4%, transparent); }
+.play-topline, .play-bottomline, .keyboard-hint { color: var(--felt-muted); }
+.play-instruction { color: var(--felt-ink); }
+.play-instruction:empty { display: none; }
+.play-mode-tag:before { background: var(--felt-accent); }
+.play-table .hand-card { box-shadow: 0 12px 24px color-mix(in srgb, var(--felt-shadow) 55%, transparent); }
+.play-table .hand-card.held { border-color: var(--felt-accent); }
+.play-table .hand-card:focus-visible { outline-color: var(--felt-accent); }
+.machine-visual { background: radial-gradient(ellipse at 40% 30%, var(--felt-hi) 0%, var(--felt-flat) 60%, var(--felt-lo) 100%); color: var(--felt-ink); transition: background .3s ease; }
+.machine-visual:before { opacity: .08; background: var(--felt-grain); mix-blend-mode: overlay; }
+.machine-top .meta, .machine-bottom .meta { color: var(--felt-muted); }
+.machine-bottom h2 { max-width: none; text-wrap: balance; }
+.display-token { box-shadow: 0 10px 18px color-mix(in srgb, var(--felt-shadow) 45%, transparent); }
+
+/* Suit colors. Classic two-color deck: red hearts/diamonds, near-black clubs/spades. */
+:root { --suit-red: #c8312b; --suit-black: #1b1f1d; }
+.hand-card.black-suit, .play-table .hand-card.black-suit { color: var(--suit-black); }
+.hand-card.red-suit, .play-table .hand-card.red-suit { color: var(--suit-red); }
+.display-token { color: var(--suit-red); }
+.card-shortcut { color: #8a918c; }
+.hold-caption { color: #6b756e; font-weight: 700; }
+.hand-card.held .hold-caption { color: #7a5a06; }
+/* Cards that cannot be toggled (final hand, busy) stay crisp; they just stop reacting. */
+.hand-card:disabled { opacity: 1; cursor: default; }
+.hand-card:disabled:hover { transform: none; }
+.hand-card.held:disabled:hover { transform: translateY(-8px); }
+
+/* Buttons on the felt: disabled states stay legible instead of fading into the cloth. */
+.play-table .btn:disabled { opacity: 1; border-color: color-mix(in srgb, var(--felt-ink) 28%, transparent); background: color-mix(in srgb, var(--felt-ink) 12%, transparent); color: color-mix(in srgb, var(--felt-ink) 70%, transparent); }
+.btn.danger-solid { border-color: #a9473a; background: #a9473a; color: #fff8f3; }
+.btn.danger-solid:hover:not(:disabled) { background: #8e3a2f; }
+
+/* Session rail and header. */
+.rail-hint { margin-left: auto; opacity: .7; }
+.backup-nudge { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: fit-content; max-width: 100%; margin: 0 0 18px; padding: 7px 8px 7px 14px; border: 1px solid #e0cf98; border-radius: 999px; background: #f7efd3; color: #5f4f22; font-size: 12px; }
+.backup-nudge-dot { width: 7px; height: 7px; border-radius: 50%; background: #c9962a; }
+.backup-nudge .btn { min-height: 28px; border-radius: 999px; }
+
+/* Machines page. */
+.add-machine-btn { width: 100%; min-height: 48px; font-size: 13px; }
+
+/* Forms. */
+.form-hint { margin: 14px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.felt-picker { display: flex; flex-wrap: wrap; gap: 10px; }
+.felt-swatch { display: inline-flex; align-items: center; gap: 9px; padding: 6px 13px 6px 6px; border: 1px solid #cbd3c8; border-radius: 999px; background: #fffef9; color: var(--ink); font-size: 12px; font-weight: 650; transition: border-color .15s ease, box-shadow .15s ease; }
+.felt-swatch:hover { border-color: #93a596; }
+.felt-swatch.selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.felt-swatch-chip { width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--felt-hi), var(--felt-mid) 60%, var(--felt-lo)); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--felt-accent) 70%, transparent); }
+
+/* Confirm dialog. */
+.modal.confirm-dialog { width: min(460px, 100%); }
+.confirm-body { display: flex; gap: 14px; align-items: flex-start; }
+.confirm-icon { flex: 0 0 auto; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: #e3ebe0; color: var(--felt); }
+.confirm-dialog.is-danger .confirm-icon { background: #f8e4dc; color: #a9473a; }
+.confirm-copy { min-width: 0; color: #46524b; font-size: 13px; line-height: 1.6; }
+.confirm-copy p { margin: 0; }
+.confirm-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.confirm-summary div { min-width: 84px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 5px; background: #f6f6ef; }
+.confirm-summary dt { color: var(--muted); font: 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.confirm-summary dd { margin: 3px 0 0; color: var(--ink); font: 600 15px var(--mono); }
+.confirm-ack { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding: 11px 13px; border: 1px solid #e2c3ad; border-radius: 5px; background: #fbf0e6; color: #6f4630; font-size: 12px; line-height: 1.5; cursor: pointer; }
+.confirm-ack input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: #a9473a; }
+
+/* Toasts. */
+.toast-viewport { position: fixed; z-index: 70; right: 20px; bottom: 20px; display: grid; gap: 8px; width: min(380px, calc(100% - 32px)); pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 10px; padding: 11px 10px 11px 13px; border: 1px solid #cfd8cb; border-radius: 8px; background: #fbfaf5; color: var(--ink); box-shadow: 0 14px 34px #10281f2e; font-size: 13px; line-height: 1.45; pointer-events: auto; animation: toast-in .22s cubic-bezier(.2, .8, .2, 1) both; }
+.toast-icon { flex: 0 0 auto; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: #e1ecdf; color: #2f6a41; }
+.toast-error { border-color: #e3bfb1; background: #fdf4ef; }
+.toast-error .toast-icon { background: #f6ded4; color: #a9473a; }
+.toast-info .toast-icon { background: #e6eaf2; color: #3c5684; }
+.toast-message { flex: 1 1 auto; min-width: 0; }
+.toast-action { flex: 0 0 auto; border: 0; background: transparent; color: var(--felt); font-size: 12px; font-weight: 800; }
+.toast-close { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--muted); }
+.toast-close:hover { background: #ebeee6; color: var(--ink); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+@media (max-width: 680px) {
+  .toast-viewport { right: 16px; left: 16px; bottom: 16px; width: auto; margin: 0 auto; max-width: 420px; }
+  .rail-hint { display: none; }
+}
+/* Variant hovers: the base .btn hover is felt green, which made gold Draw/Deal buttons vanish under the pointer. */
+.btn.gold:hover:not(:disabled) { border-color: #d0a535; background: #d0a535; color: var(--signal-ink); }
+.btn.danger:hover:not(:disabled) { border-color: #c99a89; background: #f6e3da; color: #7a3528; }
+.btn.danger-solid:hover:not(:disabled) { border-color: #8e3a2f; background: #8e3a2f; color: #fff8f3; }
