@@ -8,14 +8,18 @@ import { walletService } from "../services/wallets";
 import { sessionService } from "../services/sessions";
 import { requestPersistentStorage } from "../services/storage";
 import type { StorageStatus } from "../services/storage";
+import { countDecisions, RAW_DECISION_RETENTION_DAYS } from "../services/retention";
+import { engineClient } from "../worker/client";
 
 export interface AppState {
   ready: boolean; error: string | null; machines: Machine[]; wallets: Wallet[];
+  retentionError: string | null;
   sessions: Record<string, Session>; activeSessionId: string | null;
   storageStatus: StorageStatus; decisionCount: number; backupDue: boolean; lastBackupAt: number | null;
 }
 export const useAppStore = create<AppState>(() => ({
   ready: false, error: null, machines: [], wallets: [], sessions: {}, activeSessionId: null,
+  retentionError: null,
   storageStatus: "checking", decisionCount: 0, backupDue: false, lastBackupAt: null,
 }));
 let started = false;
@@ -24,11 +28,15 @@ export async function startAppStore() {
   started = true;
   try {
     await initializeDatabase();
+    // Wallet management never depends on Worker availability or lengthy analysis.
+    void db.records("decisions").where("createdAt").below(Date.now() - RAW_DECISION_RETENTION_DAYS * 86_400_000).count()
+      .then(count => count ? engineClient().rollupDecisions(Intl.DateTimeFormat().resolvedOptions().timeZone) : 0)
+      .catch(error => useAppStore.setState({ retentionError: `History cleanup could not finish; raw decisions are safe. ${String(error)}` }));
     void requestPersistentStorage().then(storageStatus => useAppStore.setState({ storageStatus }));
     liveQuery(async () => {
       const [machines, wallets, sessionRows, profile, decisionCount] = await Promise.all([
         machineService.list(), walletService.list(), sessionService.list(),
-        db.records("profile").get("local").then(x => profileSchema.parse(x)), db.records("decisions").count(),
+        db.records("profile").get("local").then(x => profileSchema.parse(x)), countDecisions(),
       ]);
       const sessions = Object.fromEntries(sessionRows.map(x => [x.id, x]));
       const active = profile.prefs.activeSessionId;

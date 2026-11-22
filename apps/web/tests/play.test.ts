@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
-import { analyzeHandFast, parseHand, resolveRound, standardVariant } from "@perfect-draw/engine";
+import { analyzeHandFast, canonicalizeHand, parseHand, resolveRound, standardVariant } from "@perfect-draw/engine";
+import type { GameAnalysis } from "@perfect-draw/engine";
 import { analysisKey, getLibraryPayTable } from "@perfect-draw/paytables";
 import { decisionSchema, newId } from "@perfect-draw/shared";
 import { db, initializeDatabase } from "../src/data/db";
@@ -10,6 +11,7 @@ import { sessionService } from "../src/services/sessions";
 import { createPlayService } from "../src/services/play";
 import { decisionService } from "../src/services/decisions";
 import { backupService } from "../src/services/backup";
+import { rollupDecisions } from "../src/services/retention";
 
 beforeEach(async () => {
   await db.transaction("rw", db.tables, async () => { for (const table of db.tables) await table.clear(); });
@@ -45,6 +47,33 @@ async function hold(id: string, handId: string, mask: number) {
   await sessionService.applyAction(id, { type: "hold", heldMask: mask, handId });
 }
 describe("persistent play loop", () => {
+  it("can settle an old warned hand after retention without losing its original mistake", async () => {
+    const { play, session } = await setup();
+    const dealt = await play.deal(session.id, null), handId = dealt.state.handId!;
+    await hold(session.id, handId, 0);
+    await play.submit(session.id, handId);
+    const warned = await stateOf(session.id), first = (await db.records("decisions").get(handId))!;
+    // Simulate a pre-cleanup session that waited more than 90 days at its warning.
+    await db.records("sessions").update(session.id, { state: { ...warned.state, primaryGrade: null } });
+    await db.records("decisions").update(handId, { createdAt: Date.now() - 91 * 86_400_000 });
+    const analysis = dealt.state.analysis!;
+    const second = [...analysis.results].sort((a, b) => b.ev - a.ev)[1];
+    const game: GameAnalysis = {
+      engineVersion: "4.0.0", familyId: analysis.familyId, valueVector: analysis.valueVector, betCoins: 5,
+      returnPct: 99.5, variance: 19, hitFreq: 0.45, rankProbs: [],
+      perHand: new Map([[canonicalizeHand(analysis.hand).id, { bestLabel: analysis.best.label, weight: 4,
+        bestMask: analysis.best.mask, secondMask: second.mask, ev: analysis.best.ev,
+        secondEv: second.ev, secondLabel: second.label }]]),
+    };
+    await rollupDecisions("America/New_York", async () => ({ key: first.analysisKey, analysis: game }));
+    expect(await db.records("decisions").get(handId)).toBeUndefined();
+    expect((await stateOf(session.id)).state.primaryGrade).not.toBeNull();
+    const settled = await play.submit(session.id, handId, true);
+    expect(settled.summary).toMatchObject({ hands: 1, errors: 1 });
+    expect(settled.summary.evLost).toBeGreaterThan(0);
+    expect(await db.records("decisions").count()).toBe(0);
+    expect((await db.records("dailyAggregates").toArray())[0]).toMatchObject({ n: 1, errors: 1 });
+  });
   it.each([1, 3, 5, 10] as const)("atomically charges %i lines, persists the round and pays exactly once", async lines => {
     const { play, session, wallet } = await setup({ lines });
     const dealt = await play.deal(session.id, null);

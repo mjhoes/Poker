@@ -1,8 +1,10 @@
 import type { GameAnalysis } from "./game-analysis";
 import type { GameFamilyId } from "./types";
+import { localDay } from "./calendar";
 
 export const STATS_HALF_LIFE_DAYS = 14;
 export const STATS_CONFIDENCE_PRIOR = 20;
+export const STATS_ESTIMATE_MIN_COVERAGE = 0.99;
 const DAY = 86_400_000;
 export interface StatsObservation {
   bestLabel: string; chosenLabel: string; evLoss: number; createdAt: number;
@@ -33,6 +35,10 @@ export interface StatsReport {
   weightedN: number; accuracyPct: number | null; posteriorErrorRate: number;
   evLostPer1000: number | null; asDrilledReturnPct: number | null;
   realPlayWeightedReturnPct: number | null;
+  realPlayWeightedEstimatePct: number | null;
+  imputedFrequencyShare: number;
+  estimateMinCoverage: number;
+  timeZone: string;
   /** Incomplete-coverage ceiling, NOT a statistical confidence bound or complete forecast. */
   coveredReturnCeilingPct: number | null;
   frequencyCoverage: number; unseenCategories: number; excludedCorrections: number;
@@ -40,6 +46,11 @@ export interface StatsReport {
   categories: CategoryStats[]; confusion: ConfusionStats[]; trend: TrendStats[];
 }
 interface Accumulator { n: number; errors: number; evLostTotal: number; weightedN: number; weightedErrors: number; weightedEvLost: number }
+/** Weighted inputs are measured relative to UTC midnight of the named local date.
+ * This fixed anchor permits exact later decay and merging without storing hands. */
+export interface StatsAggregate extends Accumulator {
+  day: string; bestLabel: string; chosenLabel: string; excludedCorrections: number;
+}
 const empty = (): Accumulator => ({ n: 0, errors: 0, evLostTotal: 0, weightedN: 0, weightedErrors: 0, weightedEvLost: 0 });
 function update(row: Accumulator, loss: number, weight: number) {
   row.n++; row.errors += loss > 1e-9 ? 1 : 0; row.evLostTotal += loss;
@@ -62,7 +73,31 @@ export function categoryDistribution(analysis: GameAnalysis): CategoryDistributi
 }
 
 /** All EV/statistical calculations stay pure and deterministic; callers supply the clock. */
-export function computeStatistics(observations: readonly StatsObservation[], distribution: CategoryDistribution, now: number): StatsReport {
+export function aggregateStatistics(observations: readonly StatsObservation[], timeZone: string): StatsAggregate[] {
+  const buckets = new Map<string, StatsAggregate>();
+  for (const decision of observations) {
+    const day = localDay(decision.createdAt, timeZone);
+    const key = JSON.stringify([day, decision.bestLabel, decision.chosenLabel]);
+    const row = buckets.get(key) ?? { ...empty(), day, bestLabel: decision.bestLabel, chosenLabel: decision.chosenLabel, excludedCorrections: 0 };
+    if (decision.isCorrection) row.excludedCorrections++;
+    else {
+      if (!Number.isFinite(decision.evLoss) || decision.evLoss < 0) throw new Error("Invalid decision loss.");
+      const reference = Date.parse(`${day}T00:00:00Z`);
+      update(row, decision.evLoss > 1e-9 ? decision.evLoss : 0, 2 ** ((decision.createdAt - reference) / (STATS_HALF_LIFE_DAYS * DAY)));
+    }
+    buckets.set(key, row);
+  }
+  return [...buckets.values()];
+}
+function merge(target: Accumulator, source: Accumulator, scale = 1) {
+  target.n += source.n; target.errors += source.errors; target.evLostTotal += source.evLostTotal;
+  target.weightedN += source.weightedN * scale; target.weightedErrors += source.weightedErrors * scale;
+  target.weightedEvLost += source.weightedEvLost * scale;
+}
+export function computeStatistics(observations: readonly StatsObservation[], distribution: CategoryDistribution, now: number,
+  options: { timeZone?: string; aggregates?: readonly StatsAggregate[] } = {}): StatsReport {
+  const timeZone = options.timeZone ?? "UTC";
+  localDay(now, timeZone); // Validate the explicit timezone even for an empty scope.
   if (!Number.isFinite(now) || now < 0 || !Number.isFinite(distribution.coins) || distribution.coins <= 0 ||
     !Number.isFinite(distribution.optimalReturnPct)) throw new Error("Invalid statistics clock or bet baseline.");
   const frequencies = Object.entries(distribution.frequencies);
@@ -85,8 +120,22 @@ export function computeStatistics(observations: readonly StatsObservation[], dis
     const key = JSON.stringify([decision.bestLabel, decision.chosenLabel]);
     const pair = pairs.get(key) ?? { bestLabel: decision.bestLabel, chosenLabel: decision.chosenLabel, data: empty() };
     update(pair.data, loss, weight); pairs.set(key, pair);
-    const at = Math.floor(decision.createdAt / DAY) * DAY;
+    // A calendar-date coordinate, not a claim that local midnight occurred at UTC midnight.
+    const at = Date.parse(`${localDay(decision.createdAt, timeZone)}T00:00:00Z`);
     const day = days.get(at) ?? empty(); update(day, loss, 1); days.set(at, day);
+  }
+  for (const source of options.aggregates ?? []) {
+    excludedCorrections += source.excludedCorrections;
+    const category = categories.get(source.bestLabel);
+    if (!category) throw new Error(`Archived category is absent from the exact game analysis: ${source.bestLabel}`);
+    if (!source.n) continue;
+    const at = Date.parse(`${source.day}T00:00:00Z`);
+    const scale = 2 ** (-(now - at) / (STATS_HALF_LIFE_DAYS * DAY));
+    merge(total, source, scale); merge(category, source, scale);
+    const key = JSON.stringify([source.bestLabel, source.chosenLabel]);
+    const pair = pairs.get(key) ?? { bestLabel: source.bestLabel, chosenLabel: source.chosenLabel, data: empty() };
+    merge(pair.data, source, scale); pairs.set(key, pair);
+    const day = days.get(at) ?? empty(); merge(day, source); days.set(at, day);
   }
   let coverage = 0, realLoss = 0, unseenCategories = 0;
   const rows = frequencies.map(([label, frequency]): CategoryStats => {
@@ -106,6 +155,9 @@ export function computeStatistics(observations: readonly StatsObservation[], dis
     evLostPer1000: total.n ? 1000 * total.evLostTotal / total.n : null,
     asDrilledReturnPct: total.weightedN > 0 ? distribution.optimalReturnPct - 100 * total.weightedEvLost / total.weightedN / distribution.coins : null,
     realPlayWeightedReturnPct: unseenCategories === 0 ? coveredReturnCeilingPct : null,
+    realPlayWeightedEstimatePct: total.weightedN > 0 && coverage + 1e-12 >= STATS_ESTIMATE_MIN_COVERAGE
+      ? distribution.optimalReturnPct - 100 * (realLoss + Math.max(0, 1 - coverage) * total.weightedEvLost / total.weightedN) / distribution.coins : null,
+    imputedFrequencyShare: Math.max(0, 1 - coverage), estimateMinCoverage: STATS_ESTIMATE_MIN_COVERAGE, timeZone,
     coveredReturnCeilingPct, frequencyCoverage: Math.min(1, coverage), unseenCategories, excludedCorrections,
     excludedIncompatible: 0,
     categories: rows,

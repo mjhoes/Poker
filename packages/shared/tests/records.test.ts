@@ -10,8 +10,9 @@ describe("local record contracts", () => {
   });
   it("gives every record sync metadata", () => {
     for (const schema of Object.values(recordSchemas)) {
-      expect(schema.shape).toHaveProperty("updatedAt");
-      expect(schema.shape).toHaveProperty("deletedAt");
+      const object = "innerType" in schema ? schema.innerType() : schema;
+      expect(object.shape).toHaveProperty("updatedAt");
+      expect(object.shape).toHaveProperty("deletedAt");
     }
   });
   it("defaults machine and session variants to standard", () => {

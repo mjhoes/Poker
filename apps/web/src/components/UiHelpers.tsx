@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 export const money = (cents: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 export const credits = (value: number) =>
-  new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+  new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.floor(value));
+export const creditLabel = (state: { credits: number; creditRemainderCents?: number }) =>
+  `${credits(state.credits)} credits${state.creditRemainderCents ? ` + ${money(state.creditRemainderCents)}` : ""}`;
 export const dateTime = (value: number) =>
   new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(value);
 export const familyName = (id: string) => id.replaceAll("_", " ");

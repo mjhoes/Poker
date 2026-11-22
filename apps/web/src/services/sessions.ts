@@ -3,6 +3,7 @@ import type { Session, SessionService } from "@perfect-draw/shared";
 import { standardVariant } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import { db, live, requireRecord, stamp } from "../data/db";
+import { creditState } from "./money";
 
 export const sessionService: SessionService = {
   async list() { return (await db.records("sessions").toArray()).filter(live).map(x => sessionSchema.parse(x)); },
@@ -20,7 +21,7 @@ export const sessionService: SessionService = {
         id: newId(), ...stamp(), machineId: machine.id, walletId: wallet.id, mode: parsed.mode,
         machineSnapshot: machineDraftSchema.parse(machine), variant: machine.variant, startedAt: Date.now(),
         trainingFocus: parsed.trainingFocus ?? null,
-        state: { credits: wallet.balanceCents / machine.denominationCents },
+        state: creditState(wallet.balanceCents, machine.denominationCents),
       });
       await db.records("sessions").add(session);
       await setActiveInTransaction(session.id);

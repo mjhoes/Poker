@@ -98,7 +98,7 @@ export function TrendChart({ report, metric }: { report: StatsReport; metric: Tr
     };
   }, [rows, metric, meta.label, meta.unit, meta.color]);
 
-  return <div ref={host} className="stats-chart" role="img" aria-label={`${meta.label} by UTC day. The accessible data table below contains every recorded day.`} />;
+  return <div ref={host} className="stats-chart" role="img" aria-label={`${meta.label} by local day. The accessible data table below contains every recorded day.`} />;
 }
 
 export function WeaknessRankingChart({ categories, familyId }: { categories: CategoryStats[]; familyId: StatsReport["familyId"] }) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { describeLabel } from "@perfect-draw/engine";
+import { describeLabel, localDayBounds } from "@perfect-draw/engine";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import type { Machine, StatsQuery, StatsReport } from "@perfect-draw/shared";
 import { TrendChart, WeaknessRankingChart } from "../components/StatisticsCharts";
@@ -20,8 +20,8 @@ const coins = (value: number | null | undefined, digits = 3) => {
 const count = (value: number) => new Intl.NumberFormat().format(value);
 const dateEpoch = (value: string, end = false) => {
   if (!value) return undefined;
-  const start = Date.parse(`${value}T00:00:00.000Z`);
-  return end ? start + 86_400_000 - 1 : start;
+  const bounds = localDayBounds(value, Intl.DateTimeFormat().resolvedOptions().timeZone);
+  return end ? bounds.until : bounds.since;
 };
 const fullDay = (value: number) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(value);
 
@@ -46,6 +46,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
   const [refreshKey, setRefreshKey] = useState(0);
   const [trendMetric, setTrendMetric] = useState<TrendMetric>("accuracyPct");
   const [sortKey, setSortKey] = useState<ConfusionKey>("evLostTotal");
+  const [showEquivalent, setShowEquivalent] = useState(false);
   const [sortDirection, setSortDirection] = useState<"ascending" | "descending">("descending");
   const [selectedMachineId, setSelectedMachineId] = useState("");
   const [trainingLabel, setTrainingLabel] = useState("");
@@ -67,8 +68,9 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
 
   useEffect(() => {
     const thisRequest = ++requestId.current;
-    const start = dateEpoch(since);
-    const end = dateEpoch(until, true);
+    let start: number | undefined, end: number | undefined;
+    try { start = dateEpoch(since); end = dateEpoch(until, true); }
+    catch (error) { setError(String(error)); setReport(null); setLoading(false); return; }
     if (start !== undefined && end !== undefined && start > end) {
       setError("The start date must be on or before the end date.");
       setReport(null);
@@ -79,6 +81,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
       paytableId,
       coins: coinValue as 1 | 2 | 3 | 4 | 5,
       mode: mode ?? "all",
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       ...(start === undefined ? {} : { since: start }),
       ...(end === undefined ? {} : { until: end }),
     };
@@ -97,7 +100,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
 
   const confusionRows = useMemo(() => {
     if (!report) return [];
-    return [...report.confusion].sort((a, b) => {
+    return report.confusion.filter(row => showEquivalent || row.errors > 0).sort((a, b) => {
       const left = a[sortKey];
       const right = b[sortKey];
       const compare = typeof left === "string" && typeof right === "string"
@@ -105,7 +108,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
         : Number(left) - Number(right);
       return (sortDirection === "ascending" ? compare : -compare);
     });
-  }, [report, sortKey, sortDirection]);
+  }, [report, sortKey, sortDirection, showEquivalent]);
 
   function sortBy(key: ConfusionKey) {
     if (sortKey === key) setSortDirection(current => current === "ascending" ? "descending" : "ascending");
@@ -152,10 +155,10 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
         <label className="field"><span className="field-label">Mode</span><select value={mode} onChange={event => setMode(event.target.value as StatsQuery["mode"])} aria-label="Session mode">
           <option value="all">All modes</option><option value="free_play">Free Play</option><option value="drill">Rapid Drill</option>
         </select></label>
-        <label className="field"><span className="field-label">From (UTC)</span><input type="date" value={since} onChange={event => setSince(event.target.value)} /></label>
-        <label className="field"><span className="field-label">Through (UTC)</span><input type="date" value={until} onChange={event => setUntil(event.target.value)} /></label>
+        <label className="field"><span className="field-label">From (local)</span><input type="date" value={since} onChange={event => setSince(event.target.value)} /></label>
+        <label className="field"><span className="field-label">Through (local)</span><input type="date" value={until} onChange={event => setUntil(event.target.value)} /></label>
       </div>
-      <p className="stats-filter-foot">Reports never combine paytables or coin counts. Dates include complete UTC days.</p>
+      <p className="stats-filter-foot">Reports never combine paytables or coin counts. Dates include complete local days ({Intl.DateTimeFormat().resolvedOptions().timeZone}), including DST. Archived daily buckets retain their saved local dates and timezone.</p>
     </section>
 
     {error && <div className="error-banner stats-error" role="alert"><strong>Statistics could not be loaded.</strong> {error}<button className="btn secondary small" type="button" onClick={() => setRefreshKey(value => value + 1)}>Retry report</button></div>}
@@ -182,6 +185,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
         </div>
         <div className="panel panel-pad stats-return-card">
           <p className="eyebrow">REAL-PLAY WEIGHTING</p><h2>Coverage before forecast</h2>
+          {report.realPlayWeightedEstimatePct !== null && <p className="stats-estimate"><strong>Real-play weighted ESTIMATE: {percent(report.realPlayWeightedEstimatePct)}</strong><br />{(report.imputedFrequencyShare * 100).toFixed(4)}% of real-play frequency filled using pooled recency-weighted observed loss per decision. Available from {(report.estimateMinCoverage * 100).toFixed(0)}% observed coverage; not a confidence bound.</p>}
           <div className="coverage-line"><strong>{(report.frequencyCoverage * 100).toFixed(1)}%</strong><span>optimal-category frequency covered</span><b>{report.unseenCategories} unseen</b></div>
           <div className="coverage-track" role="progressbar" aria-label="Optimal-category frequency coverage" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, report.frequencyCoverage * 100))}><span style={{ transform: `scaleX(${Math.max(0, Math.min(1, report.frequencyCoverage))})` }} /></div>
           {report.realPlayWeightedReturnPct !== null
@@ -202,7 +206,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
         </div>
         {report.trend.length ? <>
           <TrendChart report={report} metric={trendMetric} />
-          <details className="stats-data-details"><summary>View daily data table ({report.trend.length} days)</summary><div className="table-scroll"><table className="stats-table"><caption>Daily unweighted engine report · {filterSummary}</caption><thead><tr><th scope="col">UTC day</th><th scope="col">Decisions</th><th scope="col">Errors</th><th scope="col">Accuracy</th><th scope="col">EV lost / 1,000</th><th scope="col">As-drilled return</th></tr></thead><tbody>{report.trend.map(row => <tr key={row.at}><th scope="row">{fullDay(row.at)}</th><td>{count(row.n)}</td><td>{count(row.errors)}</td><td>{percent(row.accuracyPct)}</td><td>{coins(row.evLostPer1000)}</td><td>{percent(row.asDrilledReturnPct)}</td></tr>)}</tbody></table></div></details>
+          <details className="stats-data-details"><summary>View daily data table ({report.trend.length} days)</summary><div className="table-scroll"><table className="stats-table"><caption>Daily unweighted engine report · {filterSummary}</caption><thead><tr><th scope="col">Local day</th><th scope="col">Decisions</th><th scope="col">Errors</th><th scope="col">Accuracy</th><th scope="col">EV lost / 1,000</th><th scope="col">As-drilled return</th></tr></thead><tbody>{report.trend.map(row => <tr key={row.at}><th scope="row">{fullDay(row.at)}</th><td>{count(row.n)}</td><td>{count(row.errors)}</td><td>{percent(row.accuracyPct)}</td><td>{coins(row.evLostPer1000)}</td><td>{percent(row.asDrilledReturnPct)}</td></tr>)}</tbody></table></div></details>
         </> : <div className="stats-chart-empty">No daily trend points in this report scope yet.</div>}
       </section>
 
@@ -227,6 +231,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
 
       <section className="panel panel-pad stats-confusion">
         <div className="panel-title"><div><p className="eyebrow">RECORDED HOLD PAIRS</p><h2>Confusion matrix</h2><p>Correct equivalent holds may have different labels and zero EV loss. A label mismatch alone is not an error.</p></div></div>
+        <label><input type="checkbox" checked={showEquivalent} onChange={event => setShowEquivalent(event.target.checked)} /> Show zero-loss / equivalent holds</label>
         {confusionRows.length ? <div className="table-scroll"><table className="stats-table confusion-table">
           <caption>Best-label and chosen-label pairs · {filterSummary}</caption>
           <thead><tr>
@@ -237,9 +242,9 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
             </th>)}
           </tr></thead>
           <tbody>{confusionRows.map(row => <tr key={`${row.bestLabel}\u0000${row.chosenLabel}`}>
-            <th scope="row">{describe(row.bestLabel, report.familyId)}</th><td>{describe(row.chosenLabel, report.familyId)}</td><td>{count(row.n)}</td><td>{count(row.errors)}</td><td>{coins(row.evLostTotal)}</td><td>{(row.errorRate * 100).toFixed(1)}%</td><td>{coins(row.avgEvLoss)}</td>
+            <th scope="row">{describe(row.bestLabel, report.familyId)}</th><td>{describe(row.chosenLabel, report.familyId)}{row.errors === 0 && <small> · Equivalent hold / zero loss</small>}</td><td>{count(row.n)}</td><td>{count(row.errors)}</td><td>{coins(row.evLostTotal)}</td><td>{(row.errorRate * 100).toFixed(1)}%</td><td>{coins(row.avgEvLoss)}</td>
           </tr>)}</tbody>
-        </table></div> : <div className="stats-chart-empty">No best/chosen hold pairs have been recorded in this scope.</div>}
+        </table></div> : <div className="stats-chart-empty">No mistake pairs in this scope. Enable the toggle to include zero-loss equivalent holds.</div>}
       </section>
 
       <details className="panel panel-pad stats-methodology">
@@ -248,6 +253,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
           <p>Overall accuracy, decision count, errors, and total EV loss are unweighted primary decisions. Corrections are excluded and listed above. EV loss is engine-derived; this page only formats and sorts the supplied report.</p>
           <p>Recency-weighted measures use a {report.halfLifeDays}-day half-life. Category posterior error uses Beta(1,1); the confidence factor is effective sample size divided by effective sample size plus {report.confidencePrior}. Weakness is posterior error probability × average mistake loss × real-play category frequency × confidence factor.</p>
           <p>As-drilled return uses recency-weighted sampled cost normalized to one line. Real-play weighting uses canonical optimal-category frequencies with suit multiplicities. A covered-return ceiling is optimistic and incomplete, not a full-game forecast or statistical confidence bound. Costs for unseen categories remain unknown.</p>
+          <p>Once observed categories cover at least {(report.estimateMinCoverage * 100).toFixed(0)}% of real-play frequency, the separately labeled ESTIMATE fills the remaining frequency with pooled recency-weighted loss per observed decision. Its filled share is shown beside the number. The complete-coverage field and covered-return ceiling keep their original meanings.</p>
         </div>
       </details>
     </>}

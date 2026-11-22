@@ -8,6 +8,7 @@ export const statsQuerySchema = z.object({
   paytableId: hash, coins: z.number().int().min(1).max(5).default(5),
   since: timestamp.optional(), until: timestamp.optional(),
   mode: z.enum(["all", "free_play", "drill"]).default("all"),
+  timeZone: z.string().refine(value => { try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; } }, "Invalid timezone").default("UTC"),
 }).refine(x => x.since === undefined || x.until === undefined || x.since <= x.until, "Start date must precede end date");
 export type StatsQuery = z.input<typeof statsQuerySchema>;
 export const trainingFocusSchema = z.object({ label: z.string().min(1).max(250), analysisKey: hash });

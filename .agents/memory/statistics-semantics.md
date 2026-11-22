@@ -20,17 +20,45 @@ their labels match the partition.
 
 ## Missing coverage is unknown cost
 
-Do not assume unobserved categories were played perfectly. A full real-play
-return estimate requires category observations; incomplete coverage can expose an
-explicit optimistic covered-cost ceiling, not an unqualified forecast.
+Do not assume unobserved categories were played perfectly. Keep the existing
+complete-category return field and optimistic covered-cost ceiling unchanged.
+Also expose a separately labeled real-play weighted **estimate** once observed
+categories cover at least 99% of real-play frequency (a named engine constant).
+Impute unseen frequency using pooled recency-weighted EV loss per observed
+decision in the exact scope, never zero, and display the filled frequency share.
 
 **Why:** Drills intentionally bias the sample. Renormalizing away missing
 categories or silently assigning zero loss would give a misleading full-game
 number. A coverage ceiling is also not a statistical confidence bound.
 
-**How to apply:** Show coverage and missing samples with estimates. Downstream
-planning must preserve these qualifications rather than silently converting an
-unknown return into the engine-perfect baseline.
+**How to apply:** Add estimate fields rather than repurposing complete-coverage
+fields. Below the threshold the new estimate is unknown. Downstream planning must
+preserve coverage and imputation qualifications rather than silently converting
+an unknown return into the engine-perfect baseline.
+
+## Local days and retained history
+
+Pass the user's IANA timezone explicitly. Date filters use actual local-day
+bounds, including DST; trend timestamps are UTC-normalized calendar-date
+coordinates for presentation, not claims about when local midnight occurred.
+
+After 90 days, replace raw decisions atomically with canonical local-day
+aggregates. Retain separate mode, coin count, engine-analysis key and timezone
+dimensions. Preserve corrections as an excluded count, not primary observations.
+Store weighted sufficient inputs relative to UTC midnight of the local date.
+
+**Why:** A single offset cannot describe a DST transition. Daily counts alone
+cannot reproduce within-day recency weights. Separating modes and analysis keys
+prevents retrospective mixing of incompatible data. Partial failure must never
+delete history without its aggregate.
+
+**How to apply:** Keep the 14-day weighting convention consistent; changing it
+requires an explicit aggregate migration policy, not just editing a constant.
+Historical aggregates retain the local date/timezone used at rollup. An exact
+partial-day query cannot be reconstructed after compaction: reject it explicitly
+instead of prorating counts. Keep pending hands' original grade in saved round
+state before deleting their original decision, so later settlement remains safe.
+Backup counters include archived primary and correction counts.
 
 ## Exact bet baseline
 

@@ -66,6 +66,8 @@ export const sessionStateSchema = z.object({
   hand: handSchema.default([]), heldMask: z.number().int().min(0).max(31).default(0),
   phase: z.enum(["ready", "holding", "complete"]).default("ready"),
   credits: z.number().finite().nonnegative().default(0), variantState: variantStateSchema,
+  creditRemainderCents: cents.nonnegative().default(0),
+  primaryGrade: gradeSchema.nullable().default(null),
   handId: uuid.nullable().default(null), handIndex: z.number().int().nonnegative().default(0),
   dealtAt: timestamp.nullable().default(null), decisionStartedAt: timestamp.nullable().default(null),
   decisionElapsedMs: timestamp.default(0), analysis: handAnalysisSchema.nullable().default(null),

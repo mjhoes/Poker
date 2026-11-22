@@ -4,7 +4,7 @@ import {
 } from "@perfect-draw/engine";
 import type { GameAnalysis, HandAnalysis } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
-import { decisionSchema, statsQuerySchema } from "@perfect-draw/shared";
+import { decisionSchema, recordSchemas, statsQuerySchema } from "@perfect-draw/shared";
 import type { StatsQuery, StatsReport } from "@perfect-draw/shared";
 import { db, live, requireRecord } from "../data/db";
 
@@ -46,10 +46,12 @@ export class StatsEngine {
     const query = statsQuerySchema.parse(input);
     const { key, analysis } = await this.game(query.paytableId, query.coins);
     const now = Date.now(), until = Math.min(now, query.until ?? now);
-    const [decisions, sessions] = await Promise.all([
+    // One read transaction cannot observe the delete and aggregate halves of a rollup separately.
+    const [decisions, sessions, archived] = await db.transaction("r", [db.records("decisions"), db.records("sessions"), db.records("dailyAggregates")], () => Promise.all([
       db.records("decisions").where("paytableId").equals(query.paytableId).toArray(),
       db.records("sessions").toArray(),
-    ]);
+      db.records("dailyAggregates").where("paytableId").equals(query.paytableId).toArray(),
+    ]));
     const sessionMap = new Map(sessions.filter(live).map(row => [row.id, row]));
     let excludedIncompatible = 0;
     const observations = [];
@@ -67,7 +69,16 @@ export class StatsEngine {
         createdAt: decision.createdAt, isCorrection: decision.isCorrection,
       });
     }
-    return { ...computeStatistics(observations, categoryDistribution(analysis), now), excludedIncompatible };
+    const aggregates = [];
+    for (const raw of archived) {
+      if (!live(raw) || raw.coins !== query.coins || (query.mode !== "all" && raw.mode !== query.mode) ||
+        raw.lastAt < (query.since ?? 0) || raw.firstAt > until) continue;
+      const row = recordSchemas.dailyAggregates.parse(raw);
+      if (row.analysisKey !== key) { excludedIncompatible += row.n + row.excludedCorrections; continue; }
+      if (row.firstAt < (query.since ?? 0) || row.lastAt > until) throw new Error("Archived history can only be filtered by whole local days in its saved timezone. Widen the date range.");
+      aggregates.push(row);
+    }
+    return { ...computeStatistics(observations, categoryDistribution(analysis), now, { timeZone: query.timeZone, aggregates }), excludedIncompatible };
   }
   async validateTraining(paytableId: string, coins: number, label: string) {
     const { key, analysis } = await this.game(paytableId, coins);

@@ -3,6 +3,7 @@ import type { Table } from "dexie";
 import { aiSettingsSchema, paytableSchema, profileSchema, recordSchemas } from "@perfect-draw/shared";
 import type { Records, TableName } from "@perfect-draw/shared";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
+import { creditState } from "../services/money";
 
 export class LocalDatabase extends Dexie {
   constructor(name = "perfect-draw") {
@@ -21,6 +22,18 @@ export class LocalDatabase extends Dexie {
     });
     this.version(2).stores({
       decisions: "id, sessionId, paytableId, analysisKey, [paytableId+bestLabel], [paytableId+bestLabel+chosenLabel], createdAt",
+    });
+    this.version(3).stores({
+      dailyAggregates: "id, &bucketKey, paytableId, [paytableId+bestLabel+chosenLabel], day",
+    }).upgrade(async tx => {
+      const wallets = new Map((await tx.table("wallets").toArray()).map(wallet => [wallet.id, wallet]));
+      await tx.table("sessions").toCollection().modify(session => {
+        const denomination = session.machineSnapshot.denominationCents;
+        const cents = session.status !== "closed" && wallets.has(session.walletId)
+          ? wallets.get(session.walletId)!.balanceCents
+          : Math.round(session.state.credits * denomination) + (session.state.creditRemainderCents ?? 0);
+        Object.assign(session.state, creditState(cents, denomination));
+      });
     });
   }
   records<K extends TableName>(name: K): Table<Records[K], string> { return this.table(name); }

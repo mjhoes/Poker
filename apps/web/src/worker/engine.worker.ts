@@ -1,3 +1,4 @@
+import { rollupDecisions } from "../services/retention";
 import { expose } from "comlink";
 import {
   analyzeGame, analyzeHandFast, clearSubsetCache, clearTrainingCache, dealRound, ENGINE_VERSION, generateHand, generateStrategyList, registerTrainingAnalysis, resolveRound, standardVariant, STRATEGY_TIERS,
@@ -39,6 +40,7 @@ async function cache(analysis: PrecomputedGameAnalysis, paytableId: string) {
   return value;
 }
 const api: EngineAPI = {
+  rollupDecisions: timeZone => rollupDecisions(timeZone, (table, coins) => statsEngine.game(table, coins)),
   async statistics(input) { return statsEngine.report(input); },
   async validateTraining(paytableId, coins, label) { return statsEngine.validateTraining(paytableId, coins, label); },
   async prepareRound(paytableId, coins, lines, focus) {

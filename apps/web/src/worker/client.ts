@@ -33,6 +33,7 @@ export function engineClient() {
     const call = <T>(work: () => Promise<T>) => worker === current
       ? request(work) : Promise.reject<T>(new Error("The local engine was reset. Retry this action."));
     instance = {
+      rollupDecisions: (...args) => call(() => remote.rollupDecisions(...args)),
       analyzeHand: (...args) => call(() => remote.analyzeHand(...args)),
       analyzeGame: (...args) => call(() => remote.analyzeGame(...args)),
       loadAnalysis: (...args) => call(() => remote.loadAnalysis(...args)),

@@ -3,7 +3,8 @@ import { cardRank, cardSuit, describeLabel, formatCard } from "@perfect-draw/eng
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import type { FeedbackMode, Session } from "@perfect-draw/shared";
 import type { AnalysisSummary } from "../worker/engine-api";
-import { credits, dateTime, familyName, modeName, money } from "../components/UiHelpers";
+import { creditLabel, dateTime, familyName, modeName, money } from "../components/UiHelpers";
+import { useAppStore } from "../state/app-store";
 
 const rankLabels = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const suitLabels = ["clubs", "diamonds", "hearts", "spades"];
@@ -116,6 +117,7 @@ export function SessionPage({ session, sessions, analysis, analysisError, analys
   onFeedback: (session: Session, mode: FeedbackMode) => void; onRetry: () => void;
 }) {
   const active = session?.status === "active";
+  const walletName = useAppStore(store => store.wallets.find(wallet => wallet.id === session?.walletId)?.name) ?? "Deleted wallet";
   const canPlay = !!session && active && !busy;
   const state = session?.state;
   const warning = state?.warning ?? null;
@@ -133,6 +135,7 @@ export function SessionPage({ session, sessions, analysis, analysisError, analys
       if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
+      if ((event.key === " " || event.key === "Enter") && warning) { event.preventDefault(); return; }
       if (target.isContentEditable || target.closest("[role='dialog']") || target.closest("input, textarea, select")) return;
       const cardButton = target.closest<HTMLElement>("[data-play-card]");
       const actionButton = target.closest<HTMLElement>("[data-play-action]");
@@ -151,7 +154,7 @@ export function SessionPage({ session, sessions, analysis, analysisError, analys
         else event.preventDefault();
         if (busy) return;
         if (state?.phase === "holding") {
-          if (state.handId) onSubmit(session, !!(session.mode === "free_play" && warning));
+          if (state.handId) onSubmit(session);
           else if (canDeal) onDeal(session);
         } else if (canDeal) onDeal(session);
       }
@@ -211,7 +214,7 @@ export function SessionPage({ session, sessions, analysis, analysisError, analys
 
           <section className="panel panel-pad">
             <div className="panel-title"><div><p className="eyebrow">SAVED TABLE TERMS</p><h2>Frozen at start</h2><p>Machine edits do not rewrite this session snapshot.</p></div></div>
-            <div className="detail-grid"><div className="detail"><label>Paytable</label><strong>{PAY_TABLE_LIBRARY.find(table => table.id === session.machineSnapshot.paytableId)?.name ?? "Saved custom table"}</strong></div><div className="detail"><label>Family</label><strong>{familyName(analysis?.familyId ?? PAY_TABLE_LIBRARY.find(table => table.id === session.machineSnapshot.paytableId)?.familyId ?? "unknown")}</strong></div><div className="detail"><label>Coins / lines</label><strong>{session.machineSnapshot.coins} / {session.machineSnapshot.lines}</strong></div><div className="detail"><label>Denomination</label><strong>{money(session.machineSnapshot.denominationCents)}</strong></div><div className="detail"><label>Wallet</label><strong>{session.walletId}</strong></div><div className="detail"><label>Started</label><strong>{dateTime(session.startedAt)}</strong></div></div>
+            <div className="detail-grid"><div className="detail"><label>Paytable</label><strong>{PAY_TABLE_LIBRARY.find(table => table.id === session.machineSnapshot.paytableId)?.name ?? "Saved custom table"}</strong></div><div className="detail"><label>Family</label><strong>{familyName(analysis?.familyId ?? PAY_TABLE_LIBRARY.find(table => table.id === session.machineSnapshot.paytableId)?.familyId ?? "unknown")}</strong></div><div className="detail"><label>Coins / lines</label><strong>{session.machineSnapshot.coins} / {session.machineSnapshot.lines}</strong></div><div className="detail"><label>Denomination</label><strong>{money(session.machineSnapshot.denominationCents)}</strong></div><div className="detail"><label>Wallet</label><strong>{walletName}</strong></div><div className="detail"><label>Started</label><strong>{dateTime(session.startedAt)}</strong></div></div>
             <details className="analysis-details" onToggle={event => {
               if (event.currentTarget.open && !analysis && !analysisLoading && !analysisError) onRetry();
             }}>
@@ -226,8 +229,8 @@ export function SessionPage({ session, sessions, analysis, analysisError, analys
         </section>
         <aside className="session-side">
           <section className="panel panel-pad"><div className="panel-title"><div><p className="eyebrow">SESSION CONTROL</p><h2>{session.status === "closed" ? "Record closed" : session.status === "paused" ? "Practice paused" : "In the room"}</h2><p>{session.mode === "drill" ? "Drill decisions never touch the wallet." : "Each Free Play wager and payout is saved by the session engine."}</p></div></div>
-            <div className="metric-row"><span>Current credits</span><strong>{credits(state?.credits ?? 0)} credits</strong></div>
-            <div className="metric-row"><span>Wallet value</span><strong>{money(Math.round((state?.credits ?? 0) * session.machineSnapshot.denominationCents))}</strong></div>
+            <div className="metric-row"><span>Current credits</span><strong>{creditLabel(state ?? { credits: 0 })}</strong></div>
+            <div className="metric-row"><span>Wallet value</span><strong>{money(Math.round((state?.credits ?? 0) * session.machineSnapshot.denominationCents) + (state?.creditRemainderCents ?? 0))}</strong></div>
             <div className="metric-row"><span>Hands completed</span><strong>{session.summary.hands}</strong></div>
             {session.status !== "closed" && <div className="metric-row"><span>Coin-in</span><strong>{money(session.summary.coinInCents)}</strong></div>}
             {session.status === "closed" && <><div className="metric-row"><span>Net result</span><strong>{money(session.summary.netCents)}</strong></div><div className="metric-row"><span>Decision errors</span><strong>{session.summary.errors}</strong></div><div className="metric-row"><span>EV lost</span><strong>{formatEv(session.summary.evLost)}</strong></div></>}

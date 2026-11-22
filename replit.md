@@ -100,7 +100,7 @@ hold masks must be remapped to the user's original card order before use.
 
 ## Statistics and mistake intelligence (Prompt 7)
 
-- The Statistics screen filters by exact paytable, coin count, UTC date range
+- The Statistics screen filters by exact paytable, coin count, local date range
   and play mode. It shows accuracy, EV loss per 1,000 primary decisions, return
   estimates, daily trends, sortable confusion pairs and category weaknesses.
 - All statistical/EV calculations are pure engine functions. Estimates use a
@@ -110,9 +110,11 @@ hold masks must be remapped to the user's original card order before use.
 - Corrections remain reviewable but never inflate primary decision counts.
   Canonical optimal categories partition real-play frequencies with suit
   multiplicities; the original logged categories are not rewritten.
-- Returns never mix coin counts or tables. Missing category samples leave the
-  full real-play estimate unknown. The screen explicitly labels the available
-  covered-cost ceiling as optimistic, incomplete and not a confidence bound.
+- Returns never mix coin counts or tables. The original full-coverage return
+  remains unknown until complete category coverage. A separate labeled ESTIMATE
+  appears at the named 99%-frequency threshold, imputing unseen frequencies with
+  pooled recency-weighted observed loss per decision and displaying the filled
+  share. The covered-cost ceiling remains optimistic and is not a confidence bound.
 - Library baselines reuse verified analyses. Short-coin baselines are computed
   exactly in the worker without inducing new charts, and work offline.
 - "Train this" uses an existing matching machine and saves a category-focused,
@@ -122,3 +124,30 @@ hold masks must be remapped to the user's original card order before use.
   New session fields have defaults for older backups. Browser tests cover
   populated/empty reports, sorting, date/mode/coin filters, targeted training,
   worker failures, responsive layouts and offline report/training recovery.
+
+## Cleanup after Prompts 5–7
+
+- Trend buckets and date filters use the UI's explicit IANA timezone, including
+  23/25-hour DST days. Chart coordinates represent local calendar dates.
+- Confusion rows default to genuine mistakes. The zero-loss/equivalent-hold
+  toggle shows correct alternatives without counting label differences as errors.
+- Session credits are whole credits plus a separate exact-cent dollar remainder.
+  Wallets, bets, payouts and affordability checks still use integer cents.
+  Version 3 migrates existing display values; restore normalizes legacy backups.
+- Session details show wallet names or "Deleted wallet". Enter/Space cannot
+  confirm a visible hold-review warning, even when its action button is focused.
+  Click an action explicitly, or change the hold to clear the warning.
+- On startup, a background worker rolls raw decisions older than 90 days into
+  dailyAggregates. Aggregate writes and raw deletion share one transaction;
+  failures retain raw data and surface a nonblocking message. Raw card-level
+  history older than 90 days is removed after its statistics are preserved.
+- Aggregates retain local day/timezone, paytable, coins, variant, mode, analysis
+  key, canonical optimal/chosen labels, primary/error/loss totals, correction
+  counts and recency-weight inputs anchored to the named date. The half-life
+  remains 14 days. Reports read raw/archived history in one consistent snapshot.
+- Archived buckets retain their original calendar timezone. Exact partial-day
+  filters cutting through a bucket are rejected rather than approximated.
+  Pending warned rounds retain their original grade so they can still settle.
+- Backups include and validate aggregates, and their decision counters include
+  archived history. A gentle global backup reminder appears after about 500
+  decisions since export, rather than only inside Settings.

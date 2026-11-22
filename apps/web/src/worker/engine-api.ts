@@ -7,6 +7,7 @@ import type { StatsQuery, StatsReport, Session } from "@perfect-draw/shared";
 
 export type AnalysisSummary = Omit<GameAnalysis, "perHand"> & { key: string; strategyLists: readonly StrategyList[] };
 export interface EngineAPI {
+  rollupDecisions(timeZone: string): Promise<number>;
   prepareRound(paytableId: string, coins: number, lines: number, focus?: Session["trainingFocus"]): Promise<{ analysis: HandAnalysis; drawDecks: number[][] }>;
   statistics(input: StatsQuery): Promise<StatsReport>;
   validateTraining(paytableId: string, coins: number, label: string): Promise<string>;

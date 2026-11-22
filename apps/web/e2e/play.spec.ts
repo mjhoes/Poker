@@ -3,6 +3,43 @@ import { canonicalizeHand } from "@perfect-draw/engine";
 import { decisionSchema } from "@perfect-draw/shared";
 import { chooseMask, createPlayTable, preparePlaySession, readPlayState } from "./play-helpers";
 
+test("whole credits retain cents, wallets use names and warning keyboards require an explicit click or changed hold", async ({ page }) => {
+  await createPlayTable(page, { amount: "12.40" });
+  await expect(page.locator(".session-chip")).toContainText("49 credits + $0.15");
+  await expect(page.locator(".detail").filter({ hasText: /^Wallet/ })).toContainText("Play test wallet");
+  await page.getByRole("button", { name: "Deal hand", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Draw", exact: true })).toBeEnabled();
+  let session = (await readPlayState(page)).sessions[0];
+  await chooseMask(page, session.state.analysis!.results.find(row => row.ev < session.state.analysis!.best.ev - 1e-9)!.mask);
+  await page.locator("body").click({ position: { x: 4, y: 4 } });
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Draw anyway", exact: true })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Space");
+  await page.getByRole("button", { name: "Draw anyway", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Space");
+  const warned = await readPlayState(page);
+  expect(warned.sessions[0].state.phase).toBe("holding");
+  expect(warned.decisions).toHaveLength(1);
+  expect(warned.wallets[0].balanceCents).toBe(1115);
+  expect(warned.sessions[0].state).toMatchObject({ credits: 44, creditRemainderCents: 15 });
+  await chooseMask(page, warned.sessions[0].state.analysis!.best.mask);
+  await expect(page.getByRole("button", { name: "Draw anyway", exact: true })).toHaveCount(0);
+  await page.locator("body").click({ position: { x: 4, y: 4 } });
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
+  session = (await readPlayState(page)).sessions[0];
+  expect(session.summary).toMatchObject({ hands: 1, errors: 1 });
+  await page.evaluate(async () => {
+    const modulePath = "/src/data/db.ts";
+    const { db } = await import(modulePath);
+    const wallet = await db.records("wallets").toCollection().first();
+    await db.records("wallets").update(wallet.id, { deletedAt: Date.now() });
+  });
+  await expect(page.locator(".detail").filter({ hasText: /^Wallet/ })).toContainText("Deleted wallet");
+});
 test("ten real Free Play hands preserve exact state, keyboard holds and multi-line accounting", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await createPlayTable(page, { lines: 3 });

@@ -13,6 +13,7 @@ import { sessionService } from "../src/services/sessions";
 import { statsService } from "../src/services/statistics";
 import { backupService } from "../src/services/backup";
 import { StatsEngine } from "../src/worker/stats-engine";
+import { countDecisions, rollupDecisions } from "../src/services/retention";
 import * as client from "../src/worker/client";
 import type { EngineAPI } from "../src/worker/engine-api";
 
@@ -52,6 +53,71 @@ function decision(session: Session, options: { loss?: number; at?: number; corre
   });
 }
 describe("statistics worker and local service", () => {
+  it("rolls old decisions into canonical local-day aggregates without changing reports or backup counts", async () => {
+    const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now);
+    const { session } = await setup();
+    const old = now - 92 * 86_400_000;
+    await db.records("decisions").bulkAdd([
+      decision(session, { at: old, loss: 2 }), decision(session, { at: old + 1000, loss: 0 }),
+      decision(session, { at: old + 2000, other: true, loss: 0.5 }),
+      decision(session, { at: old + 3000, correction: true, loss: 0 }),
+      decision(session, { at: now, loss: 0.25 }),
+    ]);
+    const engine = new StatsEngine(async () => game);
+    const query = { paytableId: table.id, coins: 5, timeZone: "America/New_York" };
+    const before = await engine.report(query);
+    expect(await rollupDecisions(query.timeZone, (id, coins) => engine.game(id, coins), now)).toBe(4);
+    expect(await db.records("decisions").count()).toBe(1);
+    expect(await countDecisions()).toBe(5);
+    const after = await engine.report(query);
+    expect(after).toMatchObject({ n: before.n, errors: before.errors, evLostTotal: before.evLostTotal, excludedCorrections: before.excludedCorrections, trend: before.trend });
+    for (const field of ["weightedN", "posteriorErrorRate", "asDrilledReturnPct", "realPlayWeightedReturnPct", "realPlayWeightedEstimatePct"] as const) expect(after[field]).toBeCloseTo(before[field]!, 12);
+    expect((await db.records("dailyAggregates").toArray()).every(row => row.bestLabel !== "ORIGINAL_ORDER_TIE_LABEL")).toBe(true);
+    expect(await rollupDecisions(query.timeZone, (id, coins) => engine.game(id, coins), now)).toBe(0);
+    const backup = await backupService.export(), envelope = JSON.parse(backup);
+    expect(envelope.tables.dailyAggregates.length).toBeGreaterThan(0);
+    expect(envelope.tables.profile[0].prefs.lastBackupDecisionCount).toBe(5);
+    await backupService.import(backup);
+    expect(await countDecisions()).toBe(5);
+    expect((await engine.report(query)).weightedN).toBeCloseTo(before.weightedN, 12);
+    envelope.tables.dailyAggregates[0].errors = 9999;
+    await expect(backupService.import(JSON.stringify(envelope))).rejects.toThrow();
+    expect(await countDecisions()).toBe(5);
+  });
+  it("keeps modes separate and merges successive batches in the same aggregate bucket", async () => {
+    const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now);
+    const { session, machine } = await setup();
+    const free = await sessionService.start({ machineId: machine.id, mode: "free_play" });
+    const old = now - 91 * 86_400_000;
+    const engine = new StatsEngine(async () => game);
+    const resolve = (id: string, coins: number) => engine.game(id, coins);
+    await db.records("decisions").bulkAdd([decision(session, { at: old }), decision(free, { at: old, loss: 2 })]);
+    await rollupDecisions("UTC", resolve, now);
+    await db.records("decisions").add(decision(session, { at: old + 1, loss: 0.5 }));
+    await rollupDecisions("UTC", resolve, now);
+    expect(await db.records("dailyAggregates").count()).toBe(2);
+    const drill = await engine.report({ paytableId: table.id, mode: "drill" });
+    expect(drill).toMatchObject({ n: 2, errors: 2, evLostTotal: 1.5 });
+    expect(await engine.report({ paytableId: table.id, mode: "free_play" })).toMatchObject({ n: 1, evLostTotal: 2 });
+    expect(await engine.report({ paytableId: table.id, since: now - 86_400_000 })).toMatchObject({ n: 0 });
+  });
+  it("atomically retains raw rows on a write failure or a changed preparation snapshot", async () => {
+    const { session } = await setup();
+    const now = Date.now(), row = decision(session, { at: now - 91 * 86_400_000 });
+    await db.records("decisions").add(row);
+    const engine = new StatsEngine(async () => game);
+    const remove = vi.spyOn(db.records("decisions"), "bulkDelete").mockRejectedValueOnce(new Error("disk full"));
+    await expect(rollupDecisions("UTC", (id, coins) => engine.game(id, coins), now)).rejects.toThrow("disk full");
+    expect(await db.records("decisions").count()).toBe(1);
+    expect(await db.records("dailyAggregates").count()).toBe(0);
+    remove.mockRestore();
+    await expect(rollupDecisions("UTC", async (id, coins) => {
+      await db.records("decisions").update(row.id, { evLoss: 2 });
+      return engine.game(id, coins);
+    }, now)).rejects.toThrow("History changed");
+    expect(await db.records("decisions").get(row.id)).toMatchObject({ evLoss: 2 });
+    expect(await db.records("dailyAggregates").count()).toBe(0);
+  });
   it("uses canonical optimal categories and multiplicity frequencies without changing saved labels", async () => {
     const { session } = await setup();
     const original = decision(session);
@@ -132,7 +198,7 @@ describe("statistics worker and local service", () => {
     const upgraded = new LocalDatabase(name);
     try {
       await upgraded.open();
-      expect(upgraded.verno).toBe(2);
+      expect(upgraded.verno).toBe(3);
       expect(await upgraded.records("decisions").get(row.id)).toEqual(row);
       expect(await upgraded.records("decisions").where("paytableId").equals(table.id).count()).toBe(1);
     } finally { upgraded.close(); await upgraded.delete(); }

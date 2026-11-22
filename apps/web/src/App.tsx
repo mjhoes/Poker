@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import type { Machine, Session, WalletLedger } from "@perfect-draw/shared";
 import { machineDraftSchema } from "@perfect-draw/shared";
-import { Field, Modal, credits, familyName, modeName, money } from "./components/UiHelpers";
+import { Field, Modal, creditLabel, familyName, modeName, money } from "./components/UiHelpers";
 import { useAppStore } from "./state/app-store";
 import { machineService } from "./services/machines";
 import { walletService } from "./services/wallets";
@@ -32,7 +32,7 @@ const blankMachine = (walletId = "", tableId = PAY_TABLE_LIBRARY[0]?.id ?? ""): 
   theme: "felt", speed: "normal", defaultWalletId: walletId, casinoName: "", location: "", notes: "",
 });
 function App() {
-  const { ready, error: storeError, machines, wallets, sessions, activeSessionId, storageStatus, decisionCount, backupDue, lastBackupAt } = useAppStore();
+  const { ready, error: storeError, retentionError, machines, wallets, sessions, activeSessionId, storageStatus, decisionCount, backupDue, lastBackupAt } = useAppStore();
   const [route, setRoute] = useState<Route>(window.location.hash.slice(1) as Route || "/");
   const [modal, setModal] = useState<ModalKind>(null);
   const [busy, setBusy] = useState(false);
@@ -277,12 +277,12 @@ function App() {
         <span className="rail-label">OPEN SESSIONS</span>
         {openSessions.length ? openSessions.map((session, index) => {
           const config = session.machineSnapshot;
-          const creditsCount = credits(session.state.credits);
-          const amount = money(Math.round(session.state.credits * config.denominationCents));
-          return <button key={session.id} type="button" className={`session-chip ${session.id === activeSessionId ? "selected" : ""}`} aria-label={`Select session ${index + 1}: ${config.name}, ${creditsCount} credits (${amount}), ${modeName(session.mode)}, ${session.status}${session.id === activeSessionId ? ", active" : ""}`} onClick={() => void activateSession(session.id)}>
+          const creditsCount = creditLabel(session.state);
+          const amount = money(Math.round(session.state.credits * config.denominationCents) + session.state.creditRemainderCents);
+          return <button key={session.id} type="button" className={`session-chip ${session.id === activeSessionId ? "selected" : ""}`} aria-label={`Select session ${index + 1}: ${config.name}, ${creditsCount} (${amount}), ${modeName(session.mode)}, ${session.status}${session.id === activeSessionId ? ", active" : ""}`} onClick={() => void activateSession(session.id)}>
             <span className={`chip-state ${session.status === "paused" ? "paused" : ""}`} />
             <span className="chip-name">{config.name}</span>
-            <span className="chip-meta">{creditsCount} credits · {amount} · {modeName(session.mode)}</span>
+            <span className="chip-meta">{creditsCount} · {amount} · {modeName(session.mode)}</span>
             {session.status === "paused" && <span className="chip-meta">PAUSED</span>}
           </button>;
         }) : <span className="chip-meta">No open tables</span>}
@@ -290,6 +290,8 @@ function App() {
       </div>
     </header>
     <main className="main-content">
+      {retentionError && <div className="error-banner" role="alert">{retentionError}</div>}
+      {backupDue && route !== "/settings" && <div className="success-banner" role="status">You have recorded 500 or more decisions since your last backup. Back up your data when convenient.<button className="text-button" type="button" disabled={busy} onClick={() => void exportBackup()}>Export backup</button></div>}
       {(error || storeError) && <div className="error-banner" role="alert">{error || storeError}<button className="text-button" type="button" onClick={() => setError("")} aria-label="Dismiss error">Dismiss</button></div>}
       {notice && <div className="success-banner" role="status">{notice}<button className="text-button" type="button" onClick={() => setNotice("")} aria-label="Dismiss message">Dismiss</button></div>}
       {route === "/" && <HomePage machines={machines} wallets={wallets} sessions={sessions} machine={machine} selectedMachine={selectedMachine} busy={busy} onSelect={setSelectedMachine} onCreate={startNewMachine} onEdit={editMachine} onDelete={deleteMachine} onStart={beginStart} onWallets={() => navigate("/wallets")} />}

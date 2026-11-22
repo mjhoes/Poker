@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { entity, timestamp, nameSchema, uuid, hash, cents, positiveCents, familyIdSchema } from "./records";
+import { sessionSchema } from "./records";
+import { localDay } from "@perfect-draw/engine";
 
 export const masterySchema = z.object({
   ...entity, familyId: familyIdSchema, label: z.string(), alpha: z.number().positive(), beta: z.number().positive(),
@@ -45,8 +47,24 @@ export const rewardSchema = z.object({
   type: z.enum(["cruise", "upgrade", "freeplay", "obc", "discount", "other"]),
   valueCents: cents.nonnegative(), receivedAt: timestamp, notes: z.string(),
 });
-// Reserved now so the 90-day retention job can preserve historical totals later.
 export const dailyAggregateSchema = z.object({
-  ...entity, day: z.string(), paytableId: hash, bestLabel: z.string(), chosenLabel: z.string(),
-  count: z.number().int().nonnegative(), errors: z.number().int().nonnegative(), evLost: z.number().finite().nonnegative(),
+  ...entity, bucketKey: z.string().min(1), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  timeZone: z.string().min(1), paytableId: hash, analysisKey: hash,
+  coins: z.number().int().min(1).max(5), variantKind: z.literal("standard"), mode: sessionSchema.shape.mode,
+  bestLabel: z.string().min(1).max(250), chosenLabel: z.string().min(1).max(250),
+  n: z.number().int().nonnegative(), errors: z.number().int().nonnegative(), evLostTotal: z.number().finite().nonnegative(),
+  weightedN: z.number().finite().nonnegative(), weightedErrors: z.number().finite().nonnegative(),
+  weightedEvLost: z.number().finite().nonnegative(), excludedCorrections: z.number().int().nonnegative(),
+  firstAt: timestamp, lastAt: timestamp,
+}).superRefine((row, ctx) => {
+  const issue = (message: string) => ctx.addIssue({ code: "custom", message });
+  try {
+    if (localDay(row.firstAt, row.timeZone) !== row.day || localDay(row.lastAt, row.timeZone) !== row.day) issue("Aggregate dates do not match its local day.");
+  } catch { issue("Invalid aggregate timezone or date."); }
+  if (row.firstAt > row.lastAt || row.errors > row.n || row.weightedErrors > row.weightedN + 1e-9 ||
+    (!row.n && (row.weightedN || row.weightedErrors || row.evLostTotal || row.weightedEvLost)) ||
+    (row.n > 0 && row.weightedN <= 0) || (row.errors === 0 && (row.evLostTotal || row.weightedEvLost || row.weightedErrors)) ||
+    (row.errors > 0 && (row.evLostTotal <= 0 || row.weightedEvLost <= 0 || row.weightedErrors <= 0)) ||
+    row.n + row.excludedCorrections === 0) issue("Inconsistent aggregate counts or losses.");
+  if (row.bucketKey !== JSON.stringify([row.day, row.paytableId, row.coins, row.variantKind, row.bestLabel, row.chosenLabel, row.analysisKey, row.mode, row.timeZone])) issue("Invalid aggregate bucket key.");
 });

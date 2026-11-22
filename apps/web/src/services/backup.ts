@@ -5,6 +5,8 @@ import { payTableId } from "@perfect-draw/paytables";
 import { getGameFamily } from "@perfect-draw/engine";
 import type { PayTable } from "@perfect-draw/engine";
 import { db } from "../data/db";
+import { creditState } from "./money";
+import { countDecisions } from "./retention";
 
 export const backupTables = (Object.keys(recordSchemas) as TableName[]).filter(x => x !== "aiKeys" && x !== "analyses");
 const envelopeSchema = z.object({
@@ -95,18 +97,20 @@ export const backupService = {
     }
     // Settings may be restored, but a backup never contains or opts into remembered keys.
     tables.aiSettings = tables.aiSettings.map(row => ({ ...row as object, rememberKeys: false }));
+    const archivedCount = (tables.dailyAggregates as { n: number; excludedCorrections: number }[]).reduce((sum, row) => sum + row.n + row.excludedCorrections, 0);
+    const snapshotCount = tables.decisions.length + archivedCount;
     tables.profile = tables.profile.map(row => {
       const profile = profileSchema.parse(row);
-      return { ...profile, prefs: { ...profile.prefs, lastBackupAt: Date.now(), lastBackupDecisionCount: tables.decisions.length } };
+      return { ...profile, prefs: { ...profile.prefs, lastBackupAt: Date.now(), lastBackupDecisionCount: snapshotCount } };
     });
     const result = JSON.stringify({ format: "perfect-draw-backup", version: 1, exportedAt: Date.now(), tables });
-    await this.markExported();
+    await this.markExported(snapshotCount);
     return result;
   },
-  async markExported() {
-    await db.transaction("rw", [db.records("profile"), db.records("decisions")], async () => {
+  async markExported(snapshotCount?: number) {
+    await db.transaction("rw", [db.records("profile"), db.records("decisions"), db.records("dailyAggregates")], async () => {
       const profile = profileSchema.parse(await db.records("profile").get("local"));
-      const count = await db.records("decisions").count();
+      const count = snapshotCount ?? await countDecisions();
       await db.records("profile").put({ ...profile, updatedAt: Date.now(), prefs: { ...profile.prefs, lastBackupAt: Date.now(), lastBackupDecisionCount: count } });
     });
   },
@@ -123,13 +127,17 @@ export const backupService = {
       const keys = parsed[name].map(row => row.id);
       if (new Set(keys).size !== keys.length) throw new Error(`Backup has duplicate ${name} records.`);
     }
+    if (new Set(parsed.dailyAggregates.map(row => row.bucketKey)).size !== parsed.dailyAggregates.length) throw new Error("Backup has duplicate aggregate buckets.");
     if (parsed.profile.length !== 1 || parsed.aiSettings.length !== 1) throw new Error("Backup is missing local settings.");
     validateRelations(parsed);
     // Recompute all open credits from their wallet rather than trusting stale display values.
-    for (const session of parsed.sessions) if (session.status !== "closed" && session.deletedAt == null) {
-      const wallet = parsed.wallets.find(row => row.id === session.walletId)!;
+    for (const session of parsed.sessions) {
+      const wallet = parsed.wallets.find(row => row.id === session.walletId);
       const snapshot = session.machineSnapshot as { denominationCents: number };
-      session.state = { ...session.state as object, credits: (wallet.balanceCents as number) / snapshot.denominationCents };
+      const state = session.state as { credits: number; creditRemainderCents: number };
+      const cents = session.status !== "closed" && session.deletedAt == null ? wallet!.balanceCents as number
+        : Math.round(state.credits * snapshot.denominationCents) + state.creditRemainderCents;
+      session.state = { ...state, ...creditState(cents, snapshot.denominationCents) };
     }
     const profile = profileSchema.parse(parsed.profile[0]);
     if (!parsed.sessions.some(row => row.id === profile.prefs.activeSessionId && row.status !== "closed" && row.deletedAt == null)) profile.prefs.activeSessionId = null;

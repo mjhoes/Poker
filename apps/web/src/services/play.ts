@@ -9,6 +9,7 @@ import { engineClient } from "../worker/client";
 import { db, requireRecord, stamp } from "../data/db";
 import { postLedger } from "./wallets";
 import { decisionService } from "./decisions";
+import { creditState } from "./money";
 
 type PlayEngine = Pick<EngineAPI, "prepareRound" | "resolveRound">;
 const transactionTables = () => [db.records("sessions"), db.records("wallets"), db.records("walletLedger"), db.records("decisions")];
@@ -39,19 +40,19 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
         const session = await requireRecord("sessions", id); active(session);
         if (session.state.handId !== expectedHandId) return session; // A concurrent deal already committed.
         if (session.state.handId && session.state.phase === "holding") throw new Error("Finish the current hand.");
-        let credits = session.state.credits;
+        let balanceDisplay = creditState((await requireRecord("wallets", session.walletId)).balanceCents, config.denominationCents);
         const bet = session.mode === "drill" ? 0 : safeCents(standardVariant.betCoins(config.coins, config.lines) * config.denominationCents);
         if (bet) {
           const wallet = await requireRecord("wallets", session.walletId);
           if (wallet.balanceCents < bet) throw new Error("Insufficient play-money balance. Top up this session's wallet.");
-          credits = (await postLedger(session.walletId, -bet, "bet", { sessionId: id })).balanceCents / config.denominationCents;
+          balanceDisplay = creditState((await postLedger(session.walletId, -bet, "bet", { sessionId: id })).balanceCents, config.denominationCents);
         }
         const now = Date.now();
         const next = sessionSchema.parse({
           ...session, updatedAt: now,
           summary: { ...session.summary, coinInCents: session.summary.coinInCents + bet, netCents: session.summary.netCents - bet },
           state: {
-            ...session.state, hand: analysis.hand, heldMask: 0, phase: "holding", credits,
+            ...session.state, hand: analysis.hand, heldMask: 0, phase: "holding", ...balanceDisplay, primaryGrade: null,
             handId: newId(), handIndex: session.summary.hands + 1, dealtAt: now, decisionStartedAt: now,
             decisionElapsedMs: 0, analysis, drawDecks, warning: null, feedback: null, outcome: null, attempts: 0,
           },
@@ -99,15 +100,15 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
           await decisionService.record(decision); attempts++;
         }
         if (shouldWarn) {
-          const next = sessionSchema.parse({ ...session, updatedAt: Date.now(), state: { ...session.state, warning: grade, attempts } });
+          const next = sessionSchema.parse({ ...session, updatedAt: Date.now(), state: { ...session.state, warning: grade, attempts, primaryGrade: session.state.primaryGrade ?? grade } });
           await db.records("sessions").put(next); return next;
         }
         const first = await db.records("decisions").get(handId);
-        if (!first) throw new Error("Original decision record is missing.");
-        const firstGrade = gradeDecision(analysis, first.chosenMask, initial.mode === "drill" ? 1 : config.lines);
+        if (!first && !session.state.primaryGrade) throw new Error("Original decision record is missing.");
+        const firstGrade = first ? gradeDecision(analysis, first.chosenMask, initial.mode === "drill" ? 1 : config.lines) : session.state.primaryGrade!;
         const payout = outcome ? safeCents(outcome.totalPayoutCoins * config.denominationCents) : 0;
-        let credits = session.state.credits;
-        if (payout) credits = (await postLedger(session.walletId, payout, "win", { sessionId: id })).balanceCents / config.denominationCents;
+        let balanceDisplay = creditState((await requireRecord("wallets", session.walletId)).balanceCents, config.denominationCents);
+        if (payout) balanceDisplay = creditState((await postLedger(session.walletId, payout, "win", { sessionId: id })).balanceCents, config.denominationCents);
         const mistakeCounts = { ...session.summary.mistakeCounts };
         if (!firstGrade.correct) {
           const label = `${firstGrade.bestLabel} → ${firstGrade.chosenLabel}`;
@@ -125,7 +126,7 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
             topMistakes: Object.entries(mistakeCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([label, count]) => ({ label, count })),
           },
           state: {
-            ...session.state, phase: "complete", credits, attempts, warning: null, feedback: grade, outcome,
+            ...session.state, phase: "complete", ...balanceDisplay, attempts, warning: null, feedback: grade, outcome,
             hand: outcome?.lines[0].hand ?? session.state.hand, decisionStartedAt: null,
             priorOutcome: outcome ? outcome.lines.map(line => line.rank).join(",") : grade.correct ? "correct" : "mistake",
           },

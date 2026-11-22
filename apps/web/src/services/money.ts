@@ -1,3 +1,8 @@
+/** Display-only conversion; all stored wallet amounts and wager checks remain cents. */
+export function creditState(balanceCents: number, denominationCents: number) {
+  if (!Number.isSafeInteger(balanceCents) || balanceCents < 0 || !Number.isSafeInteger(denominationCents) || denominationCents <= 0) throw new Error("Invalid credit balance.");
+  return { credits: Math.floor(balanceCents / denominationCents), creditRemainderCents: balanceCents % denominationCents };
+}
 /** Parse decimal dollars as integer cents without a floating-point dollar multiplication. */
 export function parseCents(input: string, allowZero = false): number | null {
   const trimmed = input.trim();

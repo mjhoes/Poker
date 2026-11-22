@@ -1,5 +1,6 @@
 import { ledgerSchema, nameSchema, newId, uuid, walletCreateSchema, walletSchema, walletTopupSchema, walletTransferSchema } from "@perfect-draw/shared";
 import type { WalletLedger, WalletService } from "@perfect-draw/shared";
+import { creditState } from "./money";
 import { db, live, requireRecord, stamp } from "../data/db";
 import Dexie from "dexie";
 
@@ -19,7 +20,7 @@ export async function postLedger(walletId: string, amountCents: number, type: Wa
   // All sessions sharing this wallet must show the same current bankroll.
   const sessions = await db.records("sessions").where("walletId").equals(walletId).toArray();
   for (const session of sessions.filter(x => live(x) && x.status !== "closed")) {
-    await db.records("sessions").put({ ...session, updatedAt: Date.now(), state: { ...session.state, credits: next.balanceCents / session.machineSnapshot.denominationCents } });
+    await db.records("sessions").put({ ...session, updatedAt: Date.now(), state: { ...session.state, ...creditState(next.balanceCents, session.machineSnapshot.denominationCents) } });
   }
   return next;
 }

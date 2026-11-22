@@ -1,6 +1,8 @@
 export * from "./types";
 export * from "./cards";
-export { categoryDistribution, computeStatistics, STATS_HALF_LIFE_DAYS, STATS_CONFIDENCE_PRIOR } from "./statistics";
+export { categoryDistribution, computeStatistics, aggregateStatistics, STATS_HALF_LIFE_DAYS, STATS_CONFIDENCE_PRIOR, STATS_ESTIMATE_MIN_COVERAGE } from "./statistics";
+export { localDay, localDayBounds } from "./calendar";
+export type { StatsAggregate } from "./statistics";
 export type { StatsReport, StatsObservation, CategoryDistribution, CategoryStats, ConfusionStats, TrendStats } from "./statistics";
 export { dealRound, resolveRound, gradeDecision } from "./play";
 export type { DecisionGrade, DrawLine, RoundOutcome } from "./play";
