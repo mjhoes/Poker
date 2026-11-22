@@ -1,3 +1,4 @@
 - [Strategy fidelity](strategy-fidelity.md) — replay each chart itself; keep memorizable Expert separate from the internal detailed Reference.
 - [Browser verification](browser-verification.md) — system Chromium supplies Nix libraries; keep browser caches out of Git and deployment.
 - [Practice integrity](practice-integrity.md) — assisted corrections must not erase original mistakes; retrying a paid hand must not change its outcome.
+- [Statistics semantics](statistics-semantics.md) — use canonical category partitions and exact coin baselines; incomplete sample coverage is not a full return forecast.

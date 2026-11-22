@@ -19,6 +19,9 @@ export class LocalDatabase extends Dexie {
       rewardsPrograms: "id", trips: "id, programId, status", casinoSessions: "id, tripId",
       rewardsReceived: "id, tripId, programId", dailyAggregates: "id, [paytableId+bestLabel+chosenLabel], day",
     });
+    this.version(2).stores({
+      decisions: "id, sessionId, paytableId, analysisKey, [paytableId+bestLabel], [paytableId+bestLabel+chosenLabel], createdAt",
+    });
   }
   records<K extends TableName>(name: K): Table<Records[K], string> { return this.table(name); }
 }

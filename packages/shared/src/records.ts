@@ -101,6 +101,7 @@ export const sessionSchema = z.object({
   status: z.enum(["active", "paused", "closed"]).default("active"), state: sessionStateSchema,
   startedAt: timestamp, endedAt: timestamp.nullable().default(null), summary: sessionSummarySchema,
   activeMs: z.number().finite().nonnegative().default(0), handsPerHour: z.number().finite().nonnegative().default(0),
+  trainingFocus: z.object({ label: z.string().min(1).max(250), analysisKey: hash }).nullable().default(null),
   virtualCoinInCents: cents.nonnegative().default(0), virtualPoints: z.number().finite().nonnegative().default(0),
 });
 export const decisionSchema = z.object({

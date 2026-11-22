@@ -30,7 +30,7 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
       if (initial.state.handId !== expectedHandId) throw new Error("This session has moved to another hand.");
       if (initial.state.handId && initial.state.phase === "holding") throw new Error("Finish the current hand before dealing.");
       const config = initial.machineSnapshot;
-      const prepared = await getEngine().prepareRound(config.paytableId, config.coins, initial.mode === "drill" ? 1 : config.lines);
+      const prepared = await getEngine().prepareRound(config.paytableId, config.coins, initial.mode === "drill" ? 1 : config.lines, initial.trainingFocus);
       const analysis = handAnalysisSchema.parse(prepared.analysis);
       const drawDecks = drawDecksSchema.parse(prepared.drawDecks);
       if (drawDecks.length !== (initial.mode === "drill" ? 1 : config.lines) ||

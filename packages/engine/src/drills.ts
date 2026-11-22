@@ -6,6 +6,7 @@ import type { Hand } from "./types";
 export interface DrillOptions {
   readonly analysisKey: string;
   readonly targetPairs?: readonly { correct: string; confusedWith: string }[];
+  readonly targetLabels?: readonly string[];
   /** Total-coin EV gap, inclusive. Zero requests exact ties. */
   readonly closeCallMaxGap?: number;
   readonly excludeRecent?: readonly number[];
@@ -54,6 +55,7 @@ export function generateHand(options: DrillOptions): DrillHand {
   if (options.targetPairs && (!options.targetPairs.length || options.targetPairs.some(pair => !pair.correct || !pair.confusedWith))) {
     throw new Error("Target pairs must contain nonempty category labels.");
   }
+  if (options.targetLabels && (!options.targetLabels.length || options.targetLabels.some(label => !label))) throw new Error("Target labels must be nonempty.");
   const excluded = new Set(options.excludeRecent ?? []);
   let ids: readonly number[];
   if (options.targetPairs) {
@@ -62,7 +64,8 @@ export function generateHand(options: DrillOptions): DrillHand {
   } else ids = getCanonicalHands().map(hand => hand.id);
   const candidates = ids.filter(id => {
     const row = context.analysis.perHand.get(id)!;
-    return !excluded.has(id) && (options.closeCallMaxGap === undefined || row.ev - row.secondEv <= options.closeCallMaxGap);
+    return !excluded.has(id) && (!options.targetLabels || options.targetLabels.includes(row.bestLabel)) &&
+      (options.closeCallMaxGap === undefined || row.ev - row.secondEv <= options.closeCallMaxGap);
   });
   if (!candidates.length) throw new Error("No drill hands satisfy the requested categories, gap, and exclusions.");
   const rng = () => {

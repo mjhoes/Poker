@@ -8,6 +8,7 @@ import type { PrecomputedGameAnalysis } from "@perfect-draw/precomputed";
 import { analysisSchema } from "@perfect-draw/shared";
 import { db, stamp } from "../data/db";
 import type { AnalysisSummary, EngineAPI } from "./engine-api";
+import { StatsEngine } from "./stats-engine";
 
 const loaded = new Map<string, PrecomputedGameAnalysis>();
 let solverFamily = "";
@@ -38,9 +39,17 @@ async function cache(analysis: PrecomputedGameAnalysis, paytableId: string) {
   return value;
 }
 const api: EngineAPI = {
-  async prepareRound(paytableId, coins, lines) {
+  async statistics(input) { return statsEngine.report(input); },
+  async validateTraining(paytableId, coins, label) { return statsEngine.validateTraining(paytableId, coins, label); },
+  async prepareRound(paytableId, coins, lines, focus) {
     const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
     const dealt = dealRound(lines, random);
+    if (focus) {
+      const analysis = await statsEngine.prepareTarget(paytableId, coins, focus.label, focus.analysisKey);
+      const remaining = Array.from({ length: 52 }, (_, i) => i).filter(card => !analysis.hand.includes(card));
+      // Drills never draw or pay, but keep the same validated persistent round format.
+      return { analysis, drawDecks: [remaining] };
+    }
     return { analysis: await api.analyzeHand(dealt.hand, paytableId, coins), drawDecks: dealt.drawDecks };
   },
   async resolveRound(hand, mask, decks, paytableId, coins) {
@@ -87,7 +96,15 @@ const api: EngineAPI = {
   },
   async generateDrill(options) {
     await api.loadAnalysis(options.analysisKey);
+    const analysis = loaded.get(options.analysisKey);
+    if (analysis) registerTrainingAnalysis(options.analysisKey, analysis);
     return generateHand(options);
   },
 };
+const statsEngine = new StatsEngine(async paytableId => {
+  const value = await api.loadAnalysis(paytableId);
+  const analysis = loaded.get(value.key);
+  if (!analysis) throw new Error("Full analysis was evicted before statistics could read it.");
+  return analysis;
+}, prepareSolver);
 expose(api);

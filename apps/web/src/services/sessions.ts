@@ -1,5 +1,7 @@
 import { machineDraftSchema, newId, sessionActionSchema, sessionSchema, sessionStartSchema, uuid } from "@perfect-draw/shared";
 import type { Session, SessionService } from "@perfect-draw/shared";
+import { standardVariant } from "@perfect-draw/engine";
+import { analysisKey } from "@perfect-draw/paytables";
 import { db, live, requireRecord, stamp } from "../data/db";
 
 export const sessionService: SessionService = {
@@ -7,12 +9,17 @@ export const sessionService: SessionService = {
   async start(input: unknown) {
     const parsed = sessionStartSchema.parse(input);
     if (!["free_play", "drill"].includes(parsed.mode)) throw new Error("This training mode is not available yet.");
-    return db.transaction("rw", [db.records("machines"), db.records("wallets"), db.records("sessions"), db.records("profile")], async () => {
+    return db.transaction("rw", [db.records("machines"), db.records("wallets"), db.records("sessions"), db.records("profile"), db.records("paytables")], async () => {
       const machine = await requireRecord("machines", parsed.machineId);
       const wallet = await requireRecord("wallets", parsed.walletId ?? machine.defaultWalletId);
+      if (parsed.trainingFocus) {
+        const table = await requireRecord("paytables", machine.paytableId);
+        if (parsed.trainingFocus.analysisKey !== analysisKey(table.familyId, standardVariant.valueVector(table, machine.coins, {}), machine.coins)) throw new Error("Machine terms changed. Select training again.");
+      }
       const session = sessionSchema.parse({
         id: newId(), ...stamp(), machineId: machine.id, walletId: wallet.id, mode: parsed.mode,
         machineSnapshot: machineDraftSchema.parse(machine), variant: machine.variant, startedAt: Date.now(),
+        trainingFocus: parsed.trainingFocus ?? null,
         state: { credits: wallet.balanceCents / machine.denominationCents },
       });
       await db.records("sessions").add(session);

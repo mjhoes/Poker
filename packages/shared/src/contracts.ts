@@ -6,7 +6,10 @@ import { feedbackModeSchema } from "./play-state";
 export const walletCreateSchema = z.object({ name: r.nameSchema, initialCents: r.cents.nonnegative().default(0) });
 export const walletTopupSchema = z.object({ walletId: r.uuid, amountCents: r.positiveCents });
 export const walletTransferSchema = z.object({ fromId: r.uuid, toId: r.uuid, amountCents: r.positiveCents }).refine(x => x.fromId !== x.toId, "Choose two different wallets");
-export const sessionStartSchema = z.object({ machineId: r.uuid, walletId: r.uuid.optional(), mode: r.sessionSchema.shape.mode });
+export const sessionStartSchema = z.object({
+  machineId: r.uuid, walletId: r.uuid.optional(), mode: r.sessionSchema.shape.mode,
+  trainingFocus: r.sessionSchema.shape.trainingFocus.optional(),
+}).refine(x => !x.trainingFocus || x.mode === "drill", "Targeted categories require Rapid Drill");
 export const sessionActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hold"), heldMask: z.number().int().min(0).max(31), handId: r.uuid.nullable().optional() }),
   z.object({ type: z.literal("feedback"), feedbackMode: feedbackModeSchema }),

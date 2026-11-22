@@ -97,3 +97,28 @@ hold masks must be remapped to the user's original card order before use.
 - `pnpm test:e2e` includes ten-hand multi-line play, keyboard use, corrections,
   full decision audits and mobile drill feedback timing. `pnpm test:offline`
   also reloads a pending production hand and completes it while offline.
+
+## Statistics and mistake intelligence (Prompt 7)
+
+- The Statistics screen filters by exact paytable, coin count, UTC date range
+  and play mode. It shows accuracy, EV loss per 1,000 primary decisions, return
+  estimates, daily trends, sortable confusion pairs and category weaknesses.
+- All statistical/EV calculations are pure engine functions. Estimates use a
+  14-day half-life, Beta(1,1) posterior error and confidence factor
+  `n_eff / (n_eff + 20)`. Counts/accuracy/raw EV totals and daily trends remain
+  unweighted. EV units are configured-bet coins per line, not wallet profit.
+- Corrections remain reviewable but never inflate primary decision counts.
+  Canonical optimal categories partition real-play frequencies with suit
+  multiplicities; the original logged categories are not rewritten.
+- Returns never mix coin counts or tables. Missing category samples leave the
+  full real-play estimate unknown. The screen explicitly labels the available
+  covered-cost ceiling as optimistic, incomplete and not a confidence bound.
+- Library baselines reuse verified analyses. Short-coin baselines are computed
+  exactly in the worker without inducing new charts, and work offline.
+- "Train this" uses an existing matching machine and saves a category-focused,
+  no-wager Rapid Drill. Focus survives reloads/backups and applies to every deal.
+  This is not the future adaptive/FSRS training mix from Prompt 11.
+- IndexedDB version 2 adds decision lookup indexes without deleting data.
+  New session fields have defaults for older backups. Browser tests cover
+  populated/empty reports, sorting, date/mode/coin filters, targeted training,
+  worker failures, responsive layouts and offline report/training recovery.

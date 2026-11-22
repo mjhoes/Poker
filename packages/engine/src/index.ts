@@ -1,5 +1,7 @@
 export * from "./types";
 export * from "./cards";
+export { categoryDistribution, computeStatistics, STATS_HALF_LIFE_DAYS, STATS_CONFIDENCE_PRIOR } from "./statistics";
+export type { StatsReport, StatsObservation, CategoryDistribution, CategoryStats, ConfusionStats, TrendStats } from "./statistics";
 export { dealRound, resolveRound, gradeDecision } from "./play";
 export type { DecisionGrade, DrawLine, RoundOutcome } from "./play";
 export { GAME_FAMILIES, getGameFamily } from "./families";

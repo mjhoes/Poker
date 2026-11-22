@@ -20,6 +20,16 @@ beforeAll(() => {
 }, 120_000);
 
 describe("engine-derived strategy tiers", () => {
+  it("generates real-distribution drills confined to an explicit optimal category", () => {
+    const label = game.perHand.values().next().value!.bestLabel;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const hand = generateHand({ analysisKey: key, targetLabels: [label], sampling: "real", random: () => 0.35 });
+      expect(game.perHand.get(hand.canonicalHandId)?.bestLabel).toBe(label);
+      expect(hand.bestLabel).toBe(label);
+    }
+    expect(() => generateHand({ analysisKey: key, targetLabels: [] })).toThrow();
+    expect(() => generateHand({ analysisKey: key, targetLabels: ["MISSING"] })).toThrow(/No drill/);
+  });
   it("retains the old detailed strategy as an internal Reference, not a memorization chart", () => {
     const expert = lists[3];
     expect(expert.costVsOptimal).toBeLessThanOrEqual(0.02);

@@ -50,5 +50,16 @@ test("production app, saved sessions and cached worker analysis reopen fully off
   await expect(page.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
   await expect(page.getByRole("button", { name: "Select wallet Offline practice" })).toContainText(new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(walletCents / 100));
+  await page.getByRole("link", { name: "Statistics", exact: true }).click();
+  await expect(page.locator(".stats-metric").filter({ hasText: "Primary decisions" }).locator("strong")).toHaveText("1");
+  await page.getByRole("button", { name: "Train this", exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Deal hand", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Check answer", exact: true })).toBeEnabled();
+  const focused = (await readPlayState(page)).sessions.find(row => row.trainingFocus)!;
+  expect(focused.trainingFocus?.label).toBeTruthy();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Check answer", exact: true })).toBeEnabled();
+  expect((await readPlayState(page)).sessions.find(row => row.id === focused.id)!.trainingFocus).toEqual(focused.trainingFocus);
   expect(errors).toEqual([]);
 });

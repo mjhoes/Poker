@@ -3,10 +3,13 @@ import type { GameAnalysis } from "@perfect-draw/engine";
 import type { HandAnalysis, DrillHand } from "@perfect-draw/engine";
 import type { StrategyList } from "@perfect-draw/engine";
 import type { RoundOutcome } from "@perfect-draw/engine";
+import type { StatsQuery, StatsReport, Session } from "@perfect-draw/shared";
 
 export type AnalysisSummary = Omit<GameAnalysis, "perHand"> & { key: string; strategyLists: readonly StrategyList[] };
 export interface EngineAPI {
-  prepareRound(paytableId: string, coins: number, lines: number): Promise<{ analysis: HandAnalysis; drawDecks: number[][] }>;
+  prepareRound(paytableId: string, coins: number, lines: number, focus?: Session["trainingFocus"]): Promise<{ analysis: HandAnalysis; drawDecks: number[][] }>;
+  statistics(input: StatsQuery): Promise<StatsReport>;
+  validateTraining(paytableId: string, coins: number, label: string): Promise<string>;
   resolveRound(hand: Hand, mask: number, decks: number[][], paytableId: string, coins: number): Promise<RoundOutcome>;
   analyzeHand(cards: Hand, paytableId: string, coins: number): Promise<HandAnalysis>;
   analyzeGame(familyId: GameFamilyId, vector: ValueVector, betCoins: number, progress?: (value: AnalysisProgress) => void): Promise<AnalysisSummary>;

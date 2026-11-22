@@ -39,6 +39,8 @@ export function engineClient() {
       generateDrill: (...args) => call(() => remote.generateDrill(...args)),
       prepareRound: (...args) => call(() => remote.prepareRound(...args)),
       resolveRound: (...args) => call(() => remote.resolveRound(...args)),
+      statistics: (...args) => call(() => remote.statistics(...args)),
+      validateTraining: (...args) => call(() => remote.validateTraining(...args)),
     };
   }
   return instance;

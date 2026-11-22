@@ -16,9 +16,10 @@ import { HomePage } from "./pages/HomePage";
 import { WalletsPage } from "./pages/WalletsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SessionPage } from "./pages/SessionPage";
+import { StatsPage } from "./pages/StatsPage";
 import { parseCents } from "./services/money";
 
-type Route = "/" | "/wallets" | "/settings" | "/session";
+type Route = "/" | "/wallets" | "/settings" | "/session" | "/stats";
 type ModalKind = "machine" | "start" | "wallet" | "rename" | "topup" | "transfer" | null;
 type MachineForm = {
   name: string; paytableId: string; denomination: string; coins: string; lines: string;
@@ -70,7 +71,7 @@ function App() {
   useEffect(() => {
     const syncRoute = () => {
       const next = (window.location.hash.slice(1) || "/") as Route;
-      setRoute(["/", "/wallets", "/settings", "/session"].includes(next) ? next : "/");
+      setRoute(["/", "/wallets", "/settings", "/session", "/stats"].includes(next) ? next : "/");
     };
     window.addEventListener("hashchange", syncRoute);
     return () => window.removeEventListener("hashchange", syncRoute);
@@ -267,6 +268,7 @@ function App() {
           <a className={`nav-link ${route === "/" ? "active" : ""}`} href="#/">Machines</a>
           <a className={`nav-link ${route === "/wallets" ? "active" : ""}`} href="#/wallets">Wallets</a>
           <a className={`nav-link ${route === "/session" ? "active" : ""}`} href="#/session">Session room</a>
+          <a className={`nav-link ${route === "/stats" ? "active" : ""}`} href="#/stats">Statistics</a>
           <a className={`nav-link ${route === "/settings" ? "active" : ""}`} href="#/settings">Settings</a>
         </nav>
         <div className="header-status"><span className="status-pip" />PRIVATE · ON THIS DEVICE</div>
@@ -293,6 +295,7 @@ function App() {
       {route === "/" && <HomePage machines={machines} wallets={wallets} sessions={sessions} machine={machine} selectedMachine={selectedMachine} busy={busy} onSelect={setSelectedMachine} onCreate={startNewMachine} onEdit={editMachine} onDelete={deleteMachine} onStart={beginStart} onWallets={() => navigate("/wallets")} />}
       {route === "/wallets" && <WalletsPage wallets={wallets} selectedWallet={selectedWallet} ledger={ledger} onSelect={setSelectedWallet} onCreate={() => { setError(""); setWalletName(""); setInitialAmount(""); setModal("wallet"); }} onRename={wallet => { setWalletTarget(wallet.id); setWalletName(wallet.name); setModal("rename"); }} onTopup={wallet => { setWalletTarget(wallet.id); setAmountInput(""); setModal("topup"); }} onTransfer={wallet => { setWalletTarget(wallet.id); setTransferTarget(wallets.find(item => item.id !== wallet.id)?.id ?? ""); setAmountInput(""); setModal("transfer"); }} busy={busy} />}
       {route === "/settings" && <SettingsPage storageStatus={storageStatus} decisionCount={decisionCount} backupDue={backupDue} lastBackupAt={lastBackupAt} busy={busy || importing} onExport={() => void exportBackup()} onImport={event => void importBackup(event)} />}
+      {route === "/stats" && <StatsPage machines={machines} decisionCount={decisionCount} onTrainStarted={() => { setSessionViewId(null); navigate("/session"); }} onGoMachines={() => navigate("/")} />}
       {route === "/session" && <SessionPage session={shownSession} sessions={historySessions} analysis={analysis} analysisError={analysisError} analysisLoading={analysisLoading} busy={busy} playError={playError} onRetryPlay={() => { const retry = playRetryRef.current; if (retry) void runPlay(retry, false); }} onPause={session => void changeStatus("pause", session)} onResume={session => void changeStatus("resume", session)} onClose={session => void changeStatus("close", session)} onSelect={id => {
         const selected = sessions[id];
         if (selected?.status === "closed") { setSessionViewId(id); setNotice(""); setError(""); }

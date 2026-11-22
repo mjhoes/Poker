@@ -164,6 +164,12 @@ export function SessionPage({ session, sessions, analysis, analysisError, analys
     <div className="page-heading session-room-heading"><div><p className="eyebrow">PRIVATE TRAINING ROOM</p><h1>{session ? session.machineSnapshot.name : "Practice table"}</h1></div><p className="heading-note">{session ? `${modeName(session.mode)} · saved session · ${session.status === "paused" ? "paused" : session.status === "active" ? "active" : "closed"}. ${session.mode === "drill" ? "One hand at a time, with immediate engine feedback and no wager." : "Real engine decisions and settled play-money outcomes."}` : "Choose a saved table to continue a hand or review its closed-session report."}</p></div>
     {!session ? <div className="empty-state"><div className="empty-mark" aria-hidden="true">S</div><h2>No open session</h2><p>Prepare a Free Play table for full hands with play-money settlement, or use Rapid Drill to practice decisions without wagering.</p><a className="btn" href="#/">Browse machine configurations</a>{sessions.length > 0 && <div style={{ marginTop: 24, textAlign: "left" }}><p className="eyebrow">CLOSED SESSION HISTORY</p>{sessions.map(item => <div className="list-row" key={item.id}><div className="list-main"><strong>{item.machineSnapshot.name} · {modeName(item.mode)}</strong><span>{dateTime(item.startedAt)} · {item.summary.hands} hands</span></div><button className="text-button" type="button" onClick={() => onSelect(item.id)}>View saved report</button></div>)}</div>}</div> :
       <div className="session-workspace">
+         {session.trainingFocus && <section className="focused-drill-note" aria-label="Focused Rapid Drill">
+           <p className="eyebrow">FOCUSED RAPID DRILL</p>
+           <h2>Practice this decision</h2>
+           <p><strong>{gradeLabel(session.trainingFocus.label, PAY_TABLE_LIBRARY.find(item => item.id === session.machineSnapshot.paytableId)?.familyId ?? "jacks_or_better")}</strong></p>
+           <span>Deal a hand to begin. This saved drill keeps its focus across reloads; it is not the future adaptive 70/20/10 trainer.</span>
+         </section>}
         <section className="play-console">
           <div className="play-table">
             <div className="play-topline"><span className="play-mode-tag">{modeName(session.mode)}</span><span>{session.status.toUpperCase()} · HAND {state?.handIndex ? String(state.handIndex).padStart(3, "0") : "—"}</span></div>
