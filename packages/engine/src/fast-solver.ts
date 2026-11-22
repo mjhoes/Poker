@@ -2,6 +2,7 @@ import { validateHand } from "./cards";
 import { choose, COMBINATIONS } from "./combinations";
 import { getSubsetTables, subsetOffset } from "./subsets";
 import { validateValueVector } from "./solver";
+import { describeHoldUnchecked } from "./labels";
 import type { SubsetTables } from "./subsets";
 import type { Card, GameFamilyId, Hand, HandAnalysis, HoldResult, ValueVector } from "./types";
 
@@ -59,8 +60,8 @@ export function analyzeHandFast(
     const rankCounts = Array.from(scratch.subarray(sortedMask * tables.width, (sortedMask + 1) * tables.width));
     const drawCount = DRAW_COUNTS[sortedMask];
     const total = rankCounts.reduce((sum, count, rank) => sum + count * valueVector[rank], 0);
-    results.push({ mask, ev: total / drawCount, rankCounts, drawCount, rankDist: rankCounts.map(count => count / drawCount) });
+    results.push({ mask, label: describeHoldUnchecked(cards, mask, familyId).label, ev: total / drawCount, rankCounts, drawCount, rankDist: rankCounts.map(count => count / drawCount) });
   }
   results.sort((a, b) => b.ev - a.ev || a.mask - b.mask);
-  return { familyId, hand: [...cards] as unknown as Hand, results, best: results[0], gapToSecond: results[0].ev - results[1].ev };
+  return { familyId, valueVector: [...valueVector], hand: [...cards] as unknown as Hand, results, best: results[0], gapToSecond: results[0].ev - results[1].ev };
 }

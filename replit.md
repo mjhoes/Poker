@@ -27,6 +27,12 @@ loader. It verifies engine version, schema, and SHA-256 integrity before returni
 an index. These static assets contain no user data and require no backend.
 Persistent IndexedDB caching and worker/UI integration belong to later prompts.
 
+Versioned analysis payloads include hold categories and four measured strategy
+tiers. Expert policies are explicit label/condition rules; only the Perfect
+tier selects the engine optimum directly. Precomputation validates Expert loss
+at no more than 0.02 percentage points and decision consistency at least 99.9%.
+The reviewable 9/6 Jacks or Better strategy snapshot is stored with engine tests.
+
 Engine EVs use total returned coins. Full-game analysis explicitly divides by
 `betCoins`; its variance is single-line variance per unit bet. Canonical-index
 hold masks must be remapped to the user's original card order before use.

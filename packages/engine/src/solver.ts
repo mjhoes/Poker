@@ -1,6 +1,7 @@
 import { validateHand } from "./cards";
 import { getGameFamily } from "./families";
 import { lookupTable } from "./evaluator";
+import { describeHoldUnchecked } from "./labels";
 import type { Card, GameFamilyId, Hand, HandAnalysis, HoldResult, ValueVector } from "./types";
 
 export function validateValueVector(vector: ValueVector, familyId: GameFamilyId): void {
@@ -63,7 +64,8 @@ export function analyzeHand(
     const drawCount = rankCounts.reduce((sum, count) => sum + count, 0);
     const total = rankCounts.reduce((sum, count, rank) => sum + count * valueVector[rank], 0);
     results.push({
-      mask, ev: total / drawCount, rankCounts, drawCount,
+      mask, label: describeHoldUnchecked(cards, mask, familyId).label,
+      ev: total / drawCount, rankCounts, drawCount,
       rankDist: rankCounts.map(count => count / drawCount),
     });
   }
@@ -71,6 +73,7 @@ export function analyzeHand(
   results.sort((a, b) => b.ev - a.ev || a.mask - b.mask);
   return {
     familyId,
+    valueVector: [...valueVector],
     hand: [...cards] as unknown as Hand,
     results,
     best: results[0],

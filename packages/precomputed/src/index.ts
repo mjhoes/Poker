@@ -2,11 +2,10 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { getLibraryPayTable, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { deserializeAnalysis, manifestSchema } from "./format";
-import type { GameAnalysis } from "@perfect-draw/engine";
-import type { PrecomputedManifest } from "./format";
+import type { PrecomputedManifest, PrecomputedGameAnalysis } from "./format";
 
 export { serializeAnalysis, deserializeAnalysis, manifestSchema } from "./format";
-export type { ManifestEntry, PrecomputedManifest, SerializedAnalysis } from "./format";
+export type { ManifestEntry, PrecomputedManifest, SerializedAnalysis, PrecomputedGameAnalysis } from "./format";
 
 export interface LoadOptions {
   /** Relative, same-origin by default; no API server is involved. */
@@ -36,7 +35,7 @@ export async function loadPrecomputedAnalysis(
   idOrSlug: string,
   manifest: PrecomputedManifest,
   options: LoadOptions = {},
-): Promise<GameAnalysis> {
+): Promise<PrecomputedGameAnalysis> {
   const table = getLibraryPayTable(idOrSlug);
   const entry = manifestSchema.parse(manifest).entries.find(item => item.paytableId === table.id);
   if (!entry || entry.file !== `${entry.key}.bin`) throw new Error(`No current precomputed analysis for ${table.slug}`);

@@ -1,0 +1,1 @@
+- [Strategy fidelity](strategy-fidelity.md) — measure the actual rule policy; refine unresolved suit context instead of adding a hidden optimal-play fallback.

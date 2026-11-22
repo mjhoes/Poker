@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { analyzeGame, ENGINE_VERSION, standardVariant } from "@perfect-draw/engine";
+import { analyzeGame, ENGINE_VERSION, generateStrategyList, registerTrainingAnalysis, standardVariant } from "@perfect-draw/engine";
 import { analysisKey, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import {
   deserializeAnalysis, loadPrecomputedAnalysis, loadPrecomputedManifest, serializeAnalysis,
@@ -20,11 +20,14 @@ const asFetch = (handler: (url: string) => Response | Promise<Response>) =>
 beforeAll(() => {
   const vector = standardVariant.valueVector(table, 5, {});
   analysis = analyzeGame(table.familyId, vector, undefined, { betCoins: 5 });
-  serialized = serializeAnalysis(analysis, table.id);
+  const key = analysisKey(table.familyId, vector, 5);
+  registerTrainingAnalysis(key, analysis);
+  const strategies = (["Beginner", "Intermediate", "Expert", "Perfect"] as const).map(tier => generateStrategyList(key, tier));
+  serialized = serializeAnalysis(analysis, table.id, strategies);
   compressed = Uint8Array.from(gzipSync(JSON.stringify(serialized)));
   const sha256 = createHash("sha256").update(compressed).digest("hex");
   manifest = {
-    schemaVersion: 1, engineVersion: ENGINE_VERSION, compression: "gzip",
+    schemaVersion: 2, engineVersion: ENGINE_VERSION, compression: "gzip",
     entries: PAY_TABLE_LIBRARY.map(item => {
       const valueVector = standardVariant.valueVector(item, 5, {});
       const key = analysisKey(item.familyId, valueVector, 5);
@@ -54,7 +57,7 @@ describe("static analysis loading", () => {
       fetch: asFetch(url => { requests.push(url); return new Response(compressed); }),
     });
     expect(requests).toEqual([`/analyses/${serialized.key}.bin`]);
-    expect(loaded).toEqual(analysis);
+    expect(loaded).toEqual({ ...analysis, strategyLists: serialized.strategyLists });
     // Compression is deterministic, suitable for reproducible content hashes.
     expect(Uint8Array.from(gzipSync(JSON.stringify(serialized)))).toEqual(compressed);
   }, 30_000);
@@ -101,7 +104,26 @@ describe("static analysis loading", () => {
     duplicate.hands[1] = duplicate.hands[0];
     expect(() => deserializeAnalysis(duplicate)).toThrow(/hand row/);
     expect(() => deserializeAnalysis({ ...serialized, rankProbs: [0.1] })).toThrow(/rank/);
-    expect(() => deserializeAnalysis({ ...serialized, returnPct: serialized.returnPct + 0.01 })).toThrow(/summary/);
+    expect(() => deserializeAnalysis({ ...serialized, returnPct: serialized.returnPct + 0.01 })).toThrow(/summary|strategy lists/);
     expect(() => deserializeAnalysis({ ...serialized, engineVersion: "old" })).toThrow();
+  }, 30_000);
+
+  it("rejects stale, mismatched, incomplete, or over-claimed strategy tiers", () => {
+    const altered = (index: number, changes: object) => ({
+      ...serialized,
+      strategyLists: serialized.strategyLists.map((list, i) => i === index ? { ...list, ...changes } : list),
+    });
+    const expert = serialized.strategyLists.findIndex(list => list.tier === "Expert");
+    const beginner = serialized.strategyLists.findIndex(list => list.tier === "Beginner");
+    expect(() => deserializeAnalysis(altered(expert, { analysisKey: "0".repeat(64) }))).toThrow(/strategy lists/);
+    expect(() => deserializeAnalysis(altered(expert, {
+      costVsOptimal: 0.03, returnPct: serialized.returnPct - 0.03,
+    }))).toThrow(/strategy lists/);
+    expect(() => deserializeAnalysis(altered(expert, { optimalDecisionFreq: 0.998 }))).toThrow(/strategy lists/);
+    expect(() => deserializeAnalysis(altered(beginner, {
+      lines: Array.from({ length: 13 }, () => serialized.strategyLists[beginner].lines[0]),
+    }))).toThrow(/strategy lists/);
+    expect(() => deserializeAnalysis({ ...serialized, strategyLists: serialized.strategyLists.slice(1) })).toThrow();
+    expect(() => deserializeAnalysis({ ...serialized, schemaVersion: 1 })).toThrow();
   }, 30_000);
 });

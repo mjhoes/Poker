@@ -35,6 +35,7 @@ describe("computed returns, not stored reference substitutions", () => {
     expect(game.perHand.get(canonical.id)).toEqual({
       weight: canonical.weight, bestMask: direct.best.mask, secondMask: direct.results[1].mask,
       ev: direct.best.ev, secondEv: direct.results[1].ev,
+      bestLabel: direct.best.label, secondLabel: direct.results[1].label,
     });
   });
 

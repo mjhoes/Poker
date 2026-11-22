@@ -25,10 +25,12 @@ export interface GameFamily {
 
 /** Payouts in total coins returned, indexed by family.handRanks. */
 export type ValueVector = readonly number[];
+export type CategoryLabel = string;
 
 export interface HoldResult {
   /** Bit i refers to cards[i] in the original (not sorted) input hand. */
   readonly mask: number;
+  readonly label: CategoryLabel;
   readonly ev: number;
   readonly rankDist: readonly number[];
   readonly rankCounts: readonly number[];
@@ -37,6 +39,7 @@ export interface HoldResult {
 
 export interface HandAnalysis {
   readonly familyId: GameFamilyId;
+  readonly valueVector: ValueVector;
   readonly hand: Hand;
   readonly results: readonly HoldResult[];
   readonly best: HoldResult;

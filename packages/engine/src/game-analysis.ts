@@ -3,14 +3,17 @@ import { DRAW_COUNTS, fillFastCounts } from "./fast-solver";
 import { getGameFamily } from "./families";
 import { getSubsetTables } from "./subsets";
 import { validateValueVector } from "./solver";
+import { describeHoldUnchecked } from "./labels";
 import type { GameFamilyId, ValueVector } from "./types";
 
-export const ENGINE_VERSION = "1.0.0";
+export const ENGINE_VERSION = "2.0.0";
 
 export interface GameHandResult {
   readonly weight: number;
   readonly bestMask: number;
   readonly secondMask: number;
+  readonly bestLabel: string;
+  readonly secondLabel: string;
   /** Total returned coins, in the supplied vector's units. */
   readonly ev: number;
   readonly secondEv: number;
@@ -79,7 +82,11 @@ export function analyzeGame(
     meanCoins += bestEv * frequency;
     const scale = frequency / DRAW_COUNTS[bestMask];
     for (let rank = 0; rank < tables.width; rank++) probabilities[rank] += scratch[bestMask * tables.width + rank] * scale;
-    perHand.set(id, { weight, bestMask, secondMask, ev: bestEv, secondEv });
+    perHand.set(id, {
+      weight, bestMask, secondMask, ev: bestEv, secondEv,
+      bestLabel: describeHoldUnchecked(hand, bestMask, familyId).label,
+      secondLabel: describeHoldUnchecked(hand, secondMask, familyId).label,
+    });
     if ((index + 1) % 2048 === 0) onProgress?.({ phase: "analyzing", completed: index + 1, total: hands.length });
   }
   let secondMoment = 0, hitFreq = 0;

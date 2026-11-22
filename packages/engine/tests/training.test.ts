@@ -1,0 +1,174 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import {
+  analyzeGame, analyzeHandFast, canonicalizeHand, clearTrainingCache, evaluateRule, generateHand,
+  generateStrategyList, getCanonicalHands, labelHold, parseHand, registerTrainingAnalysis,
+  selectStrategyHold, validateRuleAST,
+} from "../src";
+import type { GameAnalysis, RuleAST, StrategyList } from "../src";
+import { seededHands } from "./reference";
+
+const key = "9-6-job-strategy-snapshot";
+const values = [4000, 250, 125, 45, 30, 20, 15, 10, 5, 0];
+let game: GameAnalysis;
+let lists: StrategyList[];
+beforeAll(() => {
+  game = analyzeGame("jacks_or_better", values, undefined, { betCoins: 5 });
+  registerTrainingAnalysis(key, game);
+  lists = (["Beginner", "Intermediate", "Expert", "Perfect"] as const).map(tier => generateStrategyList(key, tier));
+}, 120_000);
+
+describe("engine-derived strategy tiers", () => {
+  it("scores Expert within 0.02 percentage points over every weighted canonical deal", () => {
+    const expert = lists[2];
+    expect(expert.costVsOptimal).toBeLessThanOrEqual(0.02);
+    expect(expert.optimalDecisionFreq).toBeGreaterThanOrEqual(0.999);
+    expect(expert.returnPct + expert.costVsOptimal).toBeCloseTo(game.returnPct, 10);
+    expect(expert.lines.reduce((sum, line) => sum + line.freq, 0)).toBeCloseTo(1, 10);
+    expect(expert.lines.reduce((sum, line) => sum + line.exceptions.length, 0)).toBeGreaterThan(0);
+  });
+
+  it("saves the actual ordered list and explicit contextual refinements for review", () => {
+    expect(lists.map(list => ({
+      tier: list.tier, returnPct: Number(list.returnPct.toFixed(8)),
+      costVsOptimal: Number(list.costVsOptimal.toFixed(8)),
+      optimalDecisionFreq: Number(list.optimalDecisionFreq.toFixed(8)),
+      lines: list.lines.map(line => ({
+        ...line, freq: Number(line.freq.toFixed(8)),
+        costIfIgnored: line.costIfIgnored === null ? null : Number(line.costIfIgnored.toFixed(8)),
+      })),
+    }))).toMatchSnapshot();
+  });
+
+  it("keeps Beginner within 12 lines and discloses its measured simplification cost", () => {
+    expect(lists[0].lines.length).toBeLessThanOrEqual(12);
+    expect(lists[0].costVsOptimal).toBeGreaterThan(0);
+    expect(lists[1].costVsOptimal).toBeLessThan(lists[0].costVsOptimal);
+    expect(lists[1].lines.every(line => !line.label.includes("|pen:"))).toBe(true);
+    expect(lists[3].returnPct).toBe(game.returnPct);
+    expect(lists[3].costVsOptimal).toBe(0);
+    expect(lists[3].lines).toEqual([]);
+  });
+
+  it("uses labels and exceptions rather than silently falling back to the optimal hold", () => {
+    let beginnerErrors = 0;
+    for (const cards of seededHands(300)) {
+      const hand = analyzeHandFast(cards, values);
+      for (const list of lists) {
+        const mask = selectStrategyHold(hand, list);
+        const selected = hand.results.find(hold => hold.mask === mask)!;
+        expect(selected.ev).toBeLessThanOrEqual(hand.best.ev);
+        if (list.tier === "Perfect") expect(mask).toBe(hand.best.mask);
+        if (list.tier === "Beginner" && hand.best.ev > selected.ev + 1e-10) beginnerErrors++;
+      }
+    }
+    expect(beginnerErrors).toBeGreaterThan(0);
+    expect(() => selectStrategyHold(analyzeHandFast(parseHand("As Ks Qs Js Ts"), values.map(value => value * 2)), lists[2])).toThrow(/payout/);
+    expect(() => selectStrategyHold(analyzeHandFast(parseHand("As Ks Qs Js Ts"), values), { ...lists[0], lines: [] })).toThrow(/matching/);
+  }, 60_000);
+
+  it("resolves remaining Double Bonus conflicts using explicit suit relationships", () => {
+    const dbValues = [800, 50, 160, 80, 50, 10, 7, 5, 3, 1, 1, 0].map(value => value * 5);
+    const db = analyzeGame("double_bonus", dbValues, undefined, { betCoins: 5 });
+    const dbKey = "double-bonus-suit-refinements";
+    registerTrainingAnalysis(dbKey, db);
+    try {
+      const strategy = generateStrategyList(dbKey, "Expert");
+      expect(strategy.optimalDecisionFreq).toBeGreaterThanOrEqual(0.999);
+      expect(strategy.costVsOptimal).toBeLessThanOrEqual(0.02);
+      const refinements = strategy.lines.flatMap(line => line.exceptions).filter(rule => rule.suitPattern);
+      expect(refinements.length).toBeGreaterThan(0);
+      for (const rule of refinements.slice(0, 30)) {
+        const [heldSuits, discardedSuits] = rule.suitPattern!.split("/");
+        const held = [...rule.heldRanks].reverse().map((rank, i) => rank + "cdhs"[Number(heldSuits[i])]);
+        const discarded = [...rule.discardedRanks].reverse().map((rank, i) => rank + "cdhs"[Number(discardedSuits[i])]);
+        const cards = parseHand([...held, ...discarded].join(" "));
+        const analysis = analyzeHandFast(cards, dbValues, "double_bonus");
+        const selected = selectStrategyHold(analysis, strategy);
+        expect(analysis.results.find(hold => hold.mask === selected)!.ev).toBeCloseTo(analysis.best.ev, 10);
+      }
+    } finally { clearTrainingCache(dbKey); }
+  }, 120_000);
+});
+
+describe("JSON heuristic validation", () => {
+  const bad: RuleAST = { kind: "prefer", prefer: { label: "LP" }, over: { label: "4FL" } };
+  it("scores a bad local rule against all canonical hands and returns real counterexamples", () => {
+    const result = evaluateRule(bad, key);
+    expect(result.costVsOptimal).toBeGreaterThan(0);
+    expect(result.handsAffected).toBeGreaterThan(result.canonicalHandsAffected);
+    expect(result.counterexamples.length).toBeGreaterThan(0);
+    expect(result.returnPct).toBeCloseTo(game.returnPct - result.costVsOptimal, 10);
+    for (const example of result.counterexamples) {
+      const hand = analyzeHandFast(example.hand, values);
+      expect(labelHold(example.hand, example.chosenMask).split("|")[0]).toBe("LP");
+      expect(example.evLoss).toBeCloseTo(hand.best.ev - hand.results.find(hold => hold.mask === example.chosenMask)!.ev, 10);
+    }
+  }, 30_000);
+
+  it("supports exceptions without fabricating numbers or changing unrelated higher plays", () => {
+    const before = evaluateRule(bad, key);
+    const after = evaluateRule({ ...bad, unless: { kind: "rank", rank: "2", in: "held" } }, key);
+    expect(after.handsAffected).toBeLessThan(before.handsAffected);
+    expect(after.costVsOptimal).toBeLessThanOrEqual(before.costVsOptimal);
+    const tautology: RuleAST = {
+      ...bad, unless: { kind: "or", conditions: [
+        { kind: "penalty", penalty: "flush" },
+        { kind: "not", condition: { kind: "penalty", penalty: "flush" } },
+      ] },
+    };
+    expect(evaluateRule(tautology, key).handsAffected).toBe(0);
+    expect(evaluateRule({ kind: "prefer", prefer: { label: "4FL" }, over: { label: "LP" } }, key).costVsOptimal).toBeCloseTo(0, 10);
+  }, 30_000);
+
+  it("rejects unknown syntax/categories, excessive nesting, cycles, and unknown analyses", () => {
+    expect(() => validateRuleAST({ ...bad, eval: "() => 5" })).toThrow();
+    expect(() => evaluateRule({ ...bad, prefer: { label: "MAGIC" } }, key)).toThrow(/unknown/);
+    expect(() => evaluateRule(bad, "missing")).toThrow(/registered/);
+    expect(() => validateRuleAST({ ...bad, unless: { kind: "penalty", penalty: "flush", min: -1 } })).toThrow();
+    const cycle: { kind: "not"; condition?: unknown } = { kind: "not" };
+    cycle.condition = cycle;
+    expect(() => validateRuleAST({ ...bad, unless: cycle })).toThrow(/complex/);
+  });
+});
+
+describe("targeted drill generation", () => {
+  it("remaps holds correctly after random suit permutations and card-order shuffles", () => {
+    let seed = 42;
+    const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
+    const displays = new Set<string>();
+    const row = [...game.perHand.values()].find(item => item.bestLabel.split("|")[0] !== item.secondLabel.split("|")[0])!;
+    const targetPairs = [{ correct: row.bestLabel.split("|")[0], confusedWith: row.secondLabel.split("|")[0] }];
+    let recent: number[] = [];
+    for (let i = 0; i < 60; i++) {
+      const drill = generateHand({ analysisKey: key, targetPairs, excludeRecent: recent, random });
+      const analysis = analyzeHandFast(drill.hand, values);
+      expect(canonicalizeHand(drill.hand).id).toBe(drill.canonicalHandId);
+      expect(analysis.results.find(hold => hold.mask === drill.bestMask)!.ev).toBe(drill.ev);
+      expect(analysis.results.find(hold => hold.mask === drill.secondMask)!.ev).toBe(drill.secondEv);
+      expect(analysis.best.ev).toBe(drill.ev);
+      expect(recent).not.toContain(drill.canonicalHandId);
+      expect(drill.bestLabel.split("|")[0]).toBe(targetPairs[0].correct);
+      displays.add(drill.hand.join(","));
+      recent = [drill.canonicalHandId];
+    }
+    expect(displays.size).toBeGreaterThan(1);
+  }, 30_000);
+
+  it("weights random play by real-deal multiplicity, not uniform canonical classes", () => {
+    const hands = getCanonicalHands();
+    const ticket = (hands[0].weight + 0.1) / 2598960;
+    const actual = generateHand({ analysisKey: key, random: () => ticket });
+    expect(actual.canonicalHandId).toBe(hands[1].id);
+    expect(generateHand({ analysisKey: key, sampling: "canonical", random: () => ticket }).canonicalHandId).toBe(hands[0].id);
+    const close = generateHand({ analysisKey: key, closeCallMaxGap: 0, random: () => 0 });
+    expect(close.ev).toBe(close.secondEv);
+  });
+
+  it("fails explicitly rather than ignoring unsatisfiable filters", () => {
+    expect(() => generateHand({ analysisKey: key, targetPairs: [{ correct: "MAGIC", confusedWith: "LP" }] })).toThrow(/No drill/);
+    expect(() => generateHand({ analysisKey: key, excludeRecent: [...game.perHand.keys()] })).toThrow(/No drill/);
+    expect(() => generateHand({ analysisKey: key, closeCallMaxGap: -1 })).toThrow();
+    expect(() => generateHand({ analysisKey: key, random: () => 1 })).toThrow();
+    expect(() => generateHand({ analysisKey: key, random: () => NaN })).toThrow();
+  });
+});

@@ -3,7 +3,8 @@
 Run `pnpm precompute` from the repository root. This computes—not substitutes
 reference values for—the exact optimal return, single-line variance, hit
 frequency, payout probabilities, and all 134,459 weighted canonical hand rows
-for every library pay table at five coins.
+for every library pay table at five coins. The payload also includes best/second
+category labels and the four measured strategy tiers, with explicit exceptions.
 
 The eight gzip payloads and manifest are written to `assets/` and copied to
 `apps/web/public/analyses/`; `pnpm build` regenerates and includes them in the
@@ -23,6 +24,11 @@ The file's contents are gzip-compressed JSON; the loader uses
 `DecompressionStream("gzip")` and fails explicitly if unavailable. Filenames
 include the SHA-256 analysis key (family + vector + normalization + engine
 version); the manifest separately records the compressed payload's SHA-256.
+
+The current payload schema is version 2 and the engine identity is 2.0.0.
+Old payloads are rejected explicitly: regenerate them with `pnpm precompute`.
+Strategy validation checks all four tiers, matching analysis keys, the 12-line
+Beginner limit, and the Expert return/consistency limits before loading them.
 
 The app fetches static files from its own origin; nothing is calculated by a
 server and no user data is sent anywhere. Loading or caching these indices in

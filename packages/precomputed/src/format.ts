@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ENGINE_VERSION, getGameFamily, unpackHand } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import type { GameAnalysis, GameHandResult } from "@perfect-draw/engine";
+import type { StrategyList } from "@perfect-draw/engine";
 
 const finite = z.number().finite();
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -23,15 +24,41 @@ const handRow = z.tuple([
   z.number().int().min(0).max(31), // second mask
   finite.nonnegative(), // best EV
   finite.nonnegative(), // second EV
+  z.string().min(1).max(160), // best label
+  z.string().min(1).max(160), // second label
 ]);
 
+const strategySchema: z.ZodType<StrategyList> = z.object({
+  analysisKey: hash,
+  tier: z.enum(["Beginner", "Intermediate", "Expert", "Perfect"]),
+  refinement: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+  returnPct: finite.nonnegative(),
+  costVsOptimal: finite.nonnegative(),
+  optimalDecisionFreq: finite.min(0).max(1),
+  lines: z.array(z.object({
+    label: z.string().min(1),
+    rank: z.number().int().nonnegative(),
+    freq: finite.min(0).max(1),
+    costIfIgnored: finite.nullable(),
+    exceptions: z.array(z.object({
+      prefer: z.string().min(1),
+      heldRanks: z.string(),
+      discardedRanks: z.string(),
+      flushPenalty: z.number().int().min(0).max(5),
+      straightPenalty: z.number().int().min(0).max(5),
+      suitPattern: z.string().regex(/^[0-3]{0,5}\/[0-3]{0,5}$/).optional(),
+    }).strict()),
+  }).strict()),
+}).strict();
+
 export const serializedAnalysisSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   engineVersion: z.literal(ENGINE_VERSION),
   paytableId: hash,
   key: hash,
   ...summaryShape,
   hands: z.array(handRow).length(134459),
+  strategyLists: z.array(strategySchema).length(4),
 }).strict();
 
 export type SerializedAnalysis = z.infer<typeof serializedAnalysisSchema>;
@@ -48,7 +75,7 @@ export const manifestEntrySchema = z.object({
 }).strict();
 
 export const manifestSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   engineVersion: z.literal(ENGINE_VERSION),
   compression: z.literal("gzip"),
   entries: z.array(manifestEntrySchema).length(8),
@@ -57,17 +84,22 @@ export const manifestSchema = z.object({
 export type PrecomputedManifest = z.infer<typeof manifestSchema>;
 export type ManifestEntry = z.infer<typeof manifestEntrySchema>;
 
-export function serializeAnalysis(analysis: GameAnalysis, paytableId: string): SerializedAnalysis {
+export type PrecomputedGameAnalysis = GameAnalysis & { readonly strategyLists: readonly StrategyList[] };
+
+export function serializeAnalysis(analysis: GameAnalysis, paytableId: string, strategyLists: readonly StrategyList[]): SerializedAnalysis {
   if (analysis.engineVersion !== ENGINE_VERSION) throw new Error("Cannot serialize an outdated engine analysis.");
   const { perHand, ...summary } = analysis;
   return {
-    schemaVersion: 1, ...summary, valueVector: [...summary.valueVector], rankProbs: [...summary.rankProbs],
+    schemaVersion: 2, ...summary, valueVector: [...summary.valueVector], rankProbs: [...summary.rankProbs],
     engineVersion: ENGINE_VERSION, paytableId, key: analysisKey(analysis.familyId, analysis.valueVector, analysis.betCoins),
-    hands: [...perHand].map(([id, hand]) => [id, hand.weight, hand.bestMask, hand.secondMask, hand.ev, hand.secondEv]),
+    hands: [...perHand].map(([id, hand]) => [
+      id, hand.weight, hand.bestMask, hand.secondMask, hand.ev, hand.secondEv, hand.bestLabel, hand.secondLabel,
+    ]),
+    strategyLists: [...strategyLists],
   };
 }
 
-export function deserializeAnalysis(input: unknown, expected?: ManifestEntry): GameAnalysis {
+export function deserializeAnalysis(input: unknown, expected?: ManifestEntry): PrecomputedGameAnalysis {
   const data = serializedAnalysisSchema.parse(input);
   const family = getGameFamily(data.familyId);
   if (data.valueVector.length !== family.handRanks.length ||
@@ -83,13 +115,21 @@ export function deserializeAnalysis(input: unknown, expected?: ManifestEntry): G
       JSON.stringify(data.rankProbs) !== JSON.stringify(expected.rankProbs))) {
     throw new Error("Precomputed analysis does not match the manifest.");
   }
+  if (new Set(data.strategyLists.map(list => list.tier)).size !== 4 ||
+      data.strategyLists.some(list => list.analysisKey !== data.key ||
+        Math.abs(data.returnPct - list.returnPct - list.costVsOptimal) > 1e-8 ||
+        list.tier === "Beginner" && list.lines.length > 12 ||
+        list.tier === "Expert" && (list.costVsOptimal > 0.02 + 1e-10 || list.optimalDecisionFreq < 0.999) ||
+        list.tier === "Perfect" && (list.costVsOptimal !== 0 || list.lines.length !== 0))) {
+    throw new Error("Precomputed strategy lists are inconsistent.");
+  }
   const perHand = new Map<number, GameHandResult>();
   let weightSum = 0;
   let weightedEv = 0;
-  for (const [id, weight, bestMask, secondMask, ev, secondEv] of data.hands) {
+  for (const [id, weight, bestMask, secondMask, ev, secondEv, bestLabel, secondLabel] of data.hands) {
     unpackHand(id);
     if (perHand.has(id) || ev < secondEv || bestMask === secondMask) throw new Error("Invalid precomputed hand row.");
-    perHand.set(id, { weight, bestMask, secondMask, ev, secondEv });
+    perHand.set(id, { weight, bestMask, secondMask, ev, secondEv, bestLabel, secondLabel });
     weightSum += weight;
     weightedEv += ev * weight / 2598960;
   }
@@ -110,5 +150,6 @@ export function deserializeAnalysis(input: unknown, expected?: ManifestEntry): G
     engineVersion: data.engineVersion, familyId: data.familyId, valueVector: data.valueVector,
     betCoins: data.betCoins, returnPct: data.returnPct, variance: data.variance,
     hitFreq: data.hitFreq, rankProbs: data.rankProbs, perHand,
+    strategyLists: data.strategyLists,
   };
 }

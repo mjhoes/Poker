@@ -2,8 +2,8 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { resolve } from "node:path";
-import { analyzeGame, clearEvaluatorCache, clearSubsetCache, ENGINE_VERSION, standardVariant } from "../packages/engine/src/index";
-import { PAY_TABLE_LIBRARY } from "../packages/paytables/src/index";
+import { analyzeGame, clearEvaluatorCache, clearSubsetCache, clearTrainingCache, ENGINE_VERSION, generateStrategyList, registerTrainingAnalysis, standardVariant } from "../packages/engine/src/index";
+import { analysisKey, PAY_TABLE_LIBRARY } from "../packages/paytables/src/index";
 import { deserializeAnalysis, manifestSchema, serializeAnalysis } from "../packages/precomputed/src/format";
 import type { PrecomputedManifest } from "../packages/precomputed/src/format";
 
@@ -25,7 +25,7 @@ async function verify(): Promise<void> {
 
 async function generate(): Promise<void> {
   await mkdir(output, { recursive: true });
-  const manifest: PrecomputedManifest = { schemaVersion: 1, engineVersion: ENGINE_VERSION, compression: "gzip", entries: [] };
+  const manifest: PrecomputedManifest = { schemaVersion: 2, engineVersion: ENGINE_VERSION, compression: "gzip", entries: [] };
   for (const table of PAY_TABLE_LIBRARY) {
     const started = performance.now();
     const vector = standardVariant.valueVector(table, 5, {});
@@ -33,7 +33,10 @@ async function generate(): Promise<void> {
     if (Math.abs(analysis.returnPct - table.referenceReturnPct) > 0.005) {
       throw new Error(`${table.name}: computed return ${analysis.returnPct} fails the reference tolerance.`);
     }
-    const serialized = serializeAnalysis(analysis, table.id);
+    const key = analysisKey(table.familyId, vector, 5);
+    registerTrainingAnalysis(key, analysis);
+    const strategyLists = (["Beginner", "Intermediate", "Expert", "Perfect"] as const).map(tier => generateStrategyList(key, tier));
+    const serialized = serializeAnalysis(analysis, table.id, strategyLists);
     const compressed = gzipSync(JSON.stringify(serialized), { level: 9 });
     const file = `${serialized.key}.bin`;
     // Atomic replacement: a failed write must not leave a partially valid asset.
@@ -46,6 +49,9 @@ async function generate(): Promise<void> {
       variance: analysis.variance, hitFreq: analysis.hitFreq, rankProbs: [...analysis.rankProbs],
     });
     console.log(`${table.name}: ${analysis.returnPct.toFixed(8)}%, variance ${analysis.variance.toFixed(6)}, ${(compressed.byteLength / 1024 / 1024).toFixed(2)} MiB, ${((performance.now() - started) / 1000).toFixed(2)}s`);
+    const expert = strategyLists.find(list => list.tier === "Expert")!;
+    console.log(`  Expert: ${expert.returnPct.toFixed(8)}%, gap ${expert.costVsOptimal.toFixed(8)} pp; ${expert.lines.length} lines.`);
+    clearTrainingCache(key);
     // Only one family's working tables need to remain resident during a build.
     const next = PAY_TABLE_LIBRARY[manifest.entries.length];
     if (!next || next.familyId !== table.familyId) { clearSubsetCache(); clearEvaluatorCache(); }
