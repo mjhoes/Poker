@@ -105,7 +105,7 @@ when the hold was correct.
    (about 600 ms scale-and-fade, off when `prefers-reduced-motion` is set), and a small pill stays under the cards:
    `✓ Optimal · Low pair` with a ⓘ toggle. Clicking it opens the detail drawer.
 2. **Suboptimal (shown after the draw):** one compact bar: `✗ Best was Low pair (6♠ 6♦) · −2.47 coins ($0.62)`,
-   with the best-hold cards drawn as small cards and a "Details" toggle.
+   with the best-hold cards drawn as small cards and the details drawer already open below it.
 3. **Details drawer (any case):** the current full content (both EVs, labels, original deal and holds), restyled with
    mini cards.
 
@@ -113,8 +113,8 @@ when the hold was correct.
   outline, a bar above the action row reads "A stronger hold exists", and two buttons appear: **Use best hold** and
   **Draw anyway**. The main Draw button is replaced by these buttons rather than shown dimmed. In the screenshot the dim
   Draw button is nearly invisible.
-- Remember whether the player last had the drawer open or closed (a session setting), so people who want detail always
-  see it.
+- **Default state (confirmed):** the drawer is **open** after a suboptimal hold and **closed** after an optimal one.
+  The player can still toggle it on any hand.
 - Rapid Drill uses the same three levels. There, "Optimal" also offers a one-key **Next hand** (Space).
 
 ### F6. Show the settlement on the table
@@ -314,12 +314,11 @@ Each phase can ship on its own and leaves the app better than before.
 
 ---
 
-## Open questions
+## Decisions (confirmed)
 
-1. **Deck colors:** keep classic red/black as the default with four-color as an option (recommended), or use
-   four-color by default?
-2. **Play click:** should Play skip the session dialog entirely and use the machine's default wallet (recommended), or
-   ask for the wallet each time?
-3. **Disclaimer placement:** are the welcome card, the Create wallet dialog and the footer the right three places, or
-   would you drop the footer too?
-4. **Feedback detail:** after the first suboptimal hand, should the details drawer start open or closed?
+1. **Deck colors:** classic red/black by default. A four-color deck is an option in Settings.
+2. **Play click:** Play skips the session dialog and uses the machine's default wallet. The dialog appears only when
+   there is a real choice to make (no wallet, or not enough balance).
+3. **Disclaimer placement:** the welcome card, the Create wallet dialog and the footer. The footer stays.
+4. **Feedback detail:** after a suboptimal hold, the details drawer opens by default. After an optimal hold it stays
+   closed, behind the ⓘ toggle.
