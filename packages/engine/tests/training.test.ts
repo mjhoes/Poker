@@ -3,9 +3,11 @@ import {
   analyzeGame, analyzeHandFast, canonicalizeHand, clearTrainingCache, evaluateRule, generateHand,
   generateStrategyList, getCanonicalHands, labelHold, parseHand, registerTrainingAnalysis,
   selectStrategyHold, validateRuleAST,
+  MEMORIZABLE_STRATEGY_TIERS, STRATEGY_TIERS, strategyExceptionCount, strategyMeetsTarget,
 } from "../src";
 import type { GameAnalysis, RuleAST, StrategyList } from "../src";
 import { seededHands } from "./reference";
+import { getTrainingContext } from "../src/training";
 
 const key = "9-6-job-strategy-snapshot";
 const values = [4000, 250, 125, 45, 30, 20, 15, 10, 5, 0];
@@ -14,17 +16,30 @@ let lists: StrategyList[];
 beforeAll(() => {
   game = analyzeGame("jacks_or_better", values, undefined, { betCoins: 5 });
   registerTrainingAnalysis(key, game);
-  lists = (["Beginner", "Intermediate", "Expert", "Perfect"] as const).map(tier => generateStrategyList(key, tier));
+  lists = STRATEGY_TIERS.map(tier => generateStrategyList(key, tier));
 }, 120_000);
 
 describe("engine-derived strategy tiers", () => {
-  it("scores Expert within 0.02 percentage points over every weighted canonical deal", () => {
-    const expert = lists[2];
+  it("retains the old detailed strategy as an internal Reference, not a memorization chart", () => {
+    const expert = lists[3];
     expect(expert.costVsOptimal).toBeLessThanOrEqual(0.02);
     expect(expert.optimalDecisionFreq).toBeGreaterThanOrEqual(0.999);
     expect(expert.returnPct + expert.costVsOptimal).toBeCloseTo(game.returnPct, 10);
     expect(expert.lines.reduce((sum, line) => sum + line.freq, 0)).toBeCloseTo(1, 10);
     expect(expert.lines.reduce((sum, line) => sum + line.exceptions.length, 0)).toBeGreaterThan(0);
+    expect(expert.forMemorization).toBe(false);
+    expect(MEMORIZABLE_STRATEGY_TIERS).not.toContain("Reference");
+  });
+
+  it("keeps Expert memorizable and adds only cost-reducing penalty refinements", () => {
+    const expert = lists[2];
+    expect(expert.costVsOptimal).toBeLessThanOrEqual(0.03);
+    expect(expert.lines.length).toBeLessThanOrEqual(60);
+    expect(strategyExceptionCount(expert)).toBeLessThanOrEqual(15);
+    expect(expert.meetsTarget).toBe(true);
+    expect(expert.forMemorization).toBe(true);
+    expect(expert.lines.every(line => !line.exceptions.length && !/[|](?:r|p|d):/.test(line.label))).toBe(true);
+    for (const line of expert.lines.filter(line => line.label.includes("|pen:"))) expect(line.costIfIgnored).toBeGreaterThan(0);
   });
 
   it("saves the actual ordered list and explicit contextual refinements for review", () => {
@@ -32,6 +47,7 @@ describe("engine-derived strategy tiers", () => {
       tier: list.tier, returnPct: Number(list.returnPct.toFixed(8)),
       costVsOptimal: Number(list.costVsOptimal.toFixed(8)),
       optimalDecisionFreq: Number(list.optimalDecisionFreq.toFixed(8)),
+      meetsTarget: list.meetsTarget, forMemorization: list.forMemorization,
       lines: list.lines.map(line => ({
         ...line, freq: Number(line.freq.toFixed(8)),
         costIfIgnored: line.costIfIgnored === null ? null : Number(line.costIfIgnored.toFixed(8)),
@@ -39,14 +55,18 @@ describe("engine-derived strategy tiers", () => {
     }))).toMatchSnapshot();
   });
 
-  it("keeps Beginner within 12 lines and discloses its measured simplification cost", () => {
-    expect(lists[0].lines.length).toBeLessThanOrEqual(12);
+  it("greedily builds Beginner from ordered level-0 rules within 15 lines and 0.15 pp", () => {
+    expect(lists[0].lines.length).toBeLessThanOrEqual(15);
+    expect(lists[0].refinement).toBe(0);
+    expect(lists[0].costVsOptimal).toBeLessThanOrEqual(0.15);
     expect(lists[0].costVsOptimal).toBeGreaterThan(0);
+    expect(lists[0].meetsTarget).toBe(true);
+    expect(lists[0].lines.every(line => !/[|]/.test(line.label))).toBe(true);
     expect(lists[1].costVsOptimal).toBeLessThan(lists[0].costVsOptimal);
     expect(lists[1].lines.every(line => !line.label.includes("|pen:"))).toBe(true);
-    expect(lists[3].returnPct).toBe(game.returnPct);
-    expect(lists[3].costVsOptimal).toBe(0);
-    expect(lists[3].lines).toEqual([]);
+    expect(lists[4].returnPct).toBe(game.returnPct);
+    expect(lists[4].costVsOptimal).toBe(0);
+    expect(lists[4].lines).toEqual([]);
   });
 
   it("uses labels and exceptions rather than silently falling back to the optimal hold", () => {
@@ -72,7 +92,7 @@ describe("engine-derived strategy tiers", () => {
     const dbKey = "double-bonus-suit-refinements";
     registerTrainingAnalysis(dbKey, db);
     try {
-      const strategy = generateStrategyList(dbKey, "Expert");
+      const strategy = generateStrategyList(dbKey, "Reference");
       expect(strategy.optimalDecisionFreq).toBeGreaterThanOrEqual(0.999);
       expect(strategy.costVsOptimal).toBeLessThanOrEqual(0.02);
       const refinements = strategy.lines.flatMap(line => line.exceptions).filter(rule => rule.suitPattern);
@@ -88,6 +108,43 @@ describe("engine-derived strategy tiers", () => {
       }
     } finally { clearTrainingCache(dbKey); }
   }, 120_000);
+
+  it("measures both bounded charts by independent exhaustive policy replay, including grouped subrule order", () => {
+    const data = getTrainingContext(key).getData(), hands = getCanonicalHands();
+    const independentlyReplay = (list: StrategyList): number => {
+      const priority = new Map(list.lines.flatMap(line => line.alternatives ?? [line.label]).map((name, rank) => [name, rank]));
+      const ranks = data.names[list.refinement].map(name => {
+        const exact = priority.get(name) ?? Infinity;
+        return list.refinement === 2 ? Math.min(exact, priority.get(name.split("|")[0]) ?? Infinity) : exact;
+      });
+      let total = 0;
+      for (let h = 0; h < hands.length; h++) {
+        let selectedRank = Infinity, selectedEv = -Infinity;
+        for (let mask = 0; mask < 32; mask++) {
+          const index = h * 32 + mask, rank = ranks[data.labels[list.refinement][index]], ev = data.evs[index];
+          if (rank < selectedRank || rank === selectedRank && ev > selectedEv) { selectedRank = rank; selectedEv = ev; }
+        }
+        total += selectedEv * hands[h].weight / 2598960;
+      }
+      return total * 100 / game.betCoins;
+    };
+    for (const list of [lists[0], lists[2]]) {
+      expect(independentlyReplay(list)).toBeCloseTo(list.returnPct, 10);
+      expect(list.returnPct).toBeLessThan(game.returnPct);
+      const index = list.tier === "Beginner" ? 0 : list.lines.findIndex(line => line.label.includes("|pen:"));
+      const line = list.lines[index];
+      const omitted = { ...list, lines: list.lines.filter((_, i) => i !== index) };
+      expect(list.returnPct - independentlyReplay(omitted)).toBeCloseTo(line.costIfIgnored!, 9);
+      expect(list.meetsTarget).toBe(strategyMeetsTarget(list));
+    }
+    // Poisoning the supplied perfect-play answer cannot alter a chart's hold.
+    for (const cards of seededHands(50)) {
+      const analysis = analyzeHandFast(cards, values);
+      for (const list of lists.filter(item => item.forMemorization)) {
+        expect(selectStrategyHold({ ...analysis, best: analysis.results.at(-1)! }, list)).toBe(selectStrategyHold(analysis, list));
+      }
+    }
+  }, 60_000);
 });
 
 describe("JSON heuristic validation", () => {

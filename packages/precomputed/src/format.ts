@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ENGINE_VERSION, getGameFamily, unpackHand } from "@perfect-draw/engine";
+import { ENGINE_VERSION, getGameFamily, strategyExceptionCount, strategyMeetsTarget, unpackHand } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import type { GameAnalysis, GameHandResult } from "@perfect-draw/engine";
 import type { StrategyList } from "@perfect-draw/engine";
@@ -30,13 +30,16 @@ const handRow = z.tuple([
 
 const strategySchema: z.ZodType<StrategyList> = z.object({
   analysisKey: hash,
-  tier: z.enum(["Beginner", "Intermediate", "Expert", "Perfect"]),
+  tier: z.enum(["Beginner", "Intermediate", "Expert", "Reference", "Perfect"]),
   refinement: z.union([z.literal(0), z.literal(1), z.literal(2)]),
   returnPct: finite.nonnegative(),
   costVsOptimal: finite.nonnegative(),
   optimalDecisionFreq: finite.min(0).max(1),
+  meetsTarget: z.boolean(),
+  forMemorization: z.boolean(),
   lines: z.array(z.object({
     label: z.string().min(1),
+    alternatives: z.array(z.string().min(1)).min(2).optional(),
     rank: z.number().int().nonnegative(),
     freq: finite.min(0).max(1),
     costIfIgnored: finite.nullable(),
@@ -52,13 +55,13 @@ const strategySchema: z.ZodType<StrategyList> = z.object({
 }).strict();
 
 export const serializedAnalysisSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   engineVersion: z.literal(ENGINE_VERSION),
   paytableId: hash,
   key: hash,
   ...summaryShape,
   hands: z.array(handRow).length(134459),
-  strategyLists: z.array(strategySchema).length(4),
+  strategyLists: z.array(strategySchema).length(5),
 }).strict();
 
 export type SerializedAnalysis = z.infer<typeof serializedAnalysisSchema>;
@@ -75,7 +78,7 @@ export const manifestEntrySchema = z.object({
 }).strict();
 
 export const manifestSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   engineVersion: z.literal(ENGINE_VERSION),
   compression: z.literal("gzip"),
   entries: z.array(manifestEntrySchema).length(8),
@@ -90,7 +93,7 @@ export function serializeAnalysis(analysis: GameAnalysis, paytableId: string, st
   if (analysis.engineVersion !== ENGINE_VERSION) throw new Error("Cannot serialize an outdated engine analysis.");
   const { perHand, ...summary } = analysis;
   return {
-    schemaVersion: 2, ...summary, valueVector: [...summary.valueVector], rankProbs: [...summary.rankProbs],
+    schemaVersion: 3, ...summary, valueVector: [...summary.valueVector], rankProbs: [...summary.rankProbs],
     engineVersion: ENGINE_VERSION, paytableId, key: analysisKey(analysis.familyId, analysis.valueVector, analysis.betCoins),
     hands: [...perHand].map(([id, hand]) => [
       id, hand.weight, hand.bestMask, hand.secondMask, hand.ev, hand.secondEv, hand.bestLabel, hand.secondLabel,
@@ -115,11 +118,17 @@ export function deserializeAnalysis(input: unknown, expected?: ManifestEntry): P
       JSON.stringify(data.rankProbs) !== JSON.stringify(expected.rankProbs))) {
     throw new Error("Precomputed analysis does not match the manifest.");
   }
-  if (new Set(data.strategyLists.map(list => list.tier)).size !== 4 ||
+  if (new Set(data.strategyLists.map(list => list.tier)).size !== 5 ||
       data.strategyLists.some(list => list.analysisKey !== data.key ||
         Math.abs(data.returnPct - list.returnPct - list.costVsOptimal) > 1e-8 ||
-        list.tier === "Beginner" && list.lines.length > 12 ||
-        list.tier === "Expert" && (list.costVsOptimal > 0.02 + 1e-10 || list.optimalDecisionFreq < 0.999) ||
+        list.meetsTarget !== strategyMeetsTarget(list) ||
+        list.forMemorization !== (list.tier !== "Reference" && list.tier !== "Perfect") ||
+        list.lines.some((line, index) => line.rank !== index ||
+          line.alternatives && line.label !== line.alternatives.join(" / ")) ||
+        list.tier === "Beginner" && (list.lines.length > 15 || list.refinement !== 0 ||
+          list.lines.some(line => line.label.includes("|") || line.exceptions.length)) ||
+        list.tier === "Expert" && (list.lines.length > 60 || strategyExceptionCount(list) > 15 ||
+          list.lines.some(line => line.exceptions.length || /[|](?:r|p|d):/.test(line.label))) ||
         list.tier === "Perfect" && (list.costVsOptimal !== 0 || list.lines.length !== 0))) {
     throw new Error("Precomputed strategy lists are inconsistent.");
   }

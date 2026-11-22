@@ -99,7 +99,10 @@ export function describeHoldUnchecked(cards: readonly Card[], mask: number, fami
   else if (n === 3 && suited && straightWindows.length) {
     const wheelAce = ranks.includes(12) && ranks.some(rank => rank < 4);
     const gaps = ranks.length ? ranks[ranks.length - 1] - ranks[0] + 1 - ranks.length : 0;
-    const type = wheelAce ? 3 : gaps === 0 && highCards === 0 ? 2 : highCards >= gaps ? 1 : highCards + 1 >= gaps ? 2 : 3;
+    const is234 = bits === 7;
+    // Wizard of Odds' standard JoB convention explicitly puts ace-low and
+    // 234 in type 2; type 3 is a two-gap draw without a high card.
+    const type = wheelAce || is234 ? 2 : highCards >= gaps ? 1 : highCards + 1 >= gaps ? 2 : 3;
     base = `3SF_t${type}`;
   } else if (maxCount + wilds >= 3) base = "3K";
   else if (n === 3 && bits === ((1 << 9) | (1 << 10) | (1 << 11))) base = "KQJ_unsuited";
@@ -139,16 +142,7 @@ export function labelHold(cards: readonly Card[], mask: number, familyId: GameFa
 /** Deterministic context for learned refinements, independent of payout values. */
 export function refinementKey(pattern: HoldPattern, level: number): string {
   if (level === 2) {
-    const prefix = pattern.base.match(/^D\d_/)?.[0] ?? "";
-    const base = pattern.base.slice(prefix.length);
-    if (/^(RF|SF|4K.*|FH|4D|5K|WRF)$/.test(base)) return prefix + "PREMIUM_MADE";
-    if (base === "FL" || base === "ST") return prefix + "MADE_FLUSH_OR_STRAIGHT";
-    if (/^3RF/.test(base)) return prefix + "3RF";
-    if (/^4SF/.test(base)) return prefix + "4SF";
-    if (/^3SF/.test(base)) return prefix + "3SF";
-    if (/^4ST_open/.test(base)) return prefix + "4ST_open";
-    if (/^(2RF|1H|3FL)/.test(base) || base.endsWith("_unsuited")) return prefix + "HIGH_CARD_DRAW";
-    return pattern.base;
+    return pattern.label.includes("|") ? pattern.label : `${pattern.base}|pen:none`;
   }
   if (level === 0) return pattern.base;
   if (!/(?:RF|SF|FL|ST)/.test(pattern.base) || pattern.base === "RF" || pattern.base === "SF" ||

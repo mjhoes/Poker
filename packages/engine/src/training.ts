@@ -39,6 +39,10 @@ export class TrainingContext {
         evs[index] = sum / DRAW_COUNTS[mask];
         const pattern = describeHoldUnchecked(hand, mask, this.analysis.familyId);
         for (let level = 0; level <= 2; level++) {
+          if (level === 2 && !dictionaries[2].has(pattern.base)) {
+            dictionaries[2].set(pattern.base, names[2].length);
+            names[2].push(pattern.base);
+          }
           const name = refinementKey(pattern, level);
           let code = dictionaries[level].get(name);
           if (code === undefined) {

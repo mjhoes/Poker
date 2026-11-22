@@ -1,10 +1,14 @@
 import { getCanonicalHands } from "./canonical";
 import { describeHoldUnchecked, holdSuitPattern, refinementKey } from "./labels";
 import { getTrainingContext } from "./training";
+import { boundedChart } from "./chart-optimizer";
+import { strategyMeetsTarget } from "./strategy-targets";
 import type { HandAnalysis } from "./types";
 import type { TrainingContext } from "./training";
 
-export type StrategyTier = "Beginner" | "Intermediate" | "Expert" | "Perfect";
+export const STRATEGY_TIERS = ["Beginner", "Intermediate", "Expert", "Reference", "Perfect"] as const;
+export const MEMORIZABLE_STRATEGY_TIERS = ["Beginner", "Intermediate", "Expert"] as const;
+export type StrategyTier = typeof STRATEGY_TIERS[number];
 export interface StrategyException {
   readonly prefer: string;
   readonly heldRanks: string;
@@ -16,6 +20,8 @@ export interface StrategyException {
 }
 export interface StrategyLine {
   readonly label: string;
+  /** Printed, ordered level-0 subrules. The first matching alternative wins. */
+  readonly alternatives?: readonly string[];
   readonly rank: number;
   readonly exceptions: readonly StrategyException[];
   /** Real-deal frequency on which this line supplies the chosen hold. */
@@ -31,6 +37,8 @@ export interface StrategyList {
   readonly returnPct: number;
   readonly costVsOptimal: number;
   readonly optimalDecisionFreq: number;
+  readonly meetsTarget: boolean;
+  readonly forMemorization: boolean;
 }
 
 interface Score {
@@ -106,26 +114,36 @@ function applyExceptions(context: TrainingContext, h: number, level: 0 | 1 | 2, 
   return selected;
 }
 
-function score(context: TrainingContext, level: 0 | 1 | 2, order: readonly number[], exceptions?: ExceptionMap): Score {
+function score(context: TrainingContext, level: 0 | 1 | 2, order: readonly number[], exceptions?: ExceptionMap, groups?: readonly (readonly number[])[]): Score {
   const data = context.getData(), hands = getCanonicalHands(), names = data.names[level];
   const priority = new Int32Array(names.length).fill(-1);
   order.forEach((code, rank) => { priority[code] = rank; });
-  const frequencies = new Float64Array(order.length), withoutLoss = new Float64Array(order.length);
+  const grouped = groups ?? order.map(code => [code]);
+  const groupOf = new Int32Array(names.length);
+  grouped.forEach((codes, group) => codes.forEach(code => { groupOf[code] = group; }));
+  const generic = level === 2 ? names.map(name => names.indexOf(name.split("|")[0])) : [];
+  const frequencies = new Float64Array(grouped.length), withoutLoss = new Float64Array(grouped.length);
   let mean = 0, optimalWeight = 0;
   for (let h = 0; h < hands.length; h++) {
     let chosenRank = Infinity, nextRank = Infinity;
-    let chosenEv = -Infinity, nextEv = -Infinity, chosenMask = -1, nextMask = -1;
+    let chosenEv = -Infinity, nextEv = -Infinity, chosenMask = -1, nextMask = -1, chosenGroup = -1;
     for (let mask = 0; mask < 32; mask++) {
-      const index = h * 32 + mask, rank = priority[data.labels[level][index]], ev = data.evs[index];
-      if (rank < 0) continue;
-      if (rank < chosenRank) {
-        nextRank = chosenRank; nextEv = chosenEv; nextMask = chosenMask;
-        chosenRank = rank; chosenEv = ev; chosenMask = mask;
-      } else if (rank === chosenRank) {
-        if (ev > chosenEv) { chosenEv = ev; chosenMask = mask; }
+      const index = h * 32 + mask, code = data.labels[level][index], ev = data.evs[index];
+      // Retain the generic match as an omission alternative even when the
+      // same hold currently wins through a higher-priority penalty line.
+      for (let alternative = 0; alternative < (level === 2 ? 2 : 1); alternative++) {
+        const matching = alternative ? generic[code] : code;
+        const rank = priority[matching], group = groupOf[matching];
+        if (rank < 0) continue;
+        if (rank < chosenRank) {
+          if (group !== chosenGroup) { nextRank = chosenRank; nextEv = chosenEv; nextMask = chosenMask; }
+          chosenRank = rank; chosenEv = ev; chosenMask = mask; chosenGroup = group;
+        } else if (rank === chosenRank) {
+          if (ev > chosenEv) { chosenEv = ev; chosenMask = mask; }
+        }
+        else if (group !== chosenGroup && rank < nextRank) { nextRank = rank; nextEv = ev; nextMask = mask; }
+        else if (group !== chosenGroup && rank === nextRank && ev > nextEv) { nextEv = ev; nextMask = mask; }
       }
-      else if (rank < nextRank) { nextRank = rank; nextEv = ev; nextMask = mask; }
-      else if (rank === nextRank && ev > nextEv) { nextEv = ev; nextMask = mask; }
     }
     if (!Number.isFinite(chosenEv)) throw new Error("Strategy must contain DRAW5 as a total fallback.");
     const corrected = applyExceptions(context, h, level, chosenMask, exceptions);
@@ -134,11 +152,11 @@ function score(context: TrainingContext, level: 0 | 1 | 2, order: readonly numbe
     const optimal = context.analysis.perHand.get(id)!.ev;
     mean += chosenEv * weight / 2598960;
     if (Math.abs(optimal - chosenEv) < 1e-10) optimalWeight += weight;
-    frequencies[chosenRank] += weight / 2598960;
+    frequencies[chosenGroup] += weight / 2598960;
     // A removed DRAW5 line has no alternative when it was the only match.
     if (nextMask >= 0) {
       nextEv = data.evs[h * 32 + applyExceptions(context, h, level, nextMask, exceptions)];
-      withoutLoss[chosenRank] += (chosenEv - nextEv) * weight / 2598960;
+      withoutLoss[chosenGroup] += (chosenEv - nextEv) * weight / 2598960;
     }
   }
   return {
@@ -195,49 +213,6 @@ function graphOrder(context: TrainingContext, level: 0 | 1 | 2): number[] {
   // Never choose DRAW5 before a line which is intended to improve it.
   const fallback = data.labels[level][0];
   return [...result.filter(code => code !== fallback), fallback];
-}
-
-/** Add the single best insertion by its actual, all-deal weighted return gain. */
-function beginnerOrder(context: TrainingContext): number[] {
-  const data = context.getData(), hands = getCanonicalHands();
-  const pool = candidates(context, 2);
-  const fallback = data.labels[2][0], order = [fallback];
-  const chosenRank = new Int32Array(hands.length);
-  const chosenEv = Float64Array.from(hands, (_, h) => data.evs[h * 32]);
-  for (let step = 1; step < 12; step++) {
-    let bestGain = 0, bestCode = -1, bestPosition = -1;
-    for (const code of pool) {
-      if (order.includes(code)) continue;
-      const gains = new Float64Array(order.length);
-      for (let h = 0; h < hands.length; h++) {
-        let ev = -Infinity;
-        for (let mask = 0; mask < 32; mask++) {
-          const index = h * 32 + mask;
-          if (data.labels[2][index] === code) ev = Math.max(ev, data.evs[index]);
-        }
-        if (Number.isFinite(ev)) gains[chosenRank[h]] += (ev - chosenEv[h]) * hands[h].weight;
-      }
-      let gain = 0;
-      for (let position = order.length - 1; position >= 0; position--) {
-        gain += gains[position];
-        if (gain > bestGain + 1e-9) { bestGain = gain; bestCode = code; bestPosition = position; }
-      }
-    }
-    if (bestCode < 0) break;
-    order.splice(bestPosition, 0, bestCode);
-    for (let h = 0; h < hands.length; h++) {
-      if (chosenRank[h] >= bestPosition) {
-        let ev = -Infinity;
-        for (let mask = 0; mask < 32; mask++) {
-          const index = h * 32 + mask;
-          if (data.labels[2][index] === bestCode) ev = Math.max(ev, data.evs[index]);
-        }
-        if (Number.isFinite(ev)) { chosenRank[h] = bestPosition; chosenEv[h] = ev; }
-        else chosenRank[h]++;
-      }
-    }
-  }
-  return order;
 }
 
 /** Split conflicting precedence by explicit rank/penalty conditions, not hand IDs. */
@@ -327,29 +302,37 @@ function learnExceptions(context: TrainingContext, order: readonly number[]): Ma
 }
 
 export function generateStrategyList(analysisKey: string, tier: StrategyTier): StrategyList {
-  if (!["Beginner", "Intermediate", "Expert", "Perfect"].includes(tier)) throw new Error("Unknown strategy tier.");
+  if (!STRATEGY_TIERS.includes(tier)) throw new Error("Unknown strategy tier.");
   const context = getTrainingContext(analysisKey);
   if (tier === "Perfect") return {
     analysisKey, tier, refinement: 1, lines: [], returnPct: context.analysis.returnPct,
-    costVsOptimal: 0, optimalDecisionFreq: 1,
+    costVsOptimal: 0, optimalDecisionFreq: 1, meetsTarget: true, forMemorization: false,
   };
-  const level = tier === "Expert" ? 1 : tier === "Beginner" ? 2 : 0;
-  const order = tier === "Beginner" ? beginnerOrder(context) : graphOrder(context, level);
-  const exceptions = tier === "Expert" ? learnExceptions(context, order) : new Map<number, StrategyException[]>();
-  const result = score(context, level, order, exceptions);
-  if (tier === "Expert" && (result.returnPct < context.analysis.returnPct - 0.02 - 1e-10 || result.optimalDecisionFreq < 0.999)) {
-    throw new Error(`Expert strategy failed its measured return/consistency limits: ${context.analysis.returnPct - result.returnPct}`);
-  }
-  return {
+  const baseOrder = graphOrder(context, 0);
+  const bounded = tier === "Beginner" || tier === "Expert"
+    ? boundedChart(context, tier, baseOrder.map(code => context.getData().names[0][code])) : undefined;
+  const level = bounded?.refinement ?? (tier === "Reference" ? 1 : 0);
+  const groups = bounded?.groups.map(group => group.map(name => context.getData().names[level].indexOf(name)))
+    ?? graphOrder(context, level).map(code => [code]);
+  const order = groups.flat();
+  const exceptions = tier === "Reference" ? learnExceptions(context, order) : new Map<number, StrategyException[]>();
+  const result = score(context, level, order, exceptions, groups);
+  const gap = Math.max(0, context.analysis.returnPct - result.returnPct);
+  const list: StrategyList = {
     analysisKey, tier, refinement: level, returnPct: result.returnPct,
-    costVsOptimal: Math.max(0, context.analysis.returnPct - result.returnPct),
+    costVsOptimal: gap,
+    meetsTarget: false,
     optimalDecisionFreq: result.optimalDecisionFreq,
-    lines: order.map((code, rank) => ({
-      label: context.getData().names[level][code], rank, exceptions: exceptions.get(code) ?? [],
+    forMemorization: tier !== "Reference",
+    lines: groups.map((codes, rank) => ({
+      label: codes.map(code => context.getData().names[level][code]).join(" / "), rank,
+      ...(codes.length > 1 ? { alternatives: codes.map(code => context.getData().names[level][code]) } : {}),
+      exceptions: exceptions.get(codes[0]) ?? [],
       freq: result.frequencies[rank],
-      costIfIgnored: rank === order.length - 1 ? null : result.withoutLoss[rank] * 100 / context.analysis.betCoins,
+      costIfIgnored: rank === groups.length - 1 ? null : result.withoutLoss[rank] * 100 / context.analysis.betCoins,
     })),
   };
+  return { ...list, meetsTarget: strategyMeetsTarget(list) };
 }
 
 export function selectStrategyHold(analysis: HandAnalysis, list: StrategyList): number {
@@ -359,12 +342,14 @@ export function selectStrategyHold(analysis: HandAnalysis, list: StrategyList): 
     throw new Error("Strategy and hand use different payout vectors.");
   }
   if (list.tier === "Perfect") return analysis.best.mask;
-  const priority = new Map(list.lines.map((line, rank) => [line.label, rank]));
+  const priority = new Map(list.lines.flatMap(line => line.alternatives ?? [line.label]).map((label, rank) => [label, rank]));
   let chosen = -1, bestPriority = Infinity, bestEv = -Infinity;
   // Same-label alternatives use the best hold per label, as required by §3.6.
   for (const hold of analysis.results) {
-    const key = refinementKey(describeHoldUnchecked(analysis.hand, hold.mask, analysis.familyId), list.refinement);
-    const rank = priority.get(key);
+    const pattern = describeHoldUnchecked(analysis.hand, hold.mask, analysis.familyId);
+    const key = refinementKey(pattern, list.refinement);
+    const specific = priority.get(key), generic = list.refinement === 2 ? priority.get(pattern.base) : undefined;
+    const rank = specific === undefined ? generic : generic === undefined ? specific : Math.min(specific, generic);
     if (rank === undefined) continue;
     if (rank < bestPriority || rank === bestPriority && (hold.ev > bestEv || hold.ev === bestEv && hold.mask < chosen)) {
       chosen = hold.mask; bestPriority = rank; bestEv = hold.ev;

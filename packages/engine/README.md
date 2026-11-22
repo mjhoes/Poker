@@ -74,11 +74,17 @@ Canonical rows include payout-independent best/second category labels.
 
 `labelHold(cards, mask, familyId)` and `describeHold` are payout-independent.
 The latter also returns held/discarded rank strings, wild count, high-card count,
-and the counts of discarded flush/straight outs. For example, a discarded ten
+and penalty-card counts for named royal/straight/flush draw patterns. For example, a discarded ten
 while holding AKQJ is a straight penalty even if it is not the royal's suit.
 Deuces labels carry the number of held wilds (`D1_ONLY`, `D0_3RF_h3`, etc.).
 All labels and penalties are invariant under suit renaming and card reordering.
 `bestLabel` and `secondLabel` are included in the canonical game index.
+Three-card straight flushes use the standard convention: high cards ≥ gaps is
+type 1 (including 456s and 789s), except 234s and ace-low holds are type 2;
+two-gap draws without a high card (such as 975s) are type 3.
+This follows the [Wizard of Odds convention](https://wizardofodds.com/games/video-poker/strategy/jacks-or-better/9-6/optimal/).
+`describeLabel(label, familyId)` converts atomic, grouped, and refined labels
+to plain English, including wild counts and penalty annotations.
 
 Register a complete game analysis under its externally computed analysis key:
 
@@ -96,22 +102,43 @@ Rank/penalty conflicts that remain inconsistent can be split by explicit
 held/discarded suit relationships. No exception consults a canonical-ID answer
 table or silently falls back to optimal play.
 
-- **Beginner:** at most 12 greedily selected merged lines, including DRAW5.
+- **Beginner:** at most 15 greedily selected lines from level-0 labels, including
+  DRAW5. Related labels may share a printed line, with their explicit ordered
+  `alternatives` retained. The first applicable subrule wins; there is no
+  best-EV choice across a group and no coarse level-2 category bucket.
 - **Intermediate:** the unrefined category ordering, without penalty modifiers.
-- **Expert:** rank/penalty refinements and explicit exceptions. Generation fails
-  rather than claiming success if its measured loss exceeds 0.02 percentage
-  points or its optimal-decision frequency is below 99.9%.
+- **Expert:** at most 60 lines and 15 exceptions. Begin with level-0 rules,
+  improve their order by replayed return, then greedily add only cost-reducing
+  penalty-card refinements. Each penalty-specific line counts as both one
+  printed line and one exception. No held/discarded-rank or suit templates.
+- **Reference:** the former detailed Expert policy, retained for internal
+  validation only. It may use explicit rank/penalty/suit relationships and is
+  not a chart to memorize (`forMemorization: false`).
 - **Perfect:** explicitly uses the engine optimum, not a memorization list.
 
 All tiers report their actual return and simplification cost. Matching holds
 within a label use the best EV, as the technical specification requires.
-Expert lists may be long: they retain actual conditions rather than pretending
-that a short chart is perfect. Per-line frequencies use the real-deal weights.
+Every chart is measured by replaying its own rules over all weighted deals,
+never by substituting perfect-play return. Bounded charts undergo greedy
+insertion and return-increasing local reordering; this is not a claim of a
+globally minimal chart. Per-line frequencies use the real-deal weights.
 `costIfIgnored` is the signed change in percentage points from omitting that
-line (including its exceptions); it is `null` for the indispensable DRAW5
+whole printed line (including all ordered subrules); a penalty-specific line's
+generic match remains available when it is omitted. It is `null` for the indispensable DRAW5
 fallback. Strategy selection rejects a hand analyzed under another payout vector.
-The 9/6 JoB tier snapshot is in
-`tests/__snapshots__/training.test.ts.snap`.
+
+Generation does **not** throw for a missed accuracy target: the returned list
+has its real gap and `meetsTarget: false`. The gap targets are 0.15 percentage
+points for Beginner and 0.03 for Expert; Reference uses 0.02 plus ≥99.9% optimal
+decisions. `scripts/precompute.ts` alone enforces required library build gates:
+Beginner/Expert on 9/6 JoB, and Reference on every library table. Other tables'
+bounded-chart gaps and target flags are reported honestly, even when they miss.
+Use `MEMORIZABLE_STRATEGY_TIERS` or `forMemorization` in chart-selection UIs,
+not the full five-tier internal enumeration.
+
+The full 9/6 JoB tier snapshot is in `tests/__snapshots__/training.test.ts.snap`.
+Actual gaps for every tier/table are in
+`../precomputed/tests/__snapshots__/strategy-library.test.ts.snap`.
 
 ```ts
 const result = evaluateRule({
@@ -149,7 +176,7 @@ is an explicit uniform-class alternative. Suit and card-order randomization
 remaps both returned masks to the displayed cards. An injectable `random` source
 allows repeatable tests; randomness affects training samples, never EV math.
 
-Training datasets are lazy and can consume tens of MiB. Call
+Training datasets and optimizer columns are lazy and can consume hundreds of MiB. Call
 `clearTrainingCache(key)` after batch processing, and run induction/scoring in
 the worker when the UI service layer is implemented.
 

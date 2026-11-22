@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GAME_FAMILIES, describeHold, labelHold, parseHand } from "../src";
+import { GAME_FAMILIES, describeHold, describeLabel, labelHold, parseHand } from "../src";
 import type { GameFamilyId } from "../src";
 import { seededHands } from "./reference";
 
@@ -20,6 +20,40 @@ describe("deterministic hold vocabulary", () => {
     ["Ah 2c 5d 8s 9h", 0, "DRAW5"],
   ] as const)("%s mask %i → %s", (hand, mask, expected) => {
     expect(labelHold(parseHand(hand), mask)).toBe(expected);
+  });
+
+  it.each([
+    ["4h 5h 6h Kc Ad", "3SF_t1"],
+    ["7h 8h 9h Kc Ad", "3SF_t1"],
+    ["2h 3h 4h Kc Qd", "3SF_t2"],
+    ["Ah 2h 3h Kc Qd", "3SF_t2"],
+    ["Ah 2h 5h Kc Qd", "3SF_t2"],
+    ["Jh Th 9h Kc Ad", "3SF_t1"],
+    ["9h 7h 5h Kc Ad", "3SF_t3"],
+    ["Jh 9h 7h Kc Ad", "3SF_t2"],
+  ])("uses the standard three-card straight-flush convention for %s", (hand, label) => {
+    expect(describeHold(parseHand(hand), 7).base).toBe(label);
+  });
+
+  it.each([
+    ["4RF|pen:straight", "jacks_or_better", "4 to a Royal Flush (straight penalty)"],
+    ["D2_ONLY", "deuces_wild", "Two deuces only"],
+    ["KQJ_unsuited", "jacks_or_better", "Unsuited KQJ"],
+    ["3SF_t1", "jacks_or_better", "3 to a Straight Flush (type 1)"],
+    ["3SF_t2|pen:none", "jacks_or_better", "3 to a Straight Flush (type 2; no penalty cards)"],
+    ["4K_A_w234", "double_double_bonus", "Four Aces with a 2, 3, or 4 kicker"],
+    ["RF / SF", "jacks_or_better", "First available: Royal Flush; Straight Flush"],
+    ["D0_RF", "deuces_wild", "Natural Royal Flush (no deuces held)"],
+  ] as const)("describes %s without exposing its label syntax", (label, family, expected) => {
+    expect(describeLabel(label, family)).toBe(expected);
+  });
+
+  it("describes Reference refinements and rejects unknown labels or modifiers", () => {
+    expect(describeLabel("3RF_h3|pen:flush|r:AKQ|p:1,0", "jacks_or_better"))
+      .toBe("3 to a Royal Flush (3 high cards; held ranks AKQ; 1 flush penalty card)");
+    expect(() => describeLabel("MAGIC", "jacks_or_better")).toThrow(/Unknown/);
+    expect(() => describeLabel("RF|secret:1", "jacks_or_better")).toThrow(/modifier/);
+    expect(() => describeLabel("D2_ONLY", "jacks_or_better")).toThrow(/Deuces/);
   });
 
   it.each([

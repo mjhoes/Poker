@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { analyzeGame, ENGINE_VERSION, generateStrategyList, registerTrainingAnalysis, standardVariant } from "@perfect-draw/engine";
+import { analyzeGame, ENGINE_VERSION, generateStrategyList, registerTrainingAnalysis, standardVariant, STRATEGY_TIERS } from "@perfect-draw/engine";
 import { analysisKey, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import {
   deserializeAnalysis, loadPrecomputedAnalysis, loadPrecomputedManifest, serializeAnalysis,
@@ -22,12 +22,12 @@ beforeAll(() => {
   analysis = analyzeGame(table.familyId, vector, undefined, { betCoins: 5 });
   const key = analysisKey(table.familyId, vector, 5);
   registerTrainingAnalysis(key, analysis);
-  const strategies = (["Beginner", "Intermediate", "Expert", "Perfect"] as const).map(tier => generateStrategyList(key, tier));
+  const strategies = STRATEGY_TIERS.map(tier => generateStrategyList(key, tier));
   serialized = serializeAnalysis(analysis, table.id, strategies);
   compressed = Uint8Array.from(gzipSync(JSON.stringify(serialized)));
   const sha256 = createHash("sha256").update(compressed).digest("hex");
   manifest = {
-    schemaVersion: 2, engineVersion: ENGINE_VERSION, compression: "gzip",
+    schemaVersion: 3, engineVersion: ENGINE_VERSION, compression: "gzip",
     entries: PAY_TABLE_LIBRARY.map(item => {
       const valueVector = standardVariant.valueVector(item, 5, {});
       const key = analysisKey(item.familyId, valueVector, 5);
@@ -108,20 +108,25 @@ describe("static analysis loading", () => {
     expect(() => deserializeAnalysis({ ...serialized, engineVersion: "old" })).toThrow();
   }, 30_000);
 
-  it("rejects stale, mismatched, incomplete, or over-claimed strategy tiers", () => {
+  it("accepts measured target misses but rejects stale, mismatched, or over-claimed tiers", () => {
     const altered = (index: number, changes: object) => ({
       ...serialized,
       strategyLists: serialized.strategyLists.map((list, i) => i === index ? { ...list, ...changes } : list),
     });
     const expert = serialized.strategyLists.findIndex(list => list.tier === "Expert");
     const beginner = serialized.strategyLists.findIndex(list => list.tier === "Beginner");
+    const reference = serialized.strategyLists.findIndex(list => list.tier === "Reference");
     expect(() => deserializeAnalysis(altered(expert, { analysisKey: "0".repeat(64) }))).toThrow(/strategy lists/);
     expect(() => deserializeAnalysis(altered(expert, {
-      costVsOptimal: 0.03, returnPct: serialized.returnPct - 0.03,
+      costVsOptimal: 0.04, returnPct: serialized.returnPct - 0.04,
     }))).toThrow(/strategy lists/);
-    expect(() => deserializeAnalysis(altered(expert, { optimalDecisionFreq: 0.998 }))).toThrow(/strategy lists/);
+    const missed = deserializeAnalysis(altered(expert, {
+      costVsOptimal: 0.04, returnPct: serialized.returnPct - 0.04, meetsTarget: false,
+    }));
+    expect(missed.strategyLists[expert].meetsTarget).toBe(false);
+    expect(() => deserializeAnalysis(altered(reference, { optimalDecisionFreq: 0.998 }))).toThrow(/strategy lists/);
     expect(() => deserializeAnalysis(altered(beginner, {
-      lines: Array.from({ length: 13 }, () => serialized.strategyLists[beginner].lines[0]),
+      lines: Array.from({ length: 16 }, (_, rank) => ({ ...serialized.strategyLists[beginner].lines[0], rank })),
     }))).toThrow(/strategy lists/);
     expect(() => deserializeAnalysis({ ...serialized, strategyLists: serialized.strategyLists.slice(1) })).toThrow();
     expect(() => deserializeAnalysis({ ...serialized, schemaVersion: 1 })).toThrow();

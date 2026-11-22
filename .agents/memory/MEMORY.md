@@ -1,1 +1,1 @@
-- [Strategy fidelity](strategy-fidelity.md) — measure the actual rule policy; refine unresolved suit context instead of adding a hidden optimal-play fallback.
+- [Strategy fidelity](strategy-fidelity.md) — replay each chart itself; keep memorizable Expert separate from the internal detailed Reference.

@@ -2,13 +2,24 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { resolve } from "node:path";
-import { analyzeGame, clearEvaluatorCache, clearSubsetCache, clearTrainingCache, ENGINE_VERSION, generateStrategyList, registerTrainingAnalysis, standardVariant } from "../packages/engine/src/index";
+import { analyzeGame, clearEvaluatorCache, clearSubsetCache, clearTrainingCache, describeLabel, ENGINE_VERSION, generateStrategyList, registerTrainingAnalysis, standardVariant, STRATEGY_TIERS, strategyExceptionCount } from "../packages/engine/src/index";
+import type { StrategyList } from "../packages/engine/src/index";
 import { analysisKey, PAY_TABLE_LIBRARY } from "../packages/paytables/src/index";
 import { deserializeAnalysis, manifestSchema, serializeAnalysis } from "../packages/precomputed/src/format";
 import type { PrecomputedManifest } from "../packages/precomputed/src/format";
 
 const output = resolve("packages/precomputed/assets");
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+function assertLibraryTargets(slug: string, lists: readonly StrategyList[]): void {
+  for (const list of lists) {
+    // The requested bounded-chart accuracy targets are for 9/6 JoB. Other
+    // tables retain honest measured gaps/flags, not a substituted perfect chart.
+    const required = list.tier === "Reference" ||
+      slug === "jacks-or-better-9-6" && (list.tier === "Beginner" || list.tier === "Expert");
+    if (required && !list.meetsTarget) throw new Error(`${slug} ${list.tier} misses its library target: ${list.costVsOptimal} pp`);
+  }
+}
 
 async function verify(): Promise<void> {
   const manifest = manifestSchema.parse(JSON.parse(await readFile(resolve(output, "manifest.json"), "utf8")));
@@ -18,6 +29,7 @@ async function verify(): Promise<void> {
     const compressed = await readFile(resolve(output, entry.file));
     if (compressed.byteLength !== entry.bytes || digest(compressed) !== entry.sha256) throw new Error(`Corrupt asset: ${table.slug}`);
     const result = deserializeAnalysis(JSON.parse(gunzipSync(compressed).toString("utf8")), entry);
+    assertLibraryTargets(table.slug, result.strategyLists);
     if (Math.abs(result.returnPct - table.referenceReturnPct) > 0.005) throw new Error(`Return mismatch: ${table.slug}`);
     console.log(`${table.name}: verified ${result.perHand.size} hands, ${result.returnPct.toFixed(8)}%`);
   }
@@ -25,7 +37,7 @@ async function verify(): Promise<void> {
 
 async function generate(): Promise<void> {
   await mkdir(output, { recursive: true });
-  const manifest: PrecomputedManifest = { schemaVersion: 2, engineVersion: ENGINE_VERSION, compression: "gzip", entries: [] };
+  const manifest: PrecomputedManifest = { schemaVersion: 3, engineVersion: ENGINE_VERSION, compression: "gzip", entries: [] };
   for (const table of PAY_TABLE_LIBRARY) {
     const started = performance.now();
     const vector = standardVariant.valueVector(table, 5, {});
@@ -35,7 +47,12 @@ async function generate(): Promise<void> {
     }
     const key = analysisKey(table.familyId, vector, 5);
     registerTrainingAnalysis(key, analysis);
-    const strategyLists = (["Beginner", "Intermediate", "Expert", "Perfect"] as const).map(tier => generateStrategyList(key, tier));
+    const strategyLists = STRATEGY_TIERS.map(tier => generateStrategyList(key, tier));
+    assertLibraryTargets(table.slug, strategyLists);
+    for (const list of strategyLists) for (const line of list.lines) {
+      describeLabel(line.label, table.familyId);
+      for (const exception of line.exceptions) describeLabel(exception.prefer, table.familyId);
+    }
     const serialized = serializeAnalysis(analysis, table.id, strategyLists);
     const compressed = gzipSync(JSON.stringify(serialized), { level: 9 });
     const file = `${serialized.key}.bin`;
@@ -49,8 +66,10 @@ async function generate(): Promise<void> {
       variance: analysis.variance, hitFreq: analysis.hitFreq, rankProbs: [...analysis.rankProbs],
     });
     console.log(`${table.name}: ${analysis.returnPct.toFixed(8)}%, variance ${analysis.variance.toFixed(6)}, ${(compressed.byteLength / 1024 / 1024).toFixed(2)} MiB, ${((performance.now() - started) / 1000).toFixed(2)}s`);
-    const expert = strategyLists.find(list => list.tier === "Expert")!;
-    console.log(`  Expert: ${expert.returnPct.toFixed(8)}%, gap ${expert.costVsOptimal.toFixed(8)} pp; ${expert.lines.length} lines.`);
+    for (const list of strategyLists) console.log(
+      `  ${list.tier}: ${list.returnPct.toFixed(8)}%, gap ${list.costVsOptimal.toFixed(8)} pp; ` +
+      `${list.lines.length} lines, ${strategyExceptionCount(list)} exceptions; meetsTarget=${list.meetsTarget}.`,
+    );
     clearTrainingCache(key);
     // Only one family's working tables need to remain resident during a build.
     const next = PAY_TABLE_LIBRARY[manifest.entries.length];

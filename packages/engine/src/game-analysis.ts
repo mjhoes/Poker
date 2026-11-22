@@ -6,7 +6,7 @@ import { validateValueVector } from "./solver";
 import { describeHoldUnchecked } from "./labels";
 import type { GameFamilyId, ValueVector } from "./types";
 
-export const ENGINE_VERSION = "2.0.0";
+export const ENGINE_VERSION = "3.0.0";
 
 export interface GameHandResult {
   readonly weight: number;

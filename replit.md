@@ -27,11 +27,16 @@ loader. It verifies engine version, schema, and SHA-256 integrity before returni
 an index. These static assets contain no user data and require no backend.
 Persistent IndexedDB caching and worker/UI integration belong to later prompts.
 
-Versioned analysis payloads include hold categories and four measured strategy
-tiers. Expert policies are explicit label/condition rules; only the Perfect
-tier selects the engine optimum directly. Precomputation validates Expert loss
-at no more than 0.02 percentage points and decision consistency at least 99.9%.
-The reviewable 9/6 Jacks or Better strategy snapshot is stored with engine tests.
+Versioned analysis payloads include hold categories, three memorization tiers,
+an internal Reference policy (the former detailed Expert), and Perfect.
+Beginner uses ≤15 printed lines of ordered level-0 rules, not coarse buckets;
+Expert uses ≤60 lines and ≤15 penalty refinements/exceptions. Every chart's
+return is measured by replaying that chart, never by perfect play. Only Perfect
+selects the engine optimum directly. Generation returns measured misses with
+`meetsTarget: false`; only precompute enforces library build targets: 9/6 JoB
+Beginner gap ≤0.15 pp and Expert ≤0.03 pp, plus Reference validation for all
+tables. Reference is not a chart to memorize. Engine and precomputed-library
+tests store reviewable snapshots including actual gaps for every library table.
 
 Engine EVs use total returned coins. Full-game analysis explicitly divides by
 `betCoins`; its variance is single-line variance per unit bet. Canonical-index
