@@ -1,0 +1,103 @@
+import { z } from "zod";
+import { v7 } from "uuid";
+
+export const newId = () => v7();
+export const uuid = z.string().uuid().refine(id => id[14] === "7", "Expected a UUIDv7");
+export const timestamp = z.number().int().nonnegative().safe();
+export const cents = z.number().int().safe();
+export const positiveCents = cents.positive();
+export const hash = z.string().regex(/^[a-f0-9]{64}$/);
+export const familyIdSchema = z.enum(["jacks_or_better", "bonus_poker", "bonus_poker_deluxe", "double_bonus", "double_double_bonus", "deuces_wild"]);
+export const variantKindSchema = z.enum(["standard", "ultimate_x", "super_times_pay", "multi_strike", "dream_card"]);
+export const variantSchema = z.object({ kind: variantKindSchema.default("standard"), config: z.record(z.unknown()).default({}) }).default({ kind: "standard", config: {} });
+export const variantStateSchema = z.record(z.unknown()).default({});
+export const metadata = { updatedAt: timestamp, deletedAt: timestamp.nullable().default(null) };
+export const entity = { id: uuid, ...metadata };
+export const nameSchema = z.string().trim().min(1).max(100);
+export const profileSchema = z.object({
+  id: z.literal("local"), displayName: nameSchema.default("Player"), createdAt: timestamp, ...metadata,
+  prefs: z.object({ activeSessionId: uuid.nullable().default(null), lastBackupAt: timestamp.nullable().default(null), lastBackupDecisionCount: z.number().int().nonnegative().default(0) }).default({}),
+});
+export const providerSchema = z.enum(["openai", "anthropic"]);
+export const aiSettingsSchema = z.object({
+  id: z.literal("local"), ...metadata,
+  visionProvider: providerSchema.default("anthropic"), visionModel: z.string().default(""),
+  coachProvider: providerSchema.default("anthropic"), coachModel: z.string().default(""),
+  heuristicsProvider: providerSchema.default("anthropic"), heuristicsModel: z.string().default(""),
+  fallbackEnabled: z.boolean().default(false), rememberKeys: z.boolean().default(false),
+});
+export const aiKeySchema = z.object({ provider: providerSchema, key: z.string().min(1), ...metadata });
+export const aiUsageSchema = z.object({
+  ...entity, provider: providerSchema, model: z.string(), task: z.string(),
+  inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative(),
+  estCost: z.number().finite().nonnegative(), createdAt: timestamp,
+});
+export const paytableSchema = z.object({
+  id: hash, ...metadata, familyId: familyIdSchema, name: nameSchema,
+  pays: z.record(z.tuple([z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative()])),
+  source: z.enum(["library", "photo", "manual"]), createdAt: timestamp,
+});
+export const analysisSchema = z.object({
+  key: hash, ...metadata, paytableId: hash, variantKind: variantKindSchema.default("standard"),
+  variantStateKey: z.string().default("standard"), returnPct: z.number().finite(),
+  variance: z.number().finite().nonnegative(), hitFreq: z.number().finite().min(0).max(1),
+  rankProbs: z.array(z.number().finite().min(0).max(1)), perHandBlob: z.instanceof(Blob),
+  strategyLists: z.array(z.unknown()), engineVersion: z.string(), computedAt: timestamp,
+});
+export const machineDraftSchema = z.object({
+  name: nameSchema, paytableId: hash, variant: variantSchema,
+  denominationCents: positiveCents.max(100000), coins: z.number().int().min(1).max(5).default(5),
+  lines: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(10)]).default(1),
+  theme: z.enum(["felt", "midnight", "classic"]).default("felt"),
+  speed: z.enum(["relaxed", "normal", "fast"]).default("normal"),
+  defaultWalletId: uuid, casinoName: z.string().max(120).default(""),
+  location: z.string().max(200).default(""), notes: z.string().max(2000).default(""),
+});
+export const machineSchema = machineDraftSchema.extend({ ...entity });
+export const walletSchema = z.object({ ...entity, name: nameSchema, balanceCents: cents.nonnegative(), createdAt: timestamp });
+export const ledgerSchema = z.object({
+  ...entity, walletId: uuid, sessionId: uuid.optional(), transferId: uuid.optional(),
+  type: z.enum(["topup", "transfer", "bet", "win", "adjust"]), amountCents: cents,
+  balanceAfterCents: cents.nonnegative(), createdAt: timestamp,
+});
+export const handSchema = z.array(z.number().int().min(0).max(51)).refine(cards => cards.length === 0 || cards.length === 5, "A hand must have five cards").refine(cards => new Set(cards).size === cards.length, "Cards must be distinct");
+export const sessionStateSchema = z.object({
+  hand: handSchema.default([]), heldMask: z.number().int().min(0).max(31).default(0),
+  phase: z.enum(["ready", "holding", "complete"]).default("ready"),
+  credits: z.number().finite().nonnegative().default(0), variantState: variantStateSchema,
+}).superRefine((state, ctx) => {
+  if (state.hand.length === 0 && (state.heldMask !== 0 || state.phase !== "ready")) ctx.addIssue({ code: "custom", message: "A non-ready state needs a hand" });
+});
+export const sessionSummarySchema = z.object({
+  hands: z.number().int().nonnegative().default(0), coinInCents: cents.nonnegative().default(0),
+  netCents: cents.default(0), errors: z.number().int().nonnegative().default(0),
+  evLost: z.number().finite().nonnegative().default(0), biggestWinCents: cents.nonnegative().default(0),
+  topMistakes: z.array(z.object({ label: z.string(), count: z.number().int().nonnegative() })).default([]),
+}).default({});
+export const sessionSchema = z.object({
+  ...entity, machineId: uuid, walletId: uuid,
+  // Snapshot terms: editing a machine must not change a hand already in progress.
+  machineSnapshot: machineDraftSchema,
+  variant: variantSchema,
+  mode: z.enum(["free_play", "drill", "weakness", "close_calls", "ladder", "switcher", "exam", "casino_log"]).default("free_play"),
+  status: z.enum(["active", "paused", "closed"]).default("active"), state: sessionStateSchema,
+  startedAt: timestamp, endedAt: timestamp.nullable().default(null), summary: sessionSummarySchema,
+  activeMs: z.number().finite().nonnegative().default(0), handsPerHour: z.number().finite().nonnegative().default(0),
+  virtualCoinInCents: cents.nonnegative().default(0), virtualPoints: z.number().finite().nonnegative().default(0),
+});
+export const decisionSchema = z.object({
+  ...entity, sessionId: uuid, paytableId: hash, analysisKey: hash,
+  variantKind: variantKindSchema.default("standard"), variantState: variantStateSchema,
+  canonicalHandId: z.number().int().nonnegative(), dealtCards: handSchema.refine(x => x.length === 5),
+  chosenMask: z.number().int().min(0).max(31), bestMask: z.number().int().min(0).max(31),
+  chosenEv: z.number().finite(), bestEv: z.number().finite(), evLoss: z.number().finite().nonnegative(),
+  chosenLabel: z.string(), bestLabel: z.string(), gapToSecond: z.number().finite().nonnegative(),
+  decisionMs: z.number().finite().nonnegative(), handIndexInSession: z.number().int().nonnegative(),
+  msSinceSessionStart: z.number().finite().nonnegative(), priorOutcome: z.string().nullable(), createdAt: timestamp,
+});
+export type Machine = z.infer<typeof machineSchema>;
+export type MachineDraft = z.infer<typeof machineDraftSchema>;
+export type Wallet = z.infer<typeof walletSchema>;
+export type WalletLedger = z.infer<typeof ledgerSchema>;
+export type Session = z.infer<typeof sessionSchema>;
+export type SessionState = z.infer<typeof sessionStateSchema>;

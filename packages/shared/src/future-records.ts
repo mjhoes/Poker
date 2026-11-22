@@ -1,0 +1,52 @@
+import { z } from "zod";
+import { entity, timestamp, nameSchema, uuid, hash, cents, positiveCents, familyIdSchema } from "./records";
+
+export const masterySchema = z.object({
+  ...entity, familyId: familyIdSchema, label: z.string(), alpha: z.number().positive(), beta: z.number().positive(),
+  lastSeenAt: timestamp, fsrsStability: z.number().nonnegative(), fsrsDifficulty: z.number().nonnegative(), dueAt: timestamp,
+});
+export const heuristicSchema = z.object({
+  ...entity, paytableId: hash, targetLabelPair: z.tuple([z.string(), z.string()]), ruleAst: z.record(z.unknown()),
+  ruleText: z.string(), mnemonic: z.string(), exceptions: z.array(z.string()), examples: z.array(z.unknown()),
+  costPct: z.number().finite(), status: z.enum(["active", "mastered", "archived"]), createdAt: timestamp,
+});
+export const uploadSchema = z.object({
+  ...entity, kind: z.enum(["paytable", "hand"]), imageBlob: z.instanceof(Blob).optional(),
+  extracted: z.unknown(), confirmed: z.boolean(), provider: z.string(), model: z.string(), createdAt: timestamp, expiresAt: timestamp,
+});
+export const scoutingSchema = z.object({
+  ...entity, paytableId: hash, casino: z.string(), location: z.string(), denominationCents: positiveCents, seenAt: timestamp, notes: z.string(),
+});
+export const rewardsProgramSchema = z.object({
+  ...entity, name: nameSchema, casinoName: z.string(), dollarsPerPoint: z.number().finite().positive(),
+  rounding: z.enum(["trip_floor", "session_floor", "fractional"]), freePlayEarnsPoints: z.boolean(),
+  tiers: z.array(z.object({ name: nameSchema, points: z.number().nonnegative() })), notes: z.string(), isBuiltIn: z.boolean(),
+});
+export const tripSchema = z.object({
+  ...entity, programId: uuid, shipName: z.string(), sailStart: z.string(), sailEnd: z.string(),
+  days: z.array(z.object({ date: z.string(), type: z.enum(["sea", "port"]), casinoHoursPlanned: z.number().min(0).max(24) })),
+  targetPoints: z.number().nonnegative(), startingPoints: z.number().nonnegative().optional(), notes: z.string(),
+  status: z.enum(["planned", "active", "done"]),
+});
+export const casinoSessionSchema = z.object({
+  ...entity, tripId: uuid, machineId: uuid.optional(), paytableId: hash.optional(), familyId: familyIdSchema.optional(),
+  denominationCents: positiveCents, coins: z.number().int().min(1).max(5), lines: z.number().int().positive(),
+  startedAt: timestamp, endedAt: timestamp.nullable(),
+  timeSegments: z.array(z.object({ start: timestamp, end: timestamp.optional(), pauseReason: z.string().optional() })),
+  activeMs: z.number().nonnegative(), cashInCents: cents.nonnegative(), cashOutCents: cents.nonnegative(),
+  freePlayUsedCents: cents.nonnegative(), freePlayWonCents: cents.nonnegative(),
+  pointsBefore: z.number().nonnegative().optional(), pointsAfter: z.number().nonnegative().optional(),
+  handsCount: z.number().int().nonnegative().optional(), coinInCents: cents.nonnegative(),
+  coinInSource: z.enum(["points", "hands", "estimate"]),
+  jackpots: z.array(z.object({ amountCents: cents.nonnegative(), handRank: z.string().optional(), at: timestamp })), notes: z.string(),
+});
+export const rewardSchema = z.object({
+  ...entity, tripId: uuid.optional(), programId: uuid, description: z.string(),
+  type: z.enum(["cruise", "upgrade", "freeplay", "obc", "discount", "other"]),
+  valueCents: cents.nonnegative(), receivedAt: timestamp, notes: z.string(),
+});
+// Reserved now so the 90-day retention job can preserve historical totals later.
+export const dailyAggregateSchema = z.object({
+  ...entity, day: z.string(), paytableId: hash, bestLabel: z.string(), chosenLabel: z.string(),
+  count: z.number().int().nonnegative(), errors: z.number().int().nonnegative(), evLost: z.number().finite().nonnegative(),
+});

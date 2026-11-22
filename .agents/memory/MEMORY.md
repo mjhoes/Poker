@@ -1,1 +1,2 @@
 - [Strategy fidelity](strategy-fidelity.md) — replay each chart itself; keep memorizable Expert separate from the internal detailed Reference.
+- [Browser verification](browser-verification.md) — system Chromium supplies Nix libraries; keep browser caches out of Git and deployment.

@@ -9,8 +9,10 @@
     "precompute": "tsx scripts/precompute.ts && tsx scripts/copy-precomputed.ts",
     "precompute:check": "tsx scripts/precompute.ts --check",
     "build": "pnpm precompute && pnpm --filter @perfect-draw/web build",
-    "test": "pnpm --filter @perfect-draw/engine test && pnpm --filter @perfect-draw/precomputed test",
-    "typecheck": "pnpm --filter @perfect-draw/engine typecheck && pnpm --filter @perfect-draw/precomputed typecheck && pnpm --filter @perfect-draw/web typecheck && tsc -p scripts/tsconfig.json"
+    "test": "pnpm --filter @perfect-draw/shared test && pnpm --filter @perfect-draw/web test && pnpm --filter @perfect-draw/engine test && pnpm --filter @perfect-draw/precomputed test",
+    "test:e2e": "pnpm --filter @perfect-draw/web test:e2e",
+    "test:offline": "pnpm --filter @perfect-draw/web test:offline",
+    "typecheck": "pnpm --filter @perfect-draw/shared typecheck && pnpm --filter @perfect-draw/engine typecheck && pnpm --filter @perfect-draw/precomputed typecheck && pnpm --filter @perfect-draw/web typecheck && tsc -p scripts/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

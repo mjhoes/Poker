@@ -1,2 +1,4 @@
 /packages/precomputed/assets/
 /apps/web/public/analyses/
+/.cache/
+/generated-artifacts/
