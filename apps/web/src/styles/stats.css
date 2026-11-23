@@ -8,7 +8,7 @@
 .stats-filter-top { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .stats-filter-top .eyebrow { margin-bottom: 6px; }
 .stats-filter-top h2 { margin: 0; font-size: 17px; letter-spacing: -.035em; }
-.stats-scope { padding: 7px 10px; border: 1px solid #d0d9cb; background: #edf1e8; color: #385447; font: 10px var(--mono); }
+.stats-scope { padding: 7px 10px; border: 1px solid #d0d9cb; background: #edf1e8; color: #385447; font: 600 11px var(--font-ui); }
 .stats-filter-grid { display: grid; grid-template-columns: 1.35fr .7fr .9fr 1fr 1fr; gap: 12px; }
 .stats-filter-grid .field { gap: 6px; }
 .stats-filter-grid .field input, .stats-filter-grid .field select { min-height: 39px; }
@@ -27,8 +27,8 @@
 .stats-overview { display: grid; grid-template-columns: 1.2fr repeat(3, 1fr); gap: 12px; margin: 16px 0; }
 .stats-metric { min-width: 0; padding: 17px 18px 16px; border: 1px solid var(--line); background: #f9f8f2; }
 .stats-metric.is-emphasis { border-color: #376f5b; background: #e7eee5; }
-.stats-metric span { display: block; color: var(--muted); font: 9px var(--mono); letter-spacing: .09em; text-transform: uppercase; }
-.stats-metric strong { display: block; margin: 9px 0 5px; color: var(--ink); font: 600 clamp(19px, 2vw, 27px) var(--mono); letter-spacing: -.05em; overflow-wrap: anywhere; }
+.stats-metric span { display: block; color: var(--muted); font: 600 10px var(--font-ui); letter-spacing: .09em; text-transform: uppercase; }
+.stats-metric strong { display: block; margin: 9px 0 5px; color: var(--ink); font: 650 clamp(19px, 2vw, 27px) var(--font-ui); letter-spacing: -.05em; overflow-wrap: anywhere; }
 .stats-metric small { display: block; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .stats-return-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .stats-return-card { min-height: 205px; }
@@ -36,24 +36,24 @@
 .return-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .return-compare > div { padding: 13px; border: 1px solid #dce2d8; background: #f7f7f0; }
 .return-compare span { display: block; color: var(--muted); font-size: 10px; }
-.return-compare strong { display: block; margin-top: 6px; font: 600 20px var(--mono); letter-spacing: -.04em; }
+.return-compare strong { display: block; margin-top: 6px; font: 600 20px var(--font-ui); letter-spacing: -.04em; }
 .stats-return-card .settings-copy { margin: 13px 0 0; font-size: 10px; }
 .coverage-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.coverage-line strong { color: var(--felt); font: 600 22px var(--mono); }
+.coverage-line strong { color: var(--felt); font: 600 22px var(--font-ui); }
 .coverage-line span { color: var(--muted); font-size: 11px; }
-.coverage-line b { margin-left: auto; color: #765a36; font: 10px var(--mono); }
+.coverage-line b { margin-left: auto; color: #765a36; font: 600 11px var(--font-ui); }
 .coverage-track { height: 8px; margin: 10px 0 12px; overflow: hidden; border-radius: var(--radius-lg); background: #e4e8df; }
 .coverage-track span { width: 100%; height: 100%; display: block; transform-origin: left center; border-radius: inherit; background: var(--felt); transition: transform .25s ease; }
 .stats-full-coverage, .stats-ceiling { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
 .stats-full-coverage strong { color: #35674b; }
 .stats-ceiling { padding-left: 10px; border-left: 2px solid var(--signal); color: #6d6144; }
-.stats-ceiling strong { color: #655225; font-family: var(--mono); }
-.stats-exclusions { margin: 12px 0 0; color: var(--muted); font: 10px var(--mono); }
+.stats-ceiling strong { color: #655225; font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.stats-exclusions { margin: 12px 0 0; color: var(--muted); font: 600 11px var(--font-ui); }
 .stats-trend, .stats-weakness, .stats-confusion { margin-top: 16px; }
 .stats-section-head { align-items: center; }
 .stats-section-head h2 { font-size: 19px; }
 .stats-section-head .eyebrow { margin-bottom: 6px; }
-.stats-chart-control { display: grid; gap: 5px; color: var(--muted); font: 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.stats-chart-control { display: grid; gap: 5px; color: var(--muted); font: 600 10px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
 .stats-chart-control select { min-width: 175px; min-height: 36px; padding: 7px 30px 7px 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fffef9; color: var(--ink); font: 11px var(--display); text-transform: none; letter-spacing: 0; }
 .stats-chart { width: 100%; height: 285px; }
 .stats-weakness-chart-block { margin: 0 0 19px; padding: 13px 13px 8px; border: 1px solid #e0e5db; background: #f9f9f3; }
@@ -62,19 +62,19 @@
 .stats-chart-empty { display: grid; min-height: 140px; place-items: center; border: 1px dashed var(--line-strong); background: #f8f8f2; color: var(--muted); font-size: 12px; text-align: center; }
 .stats-data-details { margin-top: 10px; padding-top: 11px; border-top: 1px solid var(--line); }
 .stats-data-details summary, .stats-methodology > summary { color: var(--felt); cursor: pointer; font-size: 11px; font-weight: 700; }
-.stats-method-pill { padding: 6px 8px; border: 1px solid #d7dfd3; color: var(--muted); font: 9px var(--mono); letter-spacing: .08em; }
+.stats-method-pill { padding: 6px 8px; border: 1px solid #d7dfd3; color: var(--muted); font: 600 10px var(--font-ui); letter-spacing: .08em; }
 .stats-category-list { border-top: 1px solid var(--line); }
 .stats-category { display: grid; grid-template-columns: 34px minmax(0, 1fr) minmax(140px, .25fr) auto; align-items: center; gap: 14px; padding: 15px 0; border-bottom: 1px solid var(--line); }
-.stats-category-rank { color: #8a968a; font: 11px var(--mono); }
+.stats-category-rank { color: #8a968a; font: 600 11px var(--font-ui); }
 .stats-category-main { min-width: 0; }
 .stats-category-main h3 { margin: 0 0 4px; font-size: 14px; letter-spacing: -.02em; }
 .stats-category-main p { margin: 0; color: var(--muted); font-size: 10px; }
 .stats-category-facts { display: flex; flex-wrap: wrap; gap: 5px 14px; margin-top: 9px; color: var(--muted); font-size: 9px; }
-.stats-category-facts b { color: var(--ink); font: 10px var(--mono); }
-.stats-unknown-tag { display: inline-block; margin-top: 8px; padding: 4px 6px; border: 1px solid #ded8c4; background: #f5f0df; color: #796642; font: 8px var(--mono); letter-spacing: .06em; }
+.stats-category-facts b { color: var(--ink); font: 600 11px var(--font-ui); }
+.stats-unknown-tag { display: inline-block; margin-top: 8px; padding: 4px 6px; border: 1px solid #ded8c4; background: #f5f0df; color: #796642; font: 600 9.5px var(--font-ui); letter-spacing: .06em; }
 .stats-weakness-value { text-align: right; }
 .stats-weakness-value span { display: block; color: var(--muted); font-size: 9px; }
-.stats-weakness-value strong { display: block; margin-top: 4px; color: var(--felt-dark); font: 600 14px var(--mono); }
+.stats-weakness-value strong { display: block; margin-top: 4px; color: var(--felt-dark); font: 600 14px var(--font-ui); }
 .stats-train-button { min-width: 82px; }
 .stats-training-machine { display: grid; grid-template-columns: minmax(0, 1fr) 1fr; align-items: end; gap: 18px; margin-top: 17px; padding: 14px; border: 1px solid #dce2d8; background: #f7f7f0; }
 .stats-training-machine .field { max-width: 420px; }
@@ -83,9 +83,9 @@
 .stats-no-machine p { margin: 0 0 7px; color: #625e4e; font-size: 11px; line-height: 1.5; }
 .table-scroll { width: 100%; overflow-x: auto; }
 .stats-table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 11px; }
-.stats-table caption { padding: 0 0 10px; color: var(--muted); font: 9px var(--mono); text-align: left; }
+.stats-table caption { padding: 0 0 10px; color: var(--muted); font: 600 10px var(--font-ui); text-align: left; }
 .stats-table th, .stats-table td { padding: 11px 9px; border-bottom: 1px solid #e4e8df; text-align: right; white-space: nowrap; }
-.stats-table thead th { color: #748075; font: 9px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+.stats-table thead th { color: #748075; font: 600 10px var(--font-ui); letter-spacing: .05em; text-transform: uppercase; }
 .stats-table thead th button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
 .stats-table thead th button:hover { color: var(--felt); text-decoration: underline; text-underline-offset: 3px; }
 .stats-table th:first-child, .stats-table td:first-child { text-align: left; }

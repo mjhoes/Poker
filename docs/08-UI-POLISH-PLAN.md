@@ -289,6 +289,8 @@ PWA use. They do not copy any real manufacturer's cabinet, card art or branding.
    `styles.css`; split it into `tokens.css`, `components.css` and per-page files.
 2. **UI primitives:** `Button` (with icon and loading state), `IconButton`, `Segmented`, `SwatchPicker`, `Menu`
    (⋯ dropdown), `Toast`, `ConfirmDialog`, `Drawer`/`Disclosure`, `Badge`/`Chip`, `Tooltip`, `CoinAmount`, `CardFace`.
+   *Status:* built in Phase 2 except `Menu` (arrives with the machine tiles in Phase 4, its first use) and
+   `CardFace` (Phase 3, with the card art).
 3. **Split `App.tsx`** (about 30 KB, which holds every modal and handler): move the machine wizard, wallet dialogs and
    session actions into their own modules and hooks (`useSessionActions`, `useMachineEditor`). This is not cosmetic: it
    makes the changes above much safer to make.
@@ -306,7 +308,7 @@ Each phase can ship on its own and leaves the app better than before.
 | Phase | Scope | Items |
 |---|---|---|
 | **1. Quick wins** (small) ✅ done | Fix the suit-color CSS bug and the faded completed cards; apply felt tokens to the table and background; replace `window.confirm` with `ConfirmDialog`; toasts plus deleting redundant notices; copy pass for play-money and over-explaining text. | F1, F2, F3 (color fix), F7, F10 (apply), B3, B9 |
-| **2. Foundations** | Tokens, primitives, icon set, fonts, `App.tsx` split, `CoinAmount` everywhere in sessions. | Part D, F4 (sessions) |
+| **2. Foundations** ✅ done | Tokens, primitives, icon set, fonts, `App.tsx` split, `CoinAmount` everywhere in sessions. | Part D, F4 (sessions) |
 | **3. The table** | `CardFace` SVG cards and back; machine-screen layout with pay table marquee, multi-line rows and credit meter; three-level feedback; warn-review state; deal/draw/win animations; table settings popover; compact session header. | F3, F5, F6, B1, B2, B5, B6 |
 | **4. The floor** | Cabinet SVG and floor grid; one-click Play/Drill; new-machine sheet with live preview, segmented controls and felt swatches; auto bankroll and welcome flow; new felts. | F8, F10 (new felts), B4, B11 |
 | **5. Custom pay tables** | Worker lookup of custom tables; pay table editor with quick-fill, paste, validation and live return; Settings pay table list. | F9 |

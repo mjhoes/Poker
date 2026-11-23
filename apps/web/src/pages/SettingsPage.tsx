@@ -1,4 +1,6 @@
 import type { FormEvent } from "react";
+import { Button } from "../components/ui";
+import { Icon } from "../components/Icons";
 import { dateTime } from "../components/UiHelpers";
 
 export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBackupAt, busy, onExport, onImport }: {
@@ -11,7 +13,7 @@ export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBack
       <section className="panel panel-pad">
         <div className="panel-title"><div><p className="eyebrow">STORAGE & BACKUP</p><h2>Back up your data</h2></div></div>
         <div className="status-card"><div className="detail-label">BROWSER STORAGE</div><div className="storage-status"><span className="storage-icon" aria-hidden="true">{storageStatus === "persistent" ? "P" : storageStatus === "checking" ? "…" : "!"}</span>{statusText}</div><p className="settings-copy">{storageStatus === "persistent" ? "The browser reports persistent storage permission for this origin. Device failure, profile deletion, or browser data clearing can still remove local data." : storageStatus === "best-effort" ? "The browser may evict this origin's data under storage pressure. Export backups regularly; no data safety is guaranteed." : storageStatus === "unavailable" ? "Persistent storage is unavailable. Data may be removed by browser cleanup; export a backup after important changes." : "The browser is checking whether this origin can request persistent storage."}</p></div>
-        <div className="backup-actions"><button className="btn" type="button" disabled={busy} onClick={onExport}>{busy ? "Working…" : "Export backup"}</button><label className={`btn secondary ${busy ? "disabled" : ""}`}>Import backup<input aria-label="Import backup file" type="file" accept="application/json,.json" disabled={busy} onChange={onImport} className="visually-hidden" /></label></div>
+        <div className="backup-actions"><Button icon="download" loading={busy} onClick={onExport}>Export backup</Button><label className={`btn secondary ${busy ? "disabled" : ""}`}><Icon name="upload" size={17} />Import backup<input aria-label="Import backup file" type="file" accept="application/json,.json" disabled={busy} onChange={onImport} className="visually-hidden" /></label></div>
         <p className="settings-copy" style={{ marginTop: 13 }}>A backup includes your wallets, machines, sessions and statistics. Keep it somewhere other than this browser.</p>
         <div className="warning-card"><strong>Restoring replaces everything.</strong> Importing a backup erases all data on this device and replaces it with the backup's contents.</div>
       </section>

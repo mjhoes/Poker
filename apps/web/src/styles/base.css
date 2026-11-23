@@ -10,16 +10,18 @@
 }
 * { box-sizing: border-box; }
 html { min-width: 320px; scroll-behavior: smooth; }
-body { min-width: 320px; min-height: 100dvh; margin: 0; background: var(--paper); }
+body { min-width: 320px; min-height: 100dvh; margin: 0; background: var(--paper); font-variant-numeric: tabular-nums; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .55; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid #d5a936; outline-offset: 3px; }
-.eyebrow { margin: 0 0 10px; color: #68806e; font: 10px var(--mono); letter-spacing: .15em; text-transform: uppercase; }
+.eyebrow { margin: 0 0 10px; color: #68806e; font: 650 11px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; }
 h1, h2, h3, p { margin-top: 0; }
-h1 { margin-bottom: 0; font-size: clamp(35px, 5vw, 58px); letter-spacing: -.065em; line-height: .98; font-weight: 700; }
-.eyebrow, .mono, .meta { font-family: var(--mono); }
+h1 { margin-bottom: 0; font-family: var(--display); font-size: var(--text-display); letter-spacing: -.035em; line-height: 1; font-weight: 700; }
+/* Display face for the few places that carry personality: page titles, machine names, empty states and dialogs. */
+.machine-bottom h2, .empty-state h2, .session-placeholder h2, .modal-head h2 { font-family: var(--display); font-weight: 650; letter-spacing: -.02em; }
+.eyebrow, .mono, .meta { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
 .positive { color: var(--success); }
 .negative { color: var(--negative); }
 .skeleton { min-height: 150px; border-radius: 5px; background: linear-gradient(90deg, #e4e7dd 20%, #f1f2eb 40%, #e4e7dd 60%); background-size: 300% 100%; animation: shimmer 1.5s ease infinite; }

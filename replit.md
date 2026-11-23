@@ -173,6 +173,31 @@ Phase 1 (done):
   dialog and the footer. Use `familyName`, `handRankName` and `plural` from `UiHelpers`
   rather than raw ids.
 - e2e: the statistics test resolves workspace source paths from the test file, so it runs
-  outside `/home/runner/workspace`. Known pre-existing failure: the legacy `saveHand`
-  check in `foundation.spec.ts` ("…backup survive reload") is rejected by the current
-  session schema; it fails the same way before Phase 1.
+  outside `/home/runner/workspace`. Several e2e tests import `/src/...` modules into the
+  page; if files were edited while `pnpm dev` was running, restart the dev server before
+  `pnpm test:e2e`, or hot-reloaded module copies can make those checks fail spuriously.
+
+Phase 2 (done):
+- Styles live in `apps/web/src/styles/`, imported in cascade order from `main.tsx`:
+  `tailwind` (preflight only) → `fonts` → `tokens` → `base` → `layout` → `components` →
+  page files (`machines`, `wallets`, `settings`, `session`, `stats`). Use tokens from
+  `tokens.css` (`--ink`, `--muted`, `--space-*`, `--radius-*`, `--felt-*`, …) rather than
+  new hex values. Avoid broad descendant selectors such as `.panel span`; they restyle
+  nested components (use `> span`).
+- Fonts are self-hosted (`@fontsource-variable/inter`, `@fontsource-variable/bricolage-grotesque`,
+  Latin subset only, declared in `styles/fonts.css`) and precached by the service worker
+  (`globPatterns` includes `woff2`). Inter for UI and numbers (tabular figures are on by
+  default); Bricolage Grotesque for page titles, machine names, empty states and dialogs.
+- UI primitives are in `src/components/ui/`: `Button` (variants, icon, loading),
+  `IconButton`, `Segmented`, `SwatchPicker`, `Disclosure`, `Badge`, `Tooltip`, `CoinAmount`.
+  Icons are inline SVG in `src/components/Icons.tsx`. Prefer these over raw markup.
+- Every credit amount shows its dollar value: use `<CoinAmount amount denominationCents />`
+  or `formatCoins()`. Session amounts are called "credits"; sub-cent values read "<$0.01".
+- `App.tsx` only composes the app. Dialogs (`src/dialogs/`) own their form and inline error
+  state; actions go through `useActionRunner().run(action, { success, onError })`, which
+  shares one busy flag. Other logic lives in `src/hooks/` (`useSessionActions`, `useBackup`,
+  `useTableAnalysis`, `useWalletLedger`, `useRoute`).
+- Screenshot regression: `pnpm test:visual` (dev server running) replays a seeded tour and
+  compares against `apps/web/e2e/__screenshots__/`. Baselines depend on the browser build;
+  on a new machine run `pnpm test:visual --update-snapshots` once, review the images, and
+  commit them. Update baselines whenever a visual change is intended.

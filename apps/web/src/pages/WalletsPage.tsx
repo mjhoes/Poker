@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Button } from "../components/ui";
 import type { Wallet, WalletLedger } from "@perfect-draw/shared";
 import { dateTime, money } from "../components/UiHelpers";
 
@@ -11,15 +12,15 @@ export function WalletsPage({ wallets, selectedWallet, ledger, onSelect, onCreat
   return <><div className="page-heading"><div><p className="eyebrow">WALLETS</p><h1>Your bankroll, clearly kept.</h1></div><p className="heading-note">Every bet, win, top-up and transfer is recorded.</p></div>
     {!wallets.length ? <div className="empty-state"><div className="empty-mark" aria-hidden="true">W</div><h2>Set up your first wallet</h2><p>Give your bankroll a name and a starting balance.</p><button type="button" className="btn gold" onClick={onCreate}>Set up a wallet</button></div> : <div className="wallet-layout">
       <section>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}><span className="eyebrow">YOUR WALLETS · {wallets.length}</span><button className="btn secondary small" type="button" onClick={onCreate}>+ New wallet</button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}><span className="eyebrow">YOUR WALLETS · {wallets.length}</span><Button variant="secondary" size="sm" icon="plus" onClick={onCreate}>New wallet</Button></div>
         <div className="wallet-main-list">{wallets.map(wallet => <article key={wallet.id} className={`panel wallet-card ${chosen?.id === wallet.id ? "selected" : ""}`}>
           <button type="button" className="wallet-select" aria-label={`Select wallet ${wallet.name}`} aria-pressed={chosen?.id === wallet.id} onClick={() => onSelect(wallet.id)}>
             <span className="detail"><span className="detail-label">WALLET</span><strong>{wallet.name}</strong></span><span className="wallet-balance">{money(wallet.balanceCents)}</span>
           </button>
           <div className="wallet-actions">
-            <button className="btn secondary small" type="button" onClick={() => onRename(wallet)}>Rename</button>
-            <button className="btn secondary small" type="button" onClick={() => onTopup(wallet)}>Add credits</button>
-            <button className="btn secondary small" type="button" disabled={wallets.length < 2 || busy} onClick={() => onTransfer(wallet)}>Transfer</button>
+            <Button variant="secondary" size="sm" icon="edit" onClick={() => onRename(wallet)}>Rename</Button>
+            <Button variant="secondary" size="sm" icon="plus" onClick={() => onTopup(wallet)}>Add credits</Button>
+            <Button variant="secondary" size="sm" icon="transfer" disabled={wallets.length < 2 || busy} onClick={() => onTransfer(wallet)}>Transfer</Button>
           </div>
         </article>)}</div>
       </section>

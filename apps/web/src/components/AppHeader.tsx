@@ -1,4 +1,5 @@
 import type { Session } from "@perfect-draw/shared";
+import { Badge } from "./ui";
 import { creditLabel, modeName, money } from "./UiHelpers";
 import type { Route } from "../hooks/useRoute";
 
@@ -31,7 +32,7 @@ export function AppHeader({ route, openSessions, activeSessionId, onSelectSessio
           <span className={`chip-state ${session.status === "paused" ? "paused" : ""}`} />
           <span className="chip-name">{config.name}</span>
           <span className="chip-meta">{creditsCount} · {amount} · {modeName(session.mode)}</span>
-          {session.status === "paused" && <span className="chip-meta">PAUSED</span>}
+          {session.status === "paused" && <Badge tone="warning">Paused</Badge>}
         </button>;
       })}
       <span className="chip-meta rail-hint" aria-hidden="true">CTRL + 1–9</span>

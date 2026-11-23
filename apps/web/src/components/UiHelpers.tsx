@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { IconButton } from "./ui/Button";
 import type { ReactNode } from "react";
 
 export const money = (cents: number) =>
@@ -83,7 +84,7 @@ export function Modal({ title, subtitle, onClose, children, error, className = "
 
   return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onCloseRef.current(); }}>
     <section ref={dialogRef} className={`modal ${className}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" tabIndex={-1}>
-      <div className="modal-head"><div><h2 id="modal-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button type="button" className="close-btn" aria-label="Close dialog" onClick={() => onCloseRef.current()}>×</button></div>
+      <div className="modal-head"><div><h2 id="modal-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div><IconButton icon="x" label="Close dialog" onClick={() => onCloseRef.current()} /></div>
       {error && <div className="error-banner" role="alert">{error}</div>}
       {children}
     </section>

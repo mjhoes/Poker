@@ -9,6 +9,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
       workbox: {
+        // Fonts are part of the app shell: precache them so the interface looks the same offline.
+        globPatterns: ["**/*.{js,css,html,svg,woff2}"],
         runtimeCaching: [
           {
             urlPattern: /\/analyses\/manifest\.json$/,

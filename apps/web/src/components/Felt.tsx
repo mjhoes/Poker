@@ -1,3 +1,4 @@
+import { SwatchPicker } from "./ui";
 import type { Machine, Session } from "@perfect-draw/shared";
 
 export type FeltId = Machine["theme"];
@@ -15,11 +16,6 @@ export const feltFor = (session: Session | undefined, machines: Machine[]): Felt
   (session && (machines.find(machine => machine.id === session.machineId)?.theme ?? session.machineSnapshot.theme)) || "felt";
 
 export function FeltPicker({ value, onChange }: { value: FeltId; onChange: (value: FeltId) => void }) {
-  return <div className="felt-picker" role="radiogroup" aria-label="Table felt">
-    {FELTS.map(felt => <button key={felt.id} type="button" role="radio" aria-checked={value === felt.id}
-      className={`felt-swatch ${value === felt.id ? "selected" : ""}`} data-felt={felt.id} onClick={() => onChange(felt.id)}>
-      <span className="felt-swatch-chip" aria-hidden="true" />
-      <span className="felt-swatch-name">{felt.name}</span>
-    </button>)}
-  </div>;
+  return <SwatchPicker label="Table felt" value={value} onChange={onChange}
+    swatches={FELTS.map(felt => ({ value: felt.id, label: felt.name, chipProps: { "data-felt": felt.id } }))} />;
 }

@@ -7,6 +7,19 @@ const paths = {
   trash: <><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" /><path d="M10.3 10.5v6M13.7 10.5v6" /></>,
   door: <><path d="M14 4H6.5v16H14" /><path d="M11 12h9M17 8.8l3.2 3.2-3.2 3.2" /></>,
   restore: <><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" /><path d="M4.2 4.5v4.2h4.2" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
+  edit: <><path d="M4.5 19.5l1-4.2L15.8 5a2.1 2.1 0 0 1 3 3L8.6 18.4z" /><path d="M13.8 7l3.1 3.1" /></>,
+  play: <path d="M8 5.5v13l10.5-6.5z" />,
+  pause: <path d="M8.5 5.5v13M15.5 5.5v13" />,
+  "chevron-left": <path d="M14.5 6l-6 6 6 6" />,
+  "chevron-right": <path d="M9.5 6l6 6-6 6" />,
+  "chevron-down": <path d="M6 9.5l6 6 6-6" />,
+  cards: <><rect x="3.5" y="6" width="10" height="14" rx="1.6" /><path d="M9.5 4.6l1.2-.4a1.6 1.6 0 0 1 2 1l3.9 11.4a1.6 1.6 0 0 1-1 2l-1.1.4" /><path d="M16 4.5l2.2.3a1.6 1.6 0 0 1 1.4 1.8l-1.2 9" /></>,
+  draw: <><path d="M4.5 12h11" /><path d="M12 7.5l4.5 4.5-4.5 4.5" /><path d="M19.5 5v14" /></>,
+  download: <><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" /><path d="M5 19.5h14" /></>,
+  upload: <><path d="M12 15.5v-11M7.5 9L12 4.5 16.5 9" /><path d="M5 19.5h14" /></>,
+  wallet: <><path d="M4 7.5h14.5a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18z" /><path d="M4 7.5L15.5 4.5V7.5" /><circle cx="16" cy="13.5" r="1" /></>,
+  transfer: <><path d="M5 8.5h13M14.5 5l3.5 3.5-3.5 3.5" /><path d="M19 15.5H6M9.5 12L6 15.5 9.5 19" /></>,
 } as const;
 
 export type IconName = keyof typeof paths;
