@@ -201,3 +201,20 @@ Phase 2 (done):
   compares against `apps/web/e2e/__screenshots__/`. Baselines depend on the browser build;
   on a new machine run `pnpm test:visual --update-snapshots` once, review the images, and
   commit them. Update baselines whenever a visual change is intended.
+
+Phase 3 (done) — the session table:
+- The table lives in `apps/web/src/table/`: `CardFace`/`CardBack` (original SVG card art, colored by
+  `--suit-*` tokens, memoized), `PlayingCard` (hold toggle; keeps the accessible names tests rely on),
+  `PayTable` (library pay table with the bet column lit and winning rows highlighted), `LineRows`
+  (lines 2…N of multi-line play), `CreditMeter` (bet / win / credits, or drill progress),
+  `Feedback` (three grade levels) and `TableSettings` (gear popover holding feedback timing).
+- `winningMask()` in `table/cards.ts` decides which cards light up for a win. It is display-only and
+  unit-tested; payouts always come from the engine.
+- Feedback: an optimal hold shows a brief "Optimal" stamp and a small pill (details closed); a weaker
+  hold shows a one-line bar with the cost and the details drawer open; warn-before-draw outlines the
+  best hold on the table and swaps the Draw button for "Use best hold" / "Draw anyway". Keep the
+  `h3` texts "Optimal hold", "A different hold was stronger" and "Hold review": e2e tests use them.
+- Deal/draw animations: cards are keyed by hand id, position and card, so only new cards animate.
+  Timing comes from the machine's speed (`data-speed` on `.play-table`); reduced motion disables it.
+- Feedback-timing buttons are inside the "Table settings" popover; tests open it first.
+

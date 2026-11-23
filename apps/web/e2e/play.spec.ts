@@ -43,6 +43,7 @@ test("whole credits retain cents, wallets use names and warning keyboards requir
 test("ten real Free Play hands preserve exact state, keyboard holds and multi-line accounting", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await createPlayTable(page, { lines: 3 });
+  await page.getByRole("button", { name: "Table settings", exact: true }).click();
   await page.getByRole("button", { name: "Show after draw", exact: true }).click();
   await expect(page.getByRole("button", { name: "Show after draw", exact: true })).toHaveAttribute("aria-pressed", "true");
   for (let index = 0; index < 10; index++) {
@@ -137,6 +138,7 @@ test("warnings survive reload, corrections keep the mistake, and silent play rep
   expect(corrected.decisions).toHaveLength(2);
   expect(corrected.sessions[0].summary.errors).toBe(1);
   expect(corrected.decisions.filter(row => row.isCorrection)).toHaveLength(1);
+  await page.getByRole("button", { name: "Table settings", exact: true }).click();
   await page.getByRole("button", { name: "Silent report", exact: true }).click();
   await expect(page.getByRole("button", { name: "Silent report", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("heading", { name: "Optimal hold", exact: true })).toHaveCount(0);

@@ -74,6 +74,9 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await page.getByRole("button", { name: "Show Midnight Triple" }).click();
   await startSession(page);
   await shot(page, "06-session-ready-midnight");
+  await page.getByRole("button", { name: "Table settings", exact: true }).click();
+  await shot(page, "06b-table-settings", false);
+  await page.keyboard.press("Escape");
   await dealHand(page);
   await shot(page, "07-dealt-hand");
   await page.getByRole("button", { name: "Draw", exact: true }).click();
@@ -125,6 +128,37 @@ test("classic felt Rapid Drill with optimal feedback", async ({ page }) => {
   await shot(page, "16-drill-optimal-classic");
 });
 
+async function bestMask(page: Page) {
+  return page.evaluate(async () => {
+    const { useAppStore } = await import("/src/state/app-store.ts" as string) as typeof import("../src/state/app-store");
+    const state = useAppStore.getState();
+    return state.sessions[state.activeSessionId!].state.analysis!.best.mask;
+  });
+}
+async function holdMask(page: Page, mask: number) {
+  const cards = page.getByRole("group", { name: "Current poker hand. Select cards to hold." }).getByRole("button");
+  for (let index = 0; index < 5; index++) {
+    if ((await cards.nth(index).getAttribute("aria-pressed") === "true") !== !!(mask & (1 << index))) await cards.nth(index).click();
+  }
+}
+
+test("ten-line Free Play settles every line on the table", async ({ page }) => {
+  await seededPage(page);
+  await page.goto("/");
+  await addWallet(page);
+  await page.getByRole("button", { name: "Create wallet", exact: true }).click();
+  await addMachine(page, "Ten Play Jacks", "10", "Casino green");
+  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await startSession(page);
+  await dealHand(page);
+  await holdMask(page, await bestMask(page));
+  await shot(page, "20-ten-line-holding");
+  await page.getByRole("button", { name: "Draw", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
+  await shot(page, "21-ten-line-settled");
+});
+
 test("phone layouts", async ({ page }) => {
   await seededPage(page, { width: 390, height: 844 });
   await page.goto("/");
@@ -138,5 +172,9 @@ test("phone layouts", async ({ page }) => {
   await startSession(page);
   await dealHand(page);
   await shot(page, "19-phone-dealt");
+  await holdMask(page, await bestMask(page));
+  await page.getByRole("button", { name: "Draw", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
+  await shot(page, "19b-phone-settled");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

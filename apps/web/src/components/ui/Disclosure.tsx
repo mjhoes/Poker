@@ -22,10 +22,10 @@ export function Badge({ tone = "neutral", dot = false, children }: { tone?: Badg
  * Hover and focus hint. The trigger keeps its own semantics; the hint is linked with aria-describedby. Disabled
  * buttons do not receive pointer or focus events, so the wrapper listens instead and is made focusable for them.
  */
-export function Tooltip({ text, children, focusable = false }: { text: string; children: ReactNode; focusable?: boolean }) {
+export function Tooltip({ text, children, focusable = false, align = "center" }: { text: string; children: ReactNode; focusable?: boolean; align?: "center" | "end" }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  return <span className={`tooltip-anchor ${open ? "open" : ""}`} aria-describedby={id} tabIndex={focusable ? 0 : undefined}
+  return <span className={`tooltip-anchor ${align === "end" ? "align-end" : ""} ${open ? "open" : ""}`} aria-describedby={id} tabIndex={focusable ? 0 : undefined}
     onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
     {children}
     <span id={id} role="tooltip" className="tooltip">{text}</span>

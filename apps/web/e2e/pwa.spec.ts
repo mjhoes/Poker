@@ -29,6 +29,7 @@ test("production app, saved sessions and cached worker analysis reopen fully off
   await expect(page.getByRole("heading", { name: "Offline Jacks", exact: true })).toBeVisible();
   await page.getByText("Optional table analysis", { exact: true }).click();
   await expect(page.getByText("99.544%", { exact: true })).toBeVisible({ timeout: 45_000 });
+  await page.getByRole("button", { name: "Table settings", exact: true }).click();
   await page.getByRole("button", { name: "Silent report", exact: true }).click();
   await expect(page.getByRole("button", { name: "Silent report", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Deal hand", exact: true }).click();

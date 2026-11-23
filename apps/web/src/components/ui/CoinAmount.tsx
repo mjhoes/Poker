@@ -28,7 +28,7 @@ export function CoinAmount({ amount, denominationCents, digits = 0, unit = "cred
   const sign = signed && amount > 0 ? "+" : signed && amount < 0 ? "−" : "";
   const magnitude = signed ? Math.abs(amount) : amount;
   return <span className="coin-amount">
-    <span className="coin-amount-credits">{sign}{credits(magnitude, digits)} {unit}</span>
+    <span className="coin-amount-credits">{sign}{credits(magnitude, digits)}{unit ? ` ${unit}` : ""}</span>
     <span className="coin-amount-dollars">({sign}{dollarsFor(magnitude, denominationCents)})</span>
   </span>;
 }
