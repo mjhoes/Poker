@@ -21,6 +21,7 @@ import { StartSessionDialog } from "./dialogs/StartSessionDialog";
 import { NewWalletDialog, RenameWalletDialog, WalletAmountDialog } from "./dialogs/WalletDialogs";
 import { PayTableDialog, RenamePaytableDialog } from "./dialogs/PayTableDialogs";
 import { paytableService } from "./services/paytables";
+import { preferencesService } from "./services/preferences";
 import { findPaytable } from "./paytables/catalog";
 import { HomePage } from "./pages/HomePage";
 import { WalletsPage } from "./pages/WalletsPage";
@@ -38,7 +39,7 @@ type Dialog =
   | { kind: "rename-paytable"; table: Paytable };
 
 function App() {
-  const { ready, error: storeError, retentionError, machines, wallets, paytables, sessions, activeSessionId, storageStatus, decisionCount, backupDue, lastBackupAt } = useAppStore();
+  const { ready, error: storeError, retentionError, machines, wallets, paytables, deckColors, sessions, activeSessionId, storageStatus, decisionCount, backupDue, lastBackupAt } = useAppStore();
   const { route, navigate } = useRoute();
   const runner = useActionRunner();
   const { busy, run } = runner;
@@ -124,7 +125,7 @@ function App() {
   const roomFelt = route === "/session" && shownSession ? feltFor(shownSession, machines) : undefined;
   const dialogProps = { busy, run, onClose: closeDialog };
 
-  return <div className="app-shell" data-room-felt={roomFelt}>
+  return <div className="app-shell" data-room-felt={roomFelt} data-deck={deckColors}>
     <div className="topline" />
     <AppHeader route={route} openSessions={openSessions} activeSessionId={activeSessionId} onSelectSession={id => void play.activate(id)}
       bankrollCents={wallets.length ? wallets.reduce((sum, wallet) => sum + wallet.balanceCents, 0) : null} />
@@ -142,7 +143,8 @@ function App() {
         onTopup={wallet => setDialog({ kind: "topup", wallet })} onTransfer={wallet => setDialog({ kind: "transfer", wallet })} />}
       {route === "/settings" && <SettingsPage storageStatus={storageStatus} decisionCount={decisionCount} backupDue={backupDue} lastBackupAt={lastBackupAt} busy={busy || backup.importing} onExport={backup.exportBackup} onImport={backup.importBackup}
         paytables={paytables} machines={machines} onNewPaytable={() => setDialog({ kind: "paytable" })} onCopyPaytable={table => setDialog({ kind: "paytable", startFromId: table.id })}
-        onRenamePaytable={table => setDialog({ kind: "rename-paytable", table })} onDeletePaytable={table => void deletePaytable(table)} />}
+        onRenamePaytable={table => setDialog({ kind: "rename-paytable", table })} onDeletePaytable={table => void deletePaytable(table)}
+        deckColors={deckColors} onDeckColors={value => void run(() => preferencesService.setDeckColors(value))} />}
       {route === "/stats" && <StatsPage machines={machines} decisionCount={decisionCount} onTrainStarted={() => { setSessionViewId(null); openRoom(); }} onGoMachines={() => navigate("/")} />}
       {route === "/session" && <SessionPage session={shownSession} felt={roomFelt ?? "felt"} sessions={historySessions}
         analysis={tableAnalysis.analysis} analysisError={tableAnalysis.error} analysisLoading={tableAnalysis.loading} onRetry={tableAnalysis.request}

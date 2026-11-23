@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg"],
+      includeAssets: ["icon.svg", "apple-touch-icon.png"],
       workbox: {
         // Fonts are part of the app shell: precache them so the interface looks the same offline.
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
@@ -27,18 +27,16 @@ export default defineConfig({
       manifest: {
         name: "Perfect Draw",
         short_name: "Perfect Draw",
-        description: "A local-first video poker trainer.",
-        theme_color: "#101a18",
-        background_color: "#101a18",
+        description: "Practice perfect video poker against any pay table.",
+        theme_color: "#174d3e",
+        background_color: "#f1f0e8",
         display: "standalone",
         start_url: "/",
         icons: [
-          {
-            src: "/icon.svg",
-            sizes: "any",
-            type: "image/svg+xml",
-            purpose: "any",
-          },
+          { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
     }),

@@ -17,7 +17,9 @@ export const entity = { id: uuid, ...metadata };
 export const nameSchema = z.string().trim().min(1).max(100);
 export const profileSchema = z.object({
   id: z.literal("local"), displayName: nameSchema.default("Player"), createdAt: timestamp, ...metadata,
-  prefs: z.object({ activeSessionId: uuid.nullable().default(null), lastBackupAt: timestamp.nullable().default(null), lastBackupDecisionCount: z.number().int().nonnegative().default(0) }).default({}),
+  prefs: z.object({ activeSessionId: uuid.nullable().default(null), lastBackupAt: timestamp.nullable().default(null), lastBackupDecisionCount: z.number().int().nonnegative().default(0),
+    /** Card colors: classic red/black, or four colors (diamonds blue, clubs green). */
+    deckColors: z.enum(["two", "four"]).default("two") }).default({}),
 });
 export const providerSchema = z.enum(["openai", "anthropic"]);
 export const aiSettingsSchema = z.object({

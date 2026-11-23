@@ -41,7 +41,7 @@ async function setup(coins = 5) {
   const session = await sessionService.start({ machineId: machine.id, mode: "drill" });
   return { wallet, machine, session };
 }
-function decision(session: Session, options: { loss?: number; at?: number; correction?: boolean; other?: boolean; key?: string; deleted?: boolean } = {}) {
+function decision(session: Session, options: { loss?: number; at?: number; correction?: boolean; other?: boolean; key?: string; deleted?: boolean; denomination?: number } = {}) {
   return decisionSchema.parse({
     id: newId(), ...stamp(), deletedAt: options.deleted ? Date.now() : null, sessionId: session.id,
     paytableId: table.id, analysisKey: options.key ?? key, canonicalHandId: options.other ? otherId : firstId,
@@ -50,6 +50,7 @@ function decision(session: Session, options: { loss?: number; at?: number; corre
     bestLabel: "ORIGINAL_ORDER_TIE_LABEL", chosenLabel: "DRAW5", gapToSecond: 1,
     decisionMs: 150, handIndexInSession: 1, msSinceSessionStart: 150, priorOutcome: null,
     createdAt: options.at ?? Date.now(), isCorrection: options.correction ?? false, coins: session.machineSnapshot.coins,
+    denominationCents: options.denomination ?? 25,
   });
 }
 describe("statistics worker and local service", () => {
@@ -100,6 +101,27 @@ describe("statistics worker and local service", () => {
     expect(drill).toMatchObject({ n: 2, errors: 2, evLostTotal: 1.5 });
     expect(await engine.report({ paytableId: table.id, mode: "free_play" })).toMatchObject({ n: 1, evLostTotal: 2 });
     expect(await engine.report({ paytableId: table.id, since: now - 86_400_000 })).toMatchObject({ n: 0 });
+  });
+  it("lists denominations, filters by one, and keeps archives without a denomination out of dollar views", async () => {
+    const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now);
+    const { session } = await setup();
+    const engine = new StatsEngine(async () => game);
+    const old = now - 91 * 86_400_000;
+    await db.records("decisions").bulkAdd([
+      decision(session, { at: old, denomination: 100, loss: 2 }), decision(session, { loss: 1 }), decision(session, { loss: 0.5, denomination: 100 }),
+    ]);
+    await rollupDecisions("UTC", (id, coins) => engine.game(id, coins), now);
+    expect((await db.records("dailyAggregates").toArray()).map(row => row.denominationCents)).toEqual([100]);
+    const query = { paytableId: table.id, timeZone: "UTC" };
+    expect(await engine.report(query)).toMatchObject({ n: 3, denominations: [25, 100], undenominatedArchived: 0 });
+    expect(await engine.report({ ...query, denominationCents: 100 })).toMatchObject({ n: 2, evLostTotal: 2.5 });
+    expect(await engine.report({ ...query, denominationCents: 25 })).toMatchObject({ n: 1, evLostTotal: 1 });
+    // Buckets archived before denominations were tracked stay in the totals but never in a dollar view.
+    const [archived] = await db.records("dailyAggregates").toArray();
+    const { denominationCents: _dropped, ...legacy } = archived;
+    await db.records("dailyAggregates").put({ ...legacy, bucketKey: JSON.stringify(JSON.parse(legacy.bucketKey).slice(0, -1)) });
+    expect(await engine.report(query)).toMatchObject({ n: 3, denominations: [25, 100], undenominatedArchived: 1 });
+    expect(await engine.report({ ...query, denominationCents: 100 })).toMatchObject({ n: 1, evLostTotal: 0.5 });
   });
   it("atomically retains raw rows on a write failure or a changed preparation snapshot", async () => {
     const { session } = await setup();

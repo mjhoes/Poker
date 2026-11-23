@@ -24,7 +24,7 @@ export async function rollupDecisions(timeZone: string,
     const decision = decisionSchema.parse(row), session = sessions.get(decision.sessionId);
     if (!session || !live(session)) continue;
     if (decision.variantKind !== "standard") throw new Error("Unsupported historical variant; raw history has been retained.");
-    const key = JSON.stringify([decision.paytableId, decision.coins, decision.analysisKey, session.mode]);
+    const key = JSON.stringify([decision.paytableId, decision.coins, decision.analysisKey, session.mode, decision.denominationCents]);
     const group = groups.get(key) ?? []; group.push(decision); groups.set(key, group);
   }
   const prepared: Records["dailyAggregates"][] = [];
@@ -43,10 +43,10 @@ export async function rollupDecisions(timeZone: string,
       return { bestLabel: canonical.bestLabel, chosenLabel: decision.chosenLabel, evLoss: decision.evLoss, createdAt: decision.createdAt, isCorrection: decision.isCorrection };
     });
     for (const stats of aggregateStatistics(observations, timeZone)) {
-      const bucketKey = JSON.stringify([stats.day, first.paytableId, first.coins, first.variantKind, stats.bestLabel, stats.chosenLabel, key, session.mode, timeZone]);
+      const bucketKey = JSON.stringify([stats.day, first.paytableId, first.coins, first.variantKind, stats.bestLabel, stats.chosenLabel, key, session.mode, timeZone, first.denominationCents]);
       prepared.push(recordSchemas.dailyAggregates.parse({
         id: newId(), ...stamp(), ...stats, bucketKey, timeZone, paytableId: first.paytableId,
-        analysisKey: key, coins: first.coins, variantKind: first.variantKind, mode: session.mode,
+        analysisKey: key, coins: first.coins, variantKind: first.variantKind, mode: session.mode, denominationCents: first.denominationCents,
         ...ranges.get(JSON.stringify([stats.day, stats.bestLabel, stats.chosenLabel])),
       }));
     }

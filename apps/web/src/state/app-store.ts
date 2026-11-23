@@ -19,11 +19,12 @@ export interface AppState {
   retentionError: string | null;
   sessions: Record<string, Session>; activeSessionId: string | null;
   storageStatus: StorageStatus; decisionCount: number; backupDue: boolean; lastBackupAt: number | null;
+  deckColors: "two" | "four";
 }
 export const useAppStore = create<AppState>(() => ({
   ready: false, error: null, machines: [], wallets: [], paytables: [], sessions: {}, activeSessionId: null,
   retentionError: null,
-  storageStatus: "checking", decisionCount: 0, backupDue: false, lastBackupAt: null,
+  storageStatus: "checking", decisionCount: 0, backupDue: false, lastBackupAt: null, deckColors: "two",
 }));
 let started = false;
 export async function startAppStore() {
@@ -46,7 +47,7 @@ export async function startAppStore() {
       return {
         machines, wallets, paytables, sessions, activeSessionId: active && sessions[active] && sessions[active].status !== "closed" ? active : null,
         decisionCount, backupDue: decisionCount - profile.prefs.lastBackupDecisionCount >= 500,
-        lastBackupAt: profile.prefs.lastBackupAt, ready: true, error: null,
+        lastBackupAt: profile.prefs.lastBackupAt, deckColors: profile.prefs.deckColors, ready: true, error: null,
       };
     }).subscribe({
       next: state => useAppStore.setState(state),

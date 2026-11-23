@@ -256,3 +256,18 @@ Phase 5 (done) — custom pay tables:
 - A custom table cannot be deleted while a machine or an open session uses it; past sessions,
   statistics and backups keep referencing it (it is soft-deleted).
 
+Phase 6 (done) — statistics in dollars, deck colors, charts, icons:
+- Statistics accept an optional `denominationCents` filter. Reports also return `denominations`
+  (in scope) and `undenominatedArchived` (archived decisions with no recorded denomination).
+  The page shows dollars beside credit figures when the scope has one known denomination,
+  and otherwise explains why figures stay in credits.
+- Daily aggregates now record `denominationCents` (also appended to `bucketKey`). Buckets archived
+  earlier have neither; they stay valid, count in totals, and are excluded from a denomination view.
+  No Dexie version bump was needed (no new index).
+- Deck colors are a profile preference (`prefs.deckColors`, "two" | "four"), set in Settings and
+  applied with `data-deck` on the app shell; suit colors come from `--suit-*` tokens.
+- Chart colors come from `--chart-*` tokens in `tokens.css` (read at render time).
+- App icons: `public/icon.svg` plus PNGs (192, 512, maskable 512, apple-touch 180) listed in the
+  PWA manifest. Sources are in `apps/web/assets-src/`; regenerate with
+  `node scripts/render-icons.cjs` from `apps/web` (needs the Playwright Chromium).
+

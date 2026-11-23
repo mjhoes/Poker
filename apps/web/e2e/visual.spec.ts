@@ -116,7 +116,7 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Statistics", exact: true }).click();
   await expect(page.locator(".stats-page")).toBeVisible();
-  await page.waitForLoadState("networkidle");
+  await expect(page.locator(".stats-metric").first()).toBeVisible({ timeout: 45_000 });
   await shot(page, "14-statistics");
 });
 
@@ -143,6 +143,11 @@ test("classic felt Rapid Drill with optimal feedback", async ({ page }) => {
   await page.getByRole("button", { name: "Check answer", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Optimal hold" })).toBeVisible();
   await shot(page, "16-drill-optimal-classic");
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("radiogroup", { name: "Card colors" }).getByRole("radio", { name: /Four colors/ }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-deck", "four");
+  await page.getByRole("link", { name: "Session room", exact: true }).click();
+  await shot(page, "16b-four-color-deck");
 });
 
 async function bestMask(page: Page) {

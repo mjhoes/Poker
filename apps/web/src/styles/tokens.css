@@ -91,3 +91,11 @@
   --felt-hi: #3c3f42; --felt-mid: #2a2c2f; --felt-lo: #151618; --felt-flat: #26282a; --felt-edge: #5b5f63;
   --felt-ink: #f3f2ee; --felt-muted: #d0cfca; --felt-shadow: #050506; --felt-accent: #e2bd5a; --felt-tint: #e6e5e1;
 }
+
+/* Chart palette (read by StatisticsCharts at render time). */
+:root {
+  --chart-accuracy: #2d7058; --chart-loss: #c8792b; --chart-return: #3c5684; --chart-bar: #2d7058;
+  --chart-axis: #6e7a72; --chart-axis-line: #cbd3c8; --chart-grid: #e4e8df; --chart-ink: #364437;
+}
+/* Optional four-color deck (Settings): diamonds blue and clubs green, so flush draws read at a glance. */
+[data-deck="four"] { --suit-diamonds: #1f5fbf; --suit-clubs: #1d7a3e; }

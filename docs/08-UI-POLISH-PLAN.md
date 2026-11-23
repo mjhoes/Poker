@@ -312,9 +312,16 @@ Each phase can ship on its own and leaves the app better than before.
 | **3. The table** ✅ done | `CardFace` SVG cards and back; machine-screen layout with pay table marquee, multi-line rows and credit meter; three-level feedback; warn-review state; deal/draw/win animations; table settings popover; compact session header. | F3, F5, F6, B1, B2, B5, B6 |
 | **4. The floor** ✅ done | Cabinet SVG and floor grid; one-click Play/Drill; new-machine sheet with live preview, segmented controls and felt swatches; auto bankroll and welcome flow; new felts. | F8, F10 (new felts), B4, B11 |
 | **5. Custom pay tables** ✅ done | Worker lookup of custom tables; pay table editor with quick-fill, paste, validation and live return; Settings pay table list. | F9 |
-| **6. Statistics in dollars and polish** | Dollar EV in Statistics; aggregate denomination migration (Dexie v4); denomination filter; chart theming; four-color deck setting; app icons. | F4 (stats), B10, Part C icons |
+| **6. Statistics in dollars and polish** ✅ done | Dollar EV in Statistics; aggregate denomination migration (Dexie v4); denomination filter; chart theming; four-color deck setting; app icons. | F4 (stats), B10, Part C icons |
 
 ---
+
+## Status
+
+All six phases are complete. Two small B10 extras were not built: mini cards in the Statistics
+confusion pairs (rows there are hold categories, not specific hands, so there are no cards to show)
+and wallet cards drawn as chip stacks. Statistics dollars are exact within one denomination; buckets
+archived before denominations were tracked stay in credits.
 
 ## Decisions (confirmed)
 

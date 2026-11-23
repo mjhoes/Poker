@@ -18,7 +18,7 @@ export function AppHeader({ route, openSessions, activeSessionId, onSelectSessio
 }) {
   return <header className="app-header">
     <div className="header-inner">
-      <a className="brand" href="#/" aria-label="Perfect Draw home"><span className="brand-mark" aria-hidden="true">P</span><span className="brand-name">PERFECT DRAW</span></a>
+      <a className="brand" href="#/" aria-label="Perfect Draw home"><img className="brand-mark" src="/icon.svg" alt="" width="34" height="34" /><span className="brand-name">PERFECT DRAW</span></a>
       <nav className="nav-links" aria-label="Main navigation">
         {NAV.map(item => <a key={item.route} className={`nav-link ${route === item.route ? "active" : ""}`} href={`#${item.route}`}>{item.label}</a>)}
       </nav>

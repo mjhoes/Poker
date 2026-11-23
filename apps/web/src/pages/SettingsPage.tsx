@@ -1,8 +1,23 @@
 import type { FormEvent } from "react";
 import type { Machine, Paytable } from "@perfect-draw/shared";
-import { Button, MenuButton } from "../components/ui";
+import { Button, ChoiceChips, MenuButton } from "../components/ui";
+import { CardFace } from "../table/CardFace";
 import { Icon } from "../components/Icons";
 import { dateTime, familyName, plural } from "../components/UiHelpers";
+
+// A♠ K♥ Q♦ J♣: one card per suit, so the choice previews itself.
+const PREVIEW_CARDS = [51, 46, 41, 36];
+
+function CardColorsPanel({ value, onChange }: { value: "two" | "four"; onChange: (value: "two" | "four") => void }) {
+  return <section className="panel panel-pad card-colors-panel">
+    <p className="eyebrow">CARDS</p><h2 className="panel-heading-sm">Card colors</h2>
+    <ChoiceChips label="Card colors" value={value} onChange={onChange} choices={[
+      { value: "two", label: "Two colors", hint: "Classic red and black" },
+      { value: "four", label: "Four colors", hint: "Blue diamonds, green clubs" },
+    ]} />
+    <div className="deck-preview" aria-hidden="true">{PREVIEW_CARDS.map(card => <span key={card} className="mini-card"><CardFace card={card} /></span>)}</div>
+  </section>;
+}
 
 /** Hand-entered pay tables: available to every machine, renamable, removable once nothing uses them. */
 function PayTablesPanel({ paytables, machines, onNew, onCopy, onRename, onDelete }: {
@@ -28,7 +43,8 @@ function PayTablesPanel({ paytables, machines, onNew, onCopy, onRename, onDelete
   </section>;
 }
 
-export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBackupAt, busy, onExport, onImport, paytables, machines, onNewPaytable, onCopyPaytable, onRenamePaytable, onDeletePaytable }: {
+export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBackupAt, busy, onExport, onImport, paytables, machines, onNewPaytable, onCopyPaytable, onRenamePaytable, onDeletePaytable, deckColors, onDeckColors }: {
+  deckColors: "two" | "four"; onDeckColors: (value: "two" | "four") => void;
   storageStatus: string; decisionCount: number; backupDue: boolean; lastBackupAt: number | null; busy: boolean;
   onExport: () => void; onImport: (event: FormEvent<HTMLInputElement>) => void;
   paytables: Paytable[]; machines: Machine[]; onNewPaytable: () => void; onCopyPaytable: (table: Paytable) => void;
@@ -45,6 +61,7 @@ export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBack
         <div className="warning-card"><strong>Restoring replaces everything.</strong> Importing a backup erases all data on this device and replaces it with the backup's contents.</div>
       </section>
       <aside className="side-stack">
+        <CardColorsPanel value={deckColors} onChange={onDeckColors} />
         <section className="panel panel-pad"><p className="eyebrow">DECISION RECORDS</p><h2 style={{ marginBottom: 8, fontSize: 23 }}>{decisionCount.toLocaleString()} saved</h2><p className="settings-copy">Backup reminder: {backupDue ? "Due — 500 or more decisions since the last export." : "No threshold reached since the last export."}</p><div className="metric-row"><span>Last successful export</span><strong>{lastBackupAt ? dateTime(lastBackupAt) : "Not yet"}</strong></div><div className="metric-row"><span>Reminder threshold</span><strong>500 decisions</strong></div></section>
         <section className="note-card"><p className="eyebrow">GOOD TO KNOW</p><h3>Clearing browser data erases your history.</h3><p>Export a backup before clearing site data or switching devices.</p></section>
       </aside>
