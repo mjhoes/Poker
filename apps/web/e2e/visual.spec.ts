@@ -70,6 +70,7 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await shot(page, "03b-starter-machines");
   await addMachine(page, "Quarter Jacks", "1", "Casino green");
+  await page.locator(".modal").evaluate(element => { element.scrollTop = 0; }); // Typing the name scrolled the sheet.
   await shot(page, "04-new-machine-dialog", false);
   await saveMachine(page);
   await addMachine(page, "Midnight Triple", "3", "Midnight blue");
