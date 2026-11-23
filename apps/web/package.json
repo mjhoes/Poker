@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:offline": "playwright test -c playwright.pwa.config.ts"
+    "test:offline": "playwright test -c playwright.pwa.config.ts",
+    "test:visual": "playwright test -c playwright.visual.config.ts"
   },
   "dependencies": {
     "@perfect-draw/engine": "workspace:*",
