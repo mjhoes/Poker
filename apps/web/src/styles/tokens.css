@@ -1,0 +1,81 @@
+/*
+ * Design tokens. Every color, size and duration the interface uses should come from here.
+ * Felt sets are selected with data-felt (a table or cabinet) or data-room-felt (the whole session room).
+ */
+:root {
+  /* Paper and ink */
+  --paper: #f1f0e8;
+  --surface: #fbfaf5;
+  --surface-2: #f6f6ef;
+  --soft: #e6e9de;
+  --ink: #202d28;
+  --ink-2: #364437;
+  --muted: #6e7a72;
+  --muted-2: #879088;
+  --line: #d9ded3;
+  --line-strong: #cbd3c8;
+
+  /* Brand and signal */
+  --felt: #174d3e;
+  --felt-dark: #103b31;
+  --signal: #dfb74d;
+  --signal-ink: #473817;
+  --coral: #b65d49;
+  --danger: #a9473a;
+  --danger-dark: #8e3a2f;
+  --success: #39704d;
+  --negative: #a45342;
+
+  /* Suits: classic two-color deck */
+  --suit-red: #c8312b;
+  --suit-black: #1b1f1d;
+
+  /* Type */
+  --font-ui: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --display: var(--font-ui);
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --text-2xs: 9px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 23px;
+  --text-display: clamp(35px, 5vw, 58px);
+
+  /* Space (4px grid), radius, elevation, motion */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+  --shadow-panel: 0 10px 30px rgb(31 51 39 / 4%);
+  --shadow-pop: 0 14px 34px #10281f2e;
+  --shadow-modal: 0 26px 80px #10281f55;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --dur-fast: .15s;
+  --dur-base: .18s;
+  --dur-slow: .3s;
+
+  /* Cloth grain: tiny inline SVG noise used by every felt */
+  --felt-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+:root, [data-felt="felt"], [data-room-felt="felt"] {
+  --felt-hi: #2d7058; --felt-mid: #1d5946; --felt-lo: #123d32; --felt-flat: #174d3e; --felt-edge: #527667;
+  --felt-ink: #f4f1e4; --felt-muted: #d1dfd2; --felt-shadow: #09271d; --felt-accent: #f0c95f; --felt-tint: #e2eae0;
+}
+[data-felt="midnight"], [data-room-felt="midnight"] {
+  --felt-hi: #33507f; --felt-mid: #213766; --felt-lo: #121e3d; --felt-flat: #1c2e57; --felt-edge: #55689a;
+  --felt-ink: #eef1f8; --felt-muted: #c8d1e6; --felt-shadow: #060c1e; --felt-accent: #f2c96b; --felt-tint: #e0e5f0;
+}
+[data-felt="classic"], [data-room-felt="classic"] {
+  --felt-hi: #8e3340; --felt-mid: #6d222d; --felt-lo: #43121a; --felt-flat: #601d27; --felt-edge: #9c5c64;
+  --felt-ink: #f8eee9; --felt-muted: #eed3d1; --felt-shadow: #24060b; --felt-accent: #ecc55e; --felt-tint: #f0e2df;
+}

@@ -1,0 +1,4 @@
+/* Tailwind preflight (base reset). Utility classes are not used. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
