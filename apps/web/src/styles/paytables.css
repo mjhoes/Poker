@@ -1,0 +1,58 @@
+/* Pay table editor (machine sheet and Settings) and the Settings list of custom tables. */
+.modal.paytable-sheet { width: min(980px, 100%); }
+.paytable-editor { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 26px; align-items: start; }
+.paytable-editor-main { display: grid; gap: 22px; min-width: 0; }
+.paytable-editor-side { position: sticky; top: 0; display: grid; gap: 14px; }
+.paytable-editor-side .form-actions { margin-top: 2px; }
+.paytable-editor-side .form-actions .btn { flex: 1 1 0; }
+.start-from { display: flex; flex-wrap: wrap; gap: 7px; }
+.shorthand-row { display: flex; align-items: flex-start; gap: 10px; }
+.shorthand-field { flex: 1 1 auto; max-width: 360px; }
+.shorthand-row > .btn { margin-top: 23px; }
+.paste-field { margin: 10px 0; }
+.paste-field textarea { min-height: 110px; font-family: var(--font-ui); }
+.editor-message { display: flex; align-items: flex-start; gap: 7px; margin: 12px 0 0; padding: 9px 11px; border-radius: var(--radius-md); font-size: var(--text-sm); line-height: 1.45; }
+.editor-message .icon { flex: 0 0 auto; margin-top: 1px; }
+.editor-message.is-ok { background: #e6efe2; color: #2f5a39; }
+.editor-message.is-warn { background: #fbf0e6; color: #80533a; }
+.pays-grid-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 18px 0 8px; color: var(--muted); font-size: var(--text-sm); font-weight: 650; }
+.column-toggle { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); cursor: pointer; }
+.column-toggle input { width: 16px; height: 16px; accent-color: var(--felt); }
+.pays-grid { width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); font-size: var(--text-md); }
+.pays-grid th, .pays-grid td { padding: 5px 8px; border-top: 1px solid var(--line); text-align: left; }
+.pays-grid thead th { border-top: 0; background: var(--surface-2); color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.pays-grid tbody th { font-weight: 650; white-space: nowrap; }
+.pays-grid input { width: 88px; min-height: 32px; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fffef9; color: var(--ink); font-size: var(--text-md); font-variant-numeric: tabular-nums; text-align: right; }
+.pays-grid.is-full input { width: 72px; }
+.pays-grid input:focus { border-color: var(--felt); outline: 2px solid color-mix(in srgb, var(--felt) 25%, transparent); outline-offset: 0; }
+.pays-grid .max-pay { display: inline-block; min-width: 60px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.pays-grid tr.has-warning { background: #fdf6ea; }
+.pays-grid tr.has-warning input { border-color: #d9a86d; }
+.pays-grid tr.has-error { background: #fbede8; }
+.pays-grid tr.has-error input { border-color: var(--danger); }
+.row-issue { display: inline-flex; margin-left: 6px; color: #b0742e; vertical-align: middle; }
+.has-error .row-issue { color: var(--danger); }
+.return-card { display: grid; gap: 3px; padding: 16px; border-radius: var(--radius-lg); background: radial-gradient(ellipse at 30% 0%, var(--felt-hi), var(--felt-mid) 70%); color: var(--felt-ink); box-shadow: var(--shadow-panel); }
+.return-label { color: var(--felt-muted); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.return-value { color: var(--felt-accent); font: 750 32px var(--font-ui); letter-spacing: -.02em; }
+.return-value .computing { display: inline-flex; align-items: center; gap: 9px; color: var(--felt-ink); font-size: 16px; font-weight: 650; }
+.return-note { color: var(--felt-muted); font-size: var(--text-xs); line-height: 1.45; }
+.issue-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.issue-list li { display: flex; align-items: flex-start; gap: 6px; font-size: var(--text-sm); line-height: 1.45; }
+.issue-list li .icon { flex: 0 0 auto; margin-top: 2px; }
+.issue-list .is-warning { color: #80533a; }
+.issue-list .is-error { color: var(--danger); }
+.enter-paytable { margin-top: 10px; }
+.paytables-panel { margin-top: 20px; }
+.paytables-panel .list-row { align-items: center; }
+
+@media (max-width: 860px) {
+  .paytable-editor { grid-template-columns: 1fr; }
+  .paytable-editor-side { position: static; }
+}
+@media (max-width: 680px) {
+  .shorthand-row { flex-direction: column; align-items: stretch; }
+  .shorthand-row > .btn { margin-top: 0; }
+  .pays-grid input { width: 72px; }
+  .pays-grid.is-full { display: block; overflow-x: auto; }
+}

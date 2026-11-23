@@ -107,6 +107,13 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Settings", exact: true }).click();
   await shot(page, "13-settings");
+  await page.getByRole("button", { name: "New pay table", exact: true }).click();
+  await page.getByRole("textbox", { name: "Pay table shorthand" }).fill("7/5");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.getByRole("textbox", { name: "Flush pays per coin", exact: true }).fill("8");
+  await expect(page.locator(".return-value")).toHaveText(/^\d+\.\d\d%$/, { timeout: 45_000 });
+  await shot(page, "13b-paytable-editor", false);
+  await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Statistics", exact: true }).click();
   await expect(page.locator(".stats-page")).toBeVisible();
   await page.waitForLoadState("networkidle");

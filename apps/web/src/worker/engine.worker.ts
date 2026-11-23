@@ -67,6 +67,19 @@ const api: EngineAPI = {
   async loadAnalysis(keyOrId) {
     const table = PAY_TABLE_LIBRARY.find(x => x.id === keyOrId || x.slug === keyOrId ||
       analysisKey(x.familyId, standardVariant.valueVector(x, 5, {}), 5) === keyOrId);
+    // A hand-entered table has no static asset: its first analysis is computed here (about 20 s) and then cached.
+    const custom = table ? undefined : await db.records("paytables").get(keyOrId);
+    if (custom && custom.deletedAt == null) {
+      const vector = standardVariant.valueVector(custom, 5, {});
+      const customKey = analysisKey(custom.familyId, vector, 5);
+      const cachedCustom = loaded.get(customKey) ?? await (async () => {
+        const raw = await db.records("analyses").get(customKey);
+        if (raw?.engineVersion !== ENGINE_VERSION) return undefined;
+        try { return deserializeAnalysis(JSON.parse(await raw.perHandBlob.text())); } catch { return undefined; }
+      })();
+      if (cachedCustom) { retain(customKey, cachedCustom); return summary(cachedCustom); }
+      return api.analyzeGame(custom.familyId, vector, 5);
+    }
     const key = table ? analysisKey(table.familyId, standardVariant.valueVector(table, 5, {}), 5) : keyOrId;
     const existing = loaded.get(key);
     if (existing) return summary(existing);
@@ -95,6 +108,11 @@ const api: EngineAPI = {
     registerTrainingAnalysis(key, analysis);
     const strategyLists = STRATEGY_TIERS.map(tier => generateStrategyList(key, tier));
     return cache({ ...analysis, strategyLists }, table.id);
+  },
+  async previewGame(family, vector) {
+    prepareSolver(family);
+    const analysis = analyzeGame(family, vector, undefined, { betCoins: 5 });
+    return { returnPct: analysis.returnPct, hitFreq: analysis.hitFreq, variance: analysis.variance, engineVersion: ENGINE_VERSION };
   },
   async generateDrill(options) {
     await api.loadAnalysis(options.analysisKey);

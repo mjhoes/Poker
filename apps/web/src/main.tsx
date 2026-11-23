@@ -9,6 +9,7 @@ import "./styles/base.css";
 import "./styles/layout.css";
 import "./styles/components.css";
 import "./styles/machines.css";
+import "./styles/paytables.css";
 import "./styles/wallets.css";
 import "./styles/settings.css";
 import "./styles/session.css";

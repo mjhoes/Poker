@@ -3,8 +3,10 @@ import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { loadPrecomputedManifest } from "@perfect-draw/precomputed";
 import type { Machine, MachineDraft } from "@perfect-draw/shared";
 import { familyName, money } from "../components/UiHelpers";
+import { findPaytable } from "../paytables/catalog";
+import { useAppStore } from "../state/app-store";
 
-export const libraryTable = (paytableId: string) => PAY_TABLE_LIBRARY.find(table => table.id === paytableId);
+export const libraryTable = (paytableId: string) => findPaytable(paytableId);
 
 /** "25¢" below a dollar, "$1" or "$2.50" above. */
 export const denominationLabel = (cents: number) => cents < 100 ? `${cents}¢` : money(cents).replace(/\.00$/, "");
@@ -48,7 +50,8 @@ let returnsPromise: Promise<Map<string, number>> | null = null;
  * service worker caches). Engine-computed figures only; nothing is shown if the manifest cannot be read.
  */
 export function useLibraryReturns() {
-  const [returns, setReturns] = useState<Map<string, number>>(new Map());
+  const custom = useAppStore(state => state.paytables);
+  const [library, setReturns] = useState<Map<string, number>>(new Map());
   useEffect(() => {
     let cancelled = false;
     returnsPromise ??= loadPrecomputedManifest({ fetch: (input: RequestInfo | URL) => fetch(input) })
@@ -57,5 +60,8 @@ export function useLibraryReturns() {
     void returnsPromise.then(map => { if (!cancelled) setReturns(map); });
     return () => { cancelled = true; };
   }, []);
+  // Custom tables carry the return the engine computed when they were saved.
+  const returns = new Map(library);
+  for (const table of custom) if (table.computed) returns.set(table.id, table.computed.returnPct);
   return returns;
 }

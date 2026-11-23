@@ -1,11 +1,38 @@
 import type { FormEvent } from "react";
-import { Button } from "../components/ui";
+import type { Machine, Paytable } from "@perfect-draw/shared";
+import { Button, MenuButton } from "../components/ui";
 import { Icon } from "../components/Icons";
-import { dateTime } from "../components/UiHelpers";
+import { dateTime, familyName, plural } from "../components/UiHelpers";
 
-export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBackupAt, busy, onExport, onImport }: {
+/** Hand-entered pay tables: available to every machine, renamable, removable once nothing uses them. */
+function PayTablesPanel({ paytables, machines, onNew, onCopy, onRename, onDelete }: {
+  paytables: Paytable[]; machines: Machine[]; onNew: () => void; onCopy: (table: Paytable) => void;
+  onRename: (table: Paytable) => void; onDelete: (table: Paytable) => void;
+}) {
+  return <section className="panel panel-pad paytables-panel" aria-labelledby="paytables-heading">
+    <div className="panel-title">
+      <div><p className="eyebrow">PAY TABLES</p><h2 id="paytables-heading">Your pay tables</h2><p>Enter any machine's pays by hand. The engine computes its exact return and strategy.</p></div>
+      <Button icon="plus" onClick={onNew}>New pay table</Button>
+    </div>
+    {paytables.length ? paytables.map(table => {
+      const used = machines.filter(machine => machine.paytableId === table.id).length;
+      return <div className="list-row" key={table.id}>
+        <div className="list-main"><strong>{table.name}</strong><span>{familyName(table.familyId)}{table.computed ? ` · ${table.computed.returnPct.toFixed(2)}% return` : ""} · {used ? `used by ${plural(used, "machine")}` : "not used yet"}</span></div>
+        <MenuButton label={`More actions for ${table.name}`} items={[
+          { label: "Rename", icon: "edit", onSelect: () => onRename(table) },
+          { label: "Edit a copy", icon: "copy", onSelect: () => onCopy(table) },
+          { label: "Delete", icon: "trash", tone: "danger", onSelect: () => onDelete(table) },
+        ]} />
+      </div>;
+    }) : <p className="settings-copy">Nothing yet. Pay tables you enter appear here and in the machine editor's game picker.</p>}
+  </section>;
+}
+
+export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBackupAt, busy, onExport, onImport, paytables, machines, onNewPaytable, onCopyPaytable, onRenamePaytable, onDeletePaytable }: {
   storageStatus: string; decisionCount: number; backupDue: boolean; lastBackupAt: number | null; busy: boolean;
   onExport: () => void; onImport: (event: FormEvent<HTMLInputElement>) => void;
+  paytables: Paytable[]; machines: Machine[]; onNewPaytable: () => void; onCopyPaytable: (table: Paytable) => void;
+  onRenamePaytable: (table: Paytable) => void; onDeletePaytable: (table: Paytable) => void;
 }) {
   const statusText = storageStatus === "persistent" ? "Persistent permission granted" : storageStatus === "best-effort" ? "Best-effort storage" : storageStatus === "unavailable" ? "Storage unavailable" : "Checking storage";
   return <><div className="page-heading"><div><p className="eyebrow">SETTINGS</p><h1>Your data, your copy.</h1></div><p className="heading-note">Everything is stored in this browser. A backup file is your safe copy.</p></div>
@@ -22,5 +49,6 @@ export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBack
         <section className="note-card"><p className="eyebrow">GOOD TO KNOW</p><h3>Clearing browser data erases your history.</h3><p>Export a backup before clearing site data or switching devices.</p></section>
       </aside>
     </div>
+    <PayTablesPanel paytables={paytables} machines={machines} onNew={onNewPaytable} onCopy={onCopyPaytable} onRename={onRenamePaytable} onDelete={onDeletePaytable} />
   </>;
 }

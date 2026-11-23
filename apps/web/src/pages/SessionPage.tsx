@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
+import { findPaytable } from "../paytables/catalog";
 import type { FeedbackMode, Session } from "@perfect-draw/shared";
 import type { AnalysisSummary } from "../worker/engine-api";
 import { creditLabel, dateTime, familyName, modeName, money, plural } from "../components/UiHelpers";
@@ -26,7 +26,7 @@ const statusBadge = (session: Session) => <Badge tone={session.status === "activ
 
 function ClosedSummary({ session }: { session: Session }) {
   const summary = session.summary;
-  const familyId = PAY_TABLE_LIBRARY.find(item => item.id === session.machineSnapshot.paytableId)?.familyId ?? "jacks_or_better";
+  const familyId = findPaytable(session.machineSnapshot.paytableId)?.familyId ?? "jacks_or_better";
   return <section className="panel panel-pad session-summary">
     <div className="panel-title"><div><p className="eyebrow">SESSION REPORT</p><h2>How this session went</h2></div></div>
     <div className="detail-grid">
@@ -127,7 +127,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
   </>;
 
   const config = session.machineSnapshot;
-  const libraryTable = PAY_TABLE_LIBRARY.find(table => table.id === config.paytableId);
+  const libraryTable = findPaytable(config.paytableId);
   const familyId = state?.analysis?.familyId ?? libraryTable?.familyId ?? "jacks_or_better";
   const freePlay = session.mode === "free_play";
   const complete = state?.phase === "complete";

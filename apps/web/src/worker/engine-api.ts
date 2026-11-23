@@ -5,6 +5,7 @@ import type { StrategyList } from "@perfect-draw/engine";
 import type { RoundOutcome } from "@perfect-draw/engine";
 import type { StatsQuery, StatsReport, Session } from "@perfect-draw/shared";
 
+export type GamePreview = { returnPct: number; hitFreq: number; variance: number; engineVersion: string };
 export type AnalysisSummary = Omit<GameAnalysis, "perHand"> & { key: string; strategyLists: readonly StrategyList[] };
 export interface EngineAPI {
   rollupDecisions(timeZone: string): Promise<number>;
@@ -15,5 +16,7 @@ export interface EngineAPI {
   analyzeHand(cards: Hand, paytableId: string, coins: number): Promise<HandAnalysis>;
   analyzeGame(familyId: GameFamilyId, vector: ValueVector, betCoins: number, progress?: (value: AnalysisProgress) => void): Promise<AnalysisSummary>;
   loadAnalysis(keyOrPaytableId: string): Promise<AnalysisSummary>;
+  /** Max-bet return for an unsaved pay table (the editor's live figure). Nothing is cached. */
+  previewGame(familyId: GameFamilyId, vector: ValueVector): Promise<GamePreview>;
   generateDrill(options: Omit<DrillOptions, "random">): Promise<DrillHand>;
 }

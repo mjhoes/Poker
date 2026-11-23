@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Machine, Wallet } from "@perfect-draw/shared";
+import type { Machine, Paytable, Wallet } from "@perfect-draw/shared";
 import { useAppStore } from "./state/app-store";
 import { machineService } from "./services/machines";
 import { sessionService } from "./services/sessions";
@@ -19,6 +19,9 @@ import { useWalletLedger } from "./hooks/useWalletLedger";
 import { MachineDialog } from "./dialogs/MachineDialog";
 import { StartSessionDialog } from "./dialogs/StartSessionDialog";
 import { NewWalletDialog, RenameWalletDialog, WalletAmountDialog } from "./dialogs/WalletDialogs";
+import { PayTableDialog, RenamePaytableDialog } from "./dialogs/PayTableDialogs";
+import { paytableService } from "./services/paytables";
+import { findPaytable } from "./paytables/catalog";
 import { HomePage } from "./pages/HomePage";
 import { WalletsPage } from "./pages/WalletsPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -30,10 +33,12 @@ type Dialog =
   | { kind: "start"; machine: Machine; mode: "free_play" | "drill"; reason?: string }
   | { kind: "wallet" }
   | { kind: "rename"; wallet: Wallet }
-  | { kind: "topup" | "transfer"; wallet: Wallet };
+  | { kind: "topup" | "transfer"; wallet: Wallet }
+  | { kind: "paytable"; startFromId?: string }
+  | { kind: "rename-paytable"; table: Paytable };
 
 function App() {
-  const { ready, error: storeError, retentionError, machines, wallets, sessions, activeSessionId, storageStatus, decisionCount, backupDue, lastBackupAt } = useAppStore();
+  const { ready, error: storeError, retentionError, machines, wallets, paytables, sessions, activeSessionId, storageStatus, decisionCount, backupDue, lastBackupAt } = useAppStore();
   const { route, navigate } = useRoute();
   const runner = useActionRunner();
   const { busy, run } = runner;
@@ -100,6 +105,13 @@ function App() {
   async function duplicateMachine(value: Machine) {
     await run(() => machineService.save(draftFrom(value, { name: `${value.name} (copy)`.slice(0, 100) })), { success: "Machine duplicated." });
   }
+  async function deletePaytable(table: Paytable) {
+    if (!await confirm({
+      title: `Delete “${table.name}”?`, tone: "danger", icon: "trash", confirmLabel: "Delete pay table",
+      body: <p>Past sessions and statistics that used it keep their records. Machines and open sessions must stop using it first.</p>,
+    })) return;
+    await run(() => paytableService.remove(table.id), { success: "Pay table deleted." });
+  }
   async function createBankroll(cents: number) {
     await run(() => walletService.create({ name: "Bankroll", initialCents: cents }), { success: `Bankroll ready: ${money(cents)}.` });
   }
@@ -128,7 +140,9 @@ function App() {
       {route === "/wallets" && <WalletsPage wallets={wallets} selectedWallet={selectedWallet} ledger={ledger} onSelect={setSelectedWallet} busy={busy}
         onCreate={() => setDialog({ kind: "wallet" })} onRename={wallet => setDialog({ kind: "rename", wallet })}
         onTopup={wallet => setDialog({ kind: "topup", wallet })} onTransfer={wallet => setDialog({ kind: "transfer", wallet })} />}
-      {route === "/settings" && <SettingsPage storageStatus={storageStatus} decisionCount={decisionCount} backupDue={backupDue} lastBackupAt={lastBackupAt} busy={busy || backup.importing} onExport={backup.exportBackup} onImport={backup.importBackup} />}
+      {route === "/settings" && <SettingsPage storageStatus={storageStatus} decisionCount={decisionCount} backupDue={backupDue} lastBackupAt={lastBackupAt} busy={busy || backup.importing} onExport={backup.exportBackup} onImport={backup.importBackup}
+        paytables={paytables} machines={machines} onNewPaytable={() => setDialog({ kind: "paytable" })} onCopyPaytable={table => setDialog({ kind: "paytable", startFromId: table.id })}
+        onRenamePaytable={table => setDialog({ kind: "rename-paytable", table })} onDeletePaytable={table => void deletePaytable(table)} />}
       {route === "/stats" && <StatsPage machines={machines} decisionCount={decisionCount} onTrainStarted={() => { setSessionViewId(null); openRoom(); }} onGoMachines={() => navigate("/")} />}
       {route === "/session" && <SessionPage session={shownSession} felt={roomFelt ?? "felt"} sessions={historySessions}
         analysis={tableAnalysis.analysis} analysisError={tableAnalysis.error} analysisLoading={tableAnalysis.loading} onRetry={tableAnalysis.request}
@@ -145,6 +159,8 @@ function App() {
     {dialog?.kind === "start" && <StartSessionDialog machine={dialog.machine} wallets={wallets} initialMode={dialog.mode} reason={dialog.reason} {...dialogProps} onStarted={() => { setSessionViewId(null); closeDialog(); openRoom(); }} />}
     {dialog?.kind === "wallet" && <NewWalletDialog {...dialogProps} onCreated={setSelectedWallet} />}
     {dialog?.kind === "rename" && <RenameWalletDialog wallet={dialog.wallet} {...dialogProps} />}
+    {dialog?.kind === "paytable" && <PayTableDialog startFrom={dialog.startFromId ? findPaytable(dialog.startFromId, paytables) : undefined} {...dialogProps} />}
+    {dialog?.kind === "rename-paytable" && <RenamePaytableDialog table={dialog.table} {...dialogProps} />}
     {(dialog?.kind === "topup" || dialog?.kind === "transfer") && <WalletAmountDialog kind={dialog.kind} wallet={dialog.wallet} wallets={wallets} {...dialogProps} />}
   </div>;
 }

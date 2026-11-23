@@ -11,6 +11,9 @@ import { parseCents } from "../services/money";
 import type { Run } from "../hooks/useActionRunner";
 import { MachineCabinet } from "../machines/MachineCabinet";
 import { defaultMachineName, useLibraryReturns } from "../machines/machine-info";
+import { useAllPaytables } from "../paytables/catalog";
+import { PayTableEditor } from "../paytables/PayTableEditor";
+import { announceSave } from "./PayTableDialogs";
 
 type MachineForm = {
   name: string; paytableId: string; denomination: string; coins: string; lines: string;
@@ -68,10 +71,17 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
 }) {
   const { form, update, error, save, defaultName, denominationCents } = useMachineEditor({ machine, wallets, run, onSaved: onClose });
   const returns = useLibraryReturns();
-  const family = PAY_TABLE_LIBRARY.find(table => table.id === form.paytableId)?.familyId ?? FAMILIES[0];
-  const tables = PAY_TABLE_LIBRARY.filter(table => table.familyId === family);
+  const allTables = useAllPaytables();
+  const [enteringTable, setEnteringTable] = useState(false);
+  const family = allTables.find(table => table.id === form.paytableId)?.familyId ?? FAMILIES[0];
+  const tables = allTables.filter(table => table.familyId === family);
   const presetDenomination = DENOMINATIONS.find(value => parseCents(value) === denominationCents);
   const pct = (id: string) => returns.get(id) ? `${returns.get(id)!.toFixed(2)}%` : undefined;
+
+  if (enteringTable) return <Modal className="paytable-sheet" title="Enter a pay table" subtitle="Type the pays printed on the machine. The engine computes the exact return as you go." onClose={() => setEnteringTable(false)}>
+    <PayTableEditor initialFamily={family} busy={busy} run={run} onCancel={() => setEnteringTable(false)}
+      onSaved={result => { announceSave(result); update("paytableId", result.id); setEnteringTable(false); }} />
+  </Modal>;
 
   return <Modal error={error} className="machine-sheet" title={machine ? "Edit machine" : "New machine"} subtitle="Choose a game, a bet and a look. The preview updates as you go." onClose={onClose}>
     <form className="machine-sheet-body" onSubmit={event => void save(event)}>
@@ -79,11 +89,12 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
         <section className="sheet-step">
           <h3><span className="step-number">1</span>Game</h3>
           <ChoiceChips label="Game" variant="tiles" className="family-tiles" value={family} autoFocus
-            onChange={next => update("paytableId", PAY_TABLE_LIBRARY.find(table => table.familyId === next)?.id ?? form.paytableId)}
+            onChange={next => update("paytableId", allTables.find(table => table.familyId === next)?.id ?? form.paytableId)}
             choices={FAMILIES.map(id => ({ value: id, label: familyName(id), hint: `${PAY_TABLE_LIBRARY.filter(table => table.familyId === id).length} pay table${PAY_TABLE_LIBRARY.filter(table => table.familyId === id).length === 1 ? "" : "s"}` }))} />
           <p className="field-label sheet-sub">Pay table</p>
           <ChoiceChips label="Pay table" value={form.paytableId} onChange={id => update("paytableId", id)}
-            choices={tables.map(table => ({ value: table.id, label: table.name, hint: pct(table.id) ? `${pct(table.id)} return` : undefined }))} />
+            choices={tables.map(table => ({ value: table.id, label: table.name, hint: pct(table.id) ? `${pct(table.id)} return${table.source === "library" ? "" : " · yours"}` : table.source === "library" ? undefined : "Yours" }))} />
+          <Button variant="secondary" size="sm" icon="edit" className="enter-paytable" onClick={() => setEnteringTable(true)}>Enter a pay table…</Button>
         </section>
 
         <section className="sheet-step">

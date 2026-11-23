@@ -37,6 +37,7 @@ export function engineClient() {
       analyzeHand: (...args) => call(() => remote.analyzeHand(...args)),
       analyzeGame: (...args) => call(() => remote.analyzeGame(...args)),
       loadAnalysis: (...args) => call(() => remote.loadAnalysis(...args)),
+      previewGame: (...args) => call(() => remote.previewGame(...args)),
       generateDrill: (...args) => call(() => remote.generateDrill(...args)),
       prepareRound: (...args) => call(() => remote.prepareRound(...args)),
       resolveRound: (...args) => call(() => remote.resolveRound(...args)),

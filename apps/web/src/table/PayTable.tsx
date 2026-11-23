@@ -1,5 +1,5 @@
 import { getGameFamily } from "@perfect-draw/engine";
-import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
+import { findPaytable } from "../paytables/catalog";
 
 const SHORT_NAMES: Record<string, string> = {
   ROYAL_FLUSH: "Royal Flush", NATURAL_ROYAL: "Natural Royal", FOUR_DEUCES: "Four Deuces", WILD_ROYAL: "Wild Royal",
@@ -15,7 +15,7 @@ export const shortRankName = (rank: string) => SHORT_NAMES[rank] ?? rank.replace
  * the current bet is lit, and rows hit by the last draw glow. Split into two panels so it stays short.
  */
 export function PayTable({ paytableId, coins, hits }: { paytableId: string; coins: number; hits: ReadonlySet<string> }) {
-  const table = PAY_TABLE_LIBRARY.find(item => item.id === paytableId);
+  const table = findPaytable(paytableId);
   if (!table) return null;
   const ranks = getGameFamily(table.familyId).handRanks.filter(rank => rank !== "NOTHING");
   const half = Math.ceil(ranks.length / 2);

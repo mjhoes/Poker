@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { describeLabel, localDayBounds } from "@perfect-draw/engine";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
+import { useAllPaytables } from "../paytables/catalog";
 import type { Machine, StatsQuery, StatsReport } from "@perfect-draw/shared";
 import { TrendChart, WeaknessRankingChart } from "../components/StatisticsCharts";
 import { statsService } from "../services/statistics";
@@ -53,7 +54,8 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
   const [training, setTraining] = useState(false);
   const [trainingError, setTrainingError] = useState("");
   const requestId = useRef(0);
-  const selectedTable = PAY_TABLE_LIBRARY.find(table => table.id === paytableId);
+  const allTables = useAllPaytables();
+  const selectedTable = allTables.find(table => table.id === paytableId);
   const matchedMachines = useMemo(
     () => machines.filter(machine => machine.paytableId === paytableId && machine.coins === coinValue),
     [machines, paytableId, coinValue],
@@ -147,7 +149,8 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
       <div className="stats-filter-top"><div><p className="eyebrow">REPORT SCOPE</p><h2>One game configuration at a time</h2></div><span className="stats-scope">{filterSummary}</span></div>
       <div className="stats-filter-grid">
         <label className="field"><span className="field-label">Saved paytable</span><select value={paytableId} onChange={event => setPaytableId(event.target.value)} aria-label="Saved paytable">
-          {PAY_TABLE_LIBRARY.map(table => <option key={table.id} value={table.id}>{table.name}</option>)}
+          <optgroup label="Built-in">{allTables.filter(table => table.source === "library").map(table => <option key={table.id} value={table.id}>{table.name}</option>)}</optgroup>
+          {allTables.some(table => table.source !== "library") && <optgroup label="Your pay tables">{allTables.filter(table => table.source !== "library").map(table => <option key={table.id} value={table.id}>{table.name}</option>)}</optgroup>}
         </select></label>
         <label className="field"><span className="field-label">Coins per hand</span><select value={coinValue} onChange={event => setCoinValue(Number(event.target.value))} aria-label="Coins per hand">
           {[1, 2, 3, 4, 5].map(value => <option key={value} value={value}>{value} coin{value === 1 ? "" : "s"}</option>)}

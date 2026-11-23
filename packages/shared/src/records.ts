@@ -37,6 +37,11 @@ export const paytableSchema = z.object({
   id: hash, ...metadata, familyId: familyIdSchema, name: nameSchema,
   pays: z.record(z.tuple([z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative()])),
   source: z.enum(["library", "photo", "manual"]), createdAt: timestamp,
+  /** Engine-computed max-bet (5-coin) figures for a custom table, saved with it so lists can show the return. */
+  computed: z.object({
+    returnPct: z.number().finite(), hitFreq: z.number().finite().min(0).max(1),
+    variance: z.number().finite().nonnegative(), engineVersion: z.string(),
+  }).optional(),
 });
 export const analysisSchema = z.object({
   key: hash, ...metadata, paytableId: hash, variantKind: variantKindSchema.default("standard"),
@@ -119,6 +124,7 @@ export const decisionSchema = z.object({
   coins: z.number().int().min(1).max(5).default(5), lines: z.number().int().min(1).max(10).default(1),
   denominationCents: positiveCents.default(25),
 });
+export type Paytable = z.infer<typeof paytableSchema>;
 export type Machine = z.infer<typeof machineSchema>;
 export type MachineDraft = z.infer<typeof machineDraftSchema>;
 export type Wallet = z.infer<typeof walletSchema>;

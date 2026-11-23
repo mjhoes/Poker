@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
+import { findPaytable } from "../paytables/catalog";
 import type { Machine, Wallet } from "@perfect-draw/shared";
 import { Field, Modal, money, plural } from "../components/UiHelpers";
 import { sessionService } from "../services/sessions";
@@ -26,7 +26,7 @@ export function StartSessionDialog({ machine, wallets, busy, run, onStarted, onC
 
   return <Modal error={error} title="Choose a wallet" subtitle={reason ?? "Pick the wallet and mode for this session."} onClose={onClose}>
     <form onSubmit={event => void start(event)}>
-      <div className="terms-box"><strong>{machine.name}</strong> · {PAY_TABLE_LIBRARY.find(table => table.id === machine.paytableId)?.name ?? "Custom pay table"} · {money(machine.denominationCents)} · {plural(machine.coins, "coin")} × {plural(machine.lines, "line")}</div>
+      <div className="terms-box"><strong>{machine.name}</strong> · {findPaytable(machine.paytableId)?.name ?? "Custom pay table"} · {money(machine.denominationCents)} · {plural(machine.coins, "coin")} × {plural(machine.lines, "line")}</div>
       <div className="form-grid">
         <Field label="Wallet"><select aria-label="Practice wallet" required value={walletId} onChange={event => setWalletId(event.target.value)}>{wallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name} · {money(wallet.balanceCents)}</option>)}</select></Field>
         <Field label="Session mode"><select aria-label="Session mode" value={mode} onChange={event => setMode(event.target.value as "free_play" | "drill")}><option value="free_play">Free Play: full hands with bets and payouts</option><option value="drill">Rapid Drill: decisions only, instant feedback</option></select></Field>

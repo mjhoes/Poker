@@ -236,3 +236,23 @@ Phase 4 (done) — the Machines floor:
 - Felts: felt, midnight, classic, royal, ocean, onyx (shared schema enum; older data stays valid).
 - The header shows the total bankroll across wallets and links to the Wallets page.
 
+Phase 5 (done) — custom pay tables:
+- Players enter pay tables by hand from Settings → "New pay table", or from the machine editor's
+  "Enter a pay table…" (the sheet swaps to the editor and selects the saved table).
+- `src/paytables/model.ts` is the pure, unit-tested core: start from a library table, shorthand
+  (`9/6`, `10/7/5`, a full top-to-bottom list, deuces `200/25/15/9/5/3/2/2/1`), pasted text (one
+  hand per line, 1 or 5 numbers; unknown lines are reported, never guessed), checks (errors block
+  saving; warnings flag likely typos using orderings valid in every game), and `finalize()`, which
+  adds the zero "nothing" row and hashes the content into the table id.
+- A table's id is its content hash, so saving pays that match a built-in table uses that table, and
+  saving the same pays twice returns the first copy (`paytableService.saveCustom`).
+- Custom tables live in Dexie (`source: "manual"`), are loaded into the app store, and are found with
+  `findPaytable()` / `useAllPaytables()` from `src/paytables/catalog.ts`. Use those instead of
+  `PAY_TABLE_LIBRARY` wherever a table's name, game or pays is shown.
+- The editor's live return comes from the worker's `previewGame` (max bet, about 2–3 s, not cached).
+  The figures are saved on the record (`computed`), so lists and cabinets can show the return.
+  The first full analysis of a custom table (for "Optional table analysis") is computed by the
+  worker in about 15–20 s and then cached in `analyses`.
+- A custom table cannot be deleted while a machine or an open session uses it; past sessions,
+  statistics and backups keep referencing it (it is soft-deleted).
+
