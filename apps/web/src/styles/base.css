@@ -20,7 +20,7 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 0; font-family: var(--display); font-size: var(--text-display); letter-spacing: -.035em; line-height: 1; font-weight: 700; }
 /* Display face for the few places that carry personality: page titles, machine names, empty states and dialogs. */
-.machine-bottom h2, .empty-state h2, .session-placeholder h2, .modal-head h2 { font-family: var(--display); font-weight: 650; letter-spacing: -.02em; }
+.empty-state h2, .session-placeholder h2, .modal-head h2 { font-family: var(--display); font-weight: 650; letter-spacing: -.02em; }
 .eyebrow, .mono, .meta { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
 .positive { color: var(--success); }
 .negative { color: var(--negative); }

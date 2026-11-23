@@ -49,7 +49,7 @@ export const machineDraftSchema = z.object({
   name: nameSchema, paytableId: hash, variant: variantSchema,
   denominationCents: positiveCents.max(100000), coins: z.number().int().min(1).max(5).default(5),
   lines: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(10)]).default(1),
-  theme: z.enum(["felt", "midnight", "classic"]).default("felt"),
+  theme: z.enum(["felt", "midnight", "classic", "royal", "ocean", "onyx"]).default("felt"),
   speed: z.enum(["relaxed", "normal", "fast"]).default("normal"),
   defaultWalletId: uuid, casinoName: z.string().max(120).default(""),
   location: z.string().max(200).default(""), notes: z.string().max(2000).default(""),

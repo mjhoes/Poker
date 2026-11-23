@@ -218,3 +218,21 @@ Phase 3 (done) — the session table:
   Timing comes from the machine's speed (`data-speed` on `.play-table`); reduced motion disables it.
 - Feedback-timing buttons are inside the "Table settings" popover; tests open it first.
 
+Phase 4 (done) — the Machines floor:
+- First run (no wallets) shows a welcome card: pick a starting bankroll and a "Bankroll" wallet is
+  created. With a wallet but no machines, three starter machines can be added in one click.
+- Each machine is a `MachineCabinet` (`src/machines/`) tinted by its felt. Its screen shows the
+  computed max-bet return read from `/analyses/manifest.json` (`useLibraryReturns`); nothing is
+  shown if the manifest is unavailable. The last tile is always "+ New machine".
+- Play/Drill are one click (`playMachine` in `App.tsx`): continue the machine's open session in that
+  mode, or start one with its default wallet. The wallet dialog (`StartSessionDialog`) opens only if
+  that wallet is gone or cannot cover one bet, or from "Play with another wallet…" in the ⋯ menu.
+- The ⋯ menu (`MenuButton`, WAI-ARIA menu pattern) holds Edit, Duplicate, Play with another wallet
+  and Delete. Tests open it by its label "More actions for <machine name>".
+- The machine editor is a sheet with a live cabinet preview. Choices are radio chips
+  (`ChoiceChips`): Game, Pay table, Denomination (plus the "Denomination in dollars" field), Coins per
+  hand, Lines, Table felt and Table speed. Name is optional; a blank name becomes e.g.
+  "9/6 Jacks or Better · 25¢ · 3-play". The submit button reads "Add machine" / "Save changes".
+- Felts: felt, midnight, classic, royal, ocean, onyx (shared schema enum; older data stays valid).
+- The header shows the total bankroll across wallets and links to the Wallets page.
+

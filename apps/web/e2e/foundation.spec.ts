@@ -13,13 +13,13 @@ async function createMachine(page: Page) {
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: /New machine|Create.*machine/i }).first().click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Quarter Jacks");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await page.getByRole("button", { name: "Add machine", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 }
 async function prepareSession(page: Page) {
-  await page.getByRole("button", { name: /Prepare session/i }).first().click();
-  await page.getByRole("dialog").getByRole("button", { name: "Prepare session", exact: true }).click();
+  await page.getByRole("button", { name: /^(Play|Continue)$/ }).first().click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
 }
 test("machines, wallets, sessions, worker and backup survive reload", async ({ page }) => {
   const errors: string[] = [];
@@ -148,20 +148,22 @@ test("wallet transfers and machine editing/deletion are wired to persistent serv
   await expect(page.getByRole("button", { name: "Select wallet Reserve", exact: true })).toContainText("$25.00");
   await expect(page.getByRole("button", { name: "Select wallet Main practice", exact: true })).toContainText("$75.00");
   await createMachine(page);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "More actions for Quarter Jacks", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Dollar Jacks");
   await page.getByRole("textbox", { name: "Denomination in dollars", exact: true }).fill("1.00");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Dollar Jacks", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "More actions for Dollar Jacks", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
   const confirmDelete = page.getByRole("dialog");
   await expect(confirmDelete.getByRole("heading", { name: "Delete “Dollar Jacks”?" })).toBeVisible();
   await expect(confirmDelete.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
   await confirmDelete.getByRole("button", { name: "Delete machine", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Dollar Jacks", exact: true })).toHaveCount(0);
 });
 
 test("unavailable workers do not prevent wallet management", async ({ page }) => {

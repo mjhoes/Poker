@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Machine, Wallet } from "@perfect-draw/shared";
 import { useAppStore } from "./state/app-store";
 import { machineService } from "./services/machines";
+import { sessionService } from "./services/sessions";
+import { walletService } from "./services/wallets";
+import { money } from "./components/UiHelpers";
+import { draftFrom, starterDraft } from "./machines/machine-info";
 import { ToastViewport, toast } from "./components/Toasts";
 import { useConfirm } from "./components/ConfirmDialog";
 import { feltFor } from "./components/Felt";
@@ -23,7 +27,7 @@ import { StatsPage } from "./pages/StatsPage";
 
 type Dialog =
   | { kind: "machine"; machine?: Machine }
-  | { kind: "start"; machine: Machine }
+  | { kind: "start"; machine: Machine; mode: "free_play" | "drill"; reason?: string }
   | { kind: "wallet" }
   | { kind: "rename"; wallet: Wallet }
   | { kind: "topup" | "transfer"; wallet: Wallet };
@@ -35,14 +39,12 @@ function App() {
   const { busy, run } = runner;
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [selectedMachine, setSelectedMachine] = useState(0);
   const [selectedWallet, setSelectedWallet] = useState("");
   const [sessionViewId, setSessionViewId] = useState<string | null>(null);
   const closeDialog = useCallback(() => setDialog(null), []);
 
   const openSessions = useMemo(() => Object.values(sessions).filter(session => session.status !== "closed").sort((a, b) => a.startedAt - b.startedAt), [sessions]);
   const historySessions = useMemo(() => Object.values(sessions).filter(session => session.status === "closed").sort((a, b) => b.startedAt - a.startedAt), [sessions]);
-  const machine = machines[Math.min(selectedMachine, Math.max(0, machines.length - 1))];
   const activeSession = activeSessionId ? sessions[activeSessionId] : undefined;
   const shownSession = route === "/session" ? (sessionViewId ? sessions[sessionViewId] : undefined) ?? activeSession ?? openSessions[0] : activeSession;
   const openRoom = useCallback(() => navigate("/session"), [navigate]);
@@ -75,7 +77,35 @@ function App() {
       body: <p>Reports from its closed sessions stay in your history. If a session on this machine is still open, close it first.</p>,
     })) return;
     await run(() => machineService.remove(value.id), { success: "Machine deleted." });
-    setSelectedMachine(0);
+  }
+  /**
+   * One click to play: continue this machine's open session in that mode, or start one with its default wallet.
+   * The wallet dialog appears only when there is a real choice to make.
+   */
+  async function playMachine(value: Machine, mode: "free_play" | "drill") {
+    const open = Object.values(sessions).find(session => session.machineId === value.id && session.mode === mode && session.status !== "closed");
+    if (open) { await play.activate(open.id); return; }
+    const wallet = wallets.find(item => item.id === value.defaultWalletId);
+    const bet = value.coins * value.lines * value.denominationCents;
+    if (!wallet) { setDialog({ kind: "start", machine: value, mode, reason: "This machine's default wallet was deleted. Choose another wallet." }); return; }
+    if (mode === "free_play" && wallet.balanceCents < bet) {
+      setDialog({ kind: "start", machine: value, mode, reason: `${wallet.name} has ${money(wallet.balanceCents)}, less than one ${money(bet)} bet. Choose another wallet, or add credits on the Wallets page.` });
+      return;
+    }
+    await run(async () => {
+      await sessionService.start({ machineId: value.id, walletId: wallet.id, mode });
+      setSessionViewId(null); openRoom();
+    });
+  }
+  async function duplicateMachine(value: Machine) {
+    await run(() => machineService.save(draftFrom(value, { name: `${value.name} (copy)`.slice(0, 100) })), { success: "Machine duplicated." });
+  }
+  async function createBankroll(cents: number) {
+    await run(() => walletService.create({ name: "Bankroll", initialCents: cents }), { success: `Bankroll ready: ${money(cents)}.` });
+  }
+  async function addStarter(slug: string) {
+    const draft = wallets[0] ? starterDraft(slug, wallets[0].id) : null;
+    if (draft) await run(() => machineService.save(draft), { success: "Machine added. Press Play when you're ready." });
   }
 
   if (!ready) return <div className="app-shell"><div className="topline" /><div className="main-content loading-screen">{storeError ? <div className="error-banner" role="alert">Local storage could not be opened. {storeError}<br />Refresh to retry after checking browser storage permissions.</div> : <><div className="skeleton" /><p className="eyebrow" style={{ marginTop: 18 }}>Opening your private training room…</p></>}</div></div>;
@@ -84,14 +114,17 @@ function App() {
 
   return <div className="app-shell" data-room-felt={roomFelt}>
     <div className="topline" />
-    <AppHeader route={route} openSessions={openSessions} activeSessionId={activeSessionId} onSelectSession={id => void play.activate(id)} />
+    <AppHeader route={route} openSessions={openSessions} activeSessionId={activeSessionId} onSelectSession={id => void play.activate(id)}
+      bankrollCents={wallets.length ? wallets.reduce((sum, wallet) => sum + wallet.balanceCents, 0) : null} />
     <main className="main-content">
       {retentionError && <div className="error-banner" role="alert">{retentionError}</div>}
       {backupDue && route !== "/settings" && <div className="backup-nudge" role="status"><span className="backup-nudge-dot" aria-hidden="true" /><span>Backup due: 500 or more decisions since your last backup.</span><button className="btn secondary small" type="button" disabled={busy} onClick={backup.exportBackup}>Export backup</button></div>}
       {storeError && <div className="error-banner" role="alert">{storeError}</div>}
-      {route === "/" && <HomePage machines={machines} wallets={wallets} sessions={sessions} machine={machine} selectedMachine={selectedMachine} busy={busy}
-        onSelect={setSelectedMachine} onCreate={newMachine} onEdit={value => setDialog({ kind: "machine", machine: value })}
-        onDelete={value => void deleteMachine(value)} onStart={value => setDialog({ kind: "start", machine: value })} onWallets={() => navigate("/wallets")} />}
+      {route === "/" && <HomePage machines={machines} wallets={wallets} sessions={sessions} busy={busy}
+        onCreate={newMachine} onEdit={value => setDialog({ kind: "machine", machine: value })} onDuplicate={value => void duplicateMachine(value)}
+        onDelete={value => void deleteMachine(value)} onPlay={(value, mode) => void playMachine(value, mode)}
+        onPlayWithWallet={value => setDialog({ kind: "start", machine: value, mode: "free_play" })}
+        onCreateBankroll={cents => void createBankroll(cents)} onAddStarter={slug => void addStarter(slug)} />}
       {route === "/wallets" && <WalletsPage wallets={wallets} selectedWallet={selectedWallet} ledger={ledger} onSelect={setSelectedWallet} busy={busy}
         onCreate={() => setDialog({ kind: "wallet" })} onRename={wallet => setDialog({ kind: "rename", wallet })}
         onTopup={wallet => setDialog({ kind: "topup", wallet })} onTransfer={wallet => setDialog({ kind: "transfer", wallet })} />}
@@ -109,7 +142,7 @@ function App() {
     {confirmDialog}
 
     {dialog?.kind === "machine" && <MachineDialog machine={dialog.machine} wallets={wallets} {...dialogProps} />}
-    {dialog?.kind === "start" && <StartSessionDialog machine={dialog.machine} wallets={wallets} {...dialogProps} onStarted={() => { setSessionViewId(null); closeDialog(); openRoom(); }} />}
+    {dialog?.kind === "start" && <StartSessionDialog machine={dialog.machine} wallets={wallets} initialMode={dialog.mode} reason={dialog.reason} {...dialogProps} onStarted={() => { setSessionViewId(null); closeDialog(); openRoom(); }} />}
     {dialog?.kind === "wallet" && <NewWalletDialog {...dialogProps} onCreated={setSelectedWallet} />}
     {dialog?.kind === "rename" && <RenameWalletDialog wallet={dialog.wallet} {...dialogProps} />}
     {(dialog?.kind === "topup" || dialog?.kind === "transfer") && <WalletAmountDialog kind={dialog.kind} wallet={dialog.wallet} wallets={wallets} {...dialogProps} />}

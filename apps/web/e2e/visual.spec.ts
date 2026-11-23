@@ -36,17 +36,20 @@ async function addWallet(page: Page) {
   await page.getByRole("textbox", { name: "Wallet name", exact: true }).fill("Cruise bankroll");
   await page.getByRole("textbox", { name: "Starting balance", exact: true }).fill("500");
 }
-async function addMachine(page: Page, name: string, lines: string, felt: string) {
+async function addMachine(page: Page, name: string, lines: string, felt: string, game?: string) {
   await page.getByRole("link", { name: "Machines", exact: true }).click();
-  await page.getByRole("button", { name: /New machine|Create machine configuration/ }).first().click();
+  await page.getByRole("button", { name: "New machine" }).first().click();
+  if (game) await page.getByRole("radiogroup", { name: "Game" }).getByRole("radio", { name: new RegExp(`^${game}`) }).click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill(name);
-  await page.getByRole("combobox", { name: "Lines", exact: true }).selectOption(lines);
+  await page.getByRole("radiogroup", { name: "Lines" }).getByRole("radio", { name: `${lines} line${lines === "1" ? "" : "s"}` }).click();
   await page.getByRole("radio", { name: felt }).click();
 }
-async function startSession(page: Page, mode: "free_play" | "drill" = "free_play") {
-  await page.getByRole("button", { name: "Prepare session", exact: true }).first().click();
-  await page.getByRole("combobox", { name: "Session mode" }).selectOption(mode);
-  await page.getByRole("dialog").getByRole("button", { name: "Prepare session", exact: true }).click();
+async function saveMachine(page: Page) {
+  await page.getByRole("button", { name: "Add machine", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+}
+async function startSession(page: Page, machine: string, mode: "free_play" | "drill" = "free_play") {
+  await page.getByRole("article", { name: machine }).getByRole("button", { name: mode === "drill" ? "Drill" : "Play", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
 }
@@ -64,15 +67,20 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await page.getByRole("button", { name: "Create wallet", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await shot(page, "03-wallets");
+  await page.getByRole("link", { name: "Machines", exact: true }).click();
+  await shot(page, "03b-starter-machines");
   await addMachine(page, "Quarter Jacks", "1", "Casino green");
   await shot(page, "04-new-machine-dialog", false);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await saveMachine(page);
   await addMachine(page, "Midnight Triple", "3", "Midnight blue");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await saveMachine(page);
+  await addMachine(page, "Purple Deuces", "1", "Royal purple", "Deuces Wild");
+  await saveMachine(page);
   await shot(page, "05-machines");
-  await page.getByRole("button", { name: "Show Midnight Triple" }).click();
-  await startSession(page);
+  await page.getByRole("button", { name: "More actions for Quarter Jacks" }).click();
+  await shot(page, "05b-machine-menu", false);
+  await page.keyboard.press("Escape");
+  await startSession(page, "Midnight Triple");
   await shot(page, "06-session-ready-midnight");
   await page.getByRole("button", { name: "Table settings", exact: true }).click();
   await shot(page, "06b-table-settings", false);
@@ -91,7 +99,9 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await shot(page, "11-closed-report");
   await page.getByRole("link", { name: "Machines", exact: true }).click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await shot(page, "11b-machines-after-play");
+  await page.getByRole("button", { name: "More actions for Quarter Jacks" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
   await shot(page, "12-delete-dialog", false);
   await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Settings", exact: true }).click();
@@ -108,9 +118,8 @@ test("classic felt Rapid Drill with optimal feedback", async ({ page }) => {
   await addWallet(page);
   await page.getByRole("button", { name: "Create wallet", exact: true }).click();
   await addMachine(page, "Burgundy Bonus", "1", "Classic burgundy");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await startSession(page, "drill");
+  await saveMachine(page);
+  await startSession(page, "Burgundy Bonus", "drill");
   await dealHand(page);
   await shot(page, "15-drill-dealt-classic");
   // Choose the engine's best hold so the optimal-feedback state is captured.
@@ -147,10 +156,9 @@ test("ten-line Free Play settles every line on the table", async ({ page }) => {
   await page.goto("/");
   await addWallet(page);
   await page.getByRole("button", { name: "Create wallet", exact: true }).click();
-  await addMachine(page, "Ten Play Jacks", "10", "Casino green");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await startSession(page);
+  await addMachine(page, "Ten Play Jacks", "10", "Ocean teal");
+  await saveMachine(page);
+  await startSession(page, "Ten Play Jacks");
   await dealHand(page);
   await holdMask(page, await bestMask(page));
   await shot(page, "20-ten-line-holding");
@@ -159,17 +167,20 @@ test("ten-line Free Play settles every line on the table", async ({ page }) => {
   await shot(page, "21-ten-line-settled");
 });
 
-test("phone layouts", async ({ page }) => {
+test("phone layouts: first run, starter machine and play", async ({ page }) => {
   await seededPage(page, { width: 390, height: 844 });
   await page.goto("/");
   await shot(page, "17-phone-welcome");
-  await addWallet(page);
-  await page.getByRole("button", { name: "Create wallet", exact: true }).click();
-  await addMachine(page, "Pocket Jacks", "1", "Casino green");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: /^Start with/ }).click();
+  await expect(page.getByRole("heading", { name: "Pick your first machine." })).toBeVisible();
+  await shot(page, "17b-phone-starters");
+  await page.getByRole("button", { name: "Add 9/6 Jacks or Better" }).click();
+  await expect(page.getByRole("heading", { name: "Pick a machine." })).toBeVisible();
   await shot(page, "18-phone-machines");
-  await startSession(page);
+  await page.getByRole("button", { name: "New machine" }).first().click();
+  await shot(page, "18b-phone-new-machine");
+  await page.keyboard.press("Escape");
+  await startSession(page, "9/6 Jacks or Better · 25¢");
   await dealHand(page);
   await shot(page, "19-phone-dealt");
   await holdMask(page, await bestMask(page));

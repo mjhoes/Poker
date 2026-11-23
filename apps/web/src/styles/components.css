@@ -144,3 +144,22 @@
 
 .coin-amount { display: inline-flex; align-items: baseline; flex-wrap: wrap; justify-content: inherit; column-gap: .45em; font-variant-numeric: tabular-nums; }
 .coin-amount-dollars { opacity: .68; font-size: .92em; font-weight: 600; }
+
+/* Choice chips and tiles (radio groups) */
+.choice-group { display: flex; flex-wrap: wrap; gap: 7px; }
+.choice { display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; min-height: 36px; padding: 7px 13px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: #fffef9; color: var(--ink); font-size: var(--text-md); font-weight: 650; text-align: left; transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease, box-shadow var(--dur-fast) ease; }
+.choice:hover:not(:disabled) { border-color: #93a596; }
+.choice.selected { border-color: var(--felt); background: #e8efe5; box-shadow: 0 0 0 1px var(--felt); color: var(--felt-dark); }
+.choice-hint { color: var(--muted); font-size: var(--text-xs); font-weight: 600; }
+.choice.selected .choice-hint { color: #3f6b4b; }
+.choice-group.is-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.choice-group.is-tiles .choice { min-height: 58px; padding: 10px 12px; }
+.choice-group.is-tiles .choice-label { font-weight: 750; }
+
+/* ⋯ menu */
+.menu { position: relative; flex: 0 0 auto; }
+.menu-list { position: absolute; z-index: 35; right: 0; bottom: calc(100% + 6px); display: grid; min-width: 220px; padding: 5px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-pop); animation: fade-in var(--dur-fast) ease both; }
+.menu-item { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink); font-size: var(--text-md); font-weight: 600; text-align: left; }
+.menu-item:hover:not(:disabled), .menu-item:focus-visible { outline: none; background: #e8ece3; }
+.menu-item.is-danger { color: var(--danger); }
+.menu-item.is-danger:hover:not(:disabled), .menu-item.is-danger:focus-visible { background: #f8e4dc; }

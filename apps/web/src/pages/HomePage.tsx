@@ -1,53 +1,104 @@
-import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
-import { Badge, Button, IconButton } from "../components/ui";
+import { useState } from "react";
 import type { Machine, Session, Wallet } from "@perfect-draw/shared";
-import { dateTime, familyName, modeName, money, plural } from "../components/UiHelpers";
-import { FELTS } from "../components/Felt";
+import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
+import { dateTime, modeName, money } from "../components/UiHelpers";
+import { Badge, Button, ChoiceChips, MenuButton } from "../components/ui";
+import { parseCents } from "../services/money";
+import { MachineCabinet, NewMachineTile } from "../machines/MachineCabinet";
+import { STARTER_MACHINES, useLibraryReturns } from "../machines/machine-info";
 
-export function HomePage({ machines, wallets, sessions, machine, selectedMachine, busy, onSelect, onCreate, onEdit, onDelete, onStart, onWallets }: {
-  machines: Machine[]; wallets: Wallet[]; sessions: Record<string, Session>; machine?: Machine;
-  selectedMachine: number; busy: boolean; onSelect: (index: number) => void; onCreate: () => void;
-  onEdit: (machine: Machine) => void; onDelete: (machine: Machine) => void; onStart: (machine: Machine) => void; onWallets: () => void;
+const BANKROLLS = ["10000", "50000", "100000", "custom"] as const;
+type BankrollChoice = typeof BANKROLLS[number];
+
+/** First run: pick a starting bankroll and go. One of the three places the practice-credits note appears. */
+function Welcome({ busy, onCreateBankroll }: { busy: boolean; onCreateBankroll: (cents: number) => void }) {
+  const [choice, setChoice] = useState<BankrollChoice>("50000");
+  const [custom, setCustom] = useState("");
+  const customCents = parseCents(custom);
+  const cents = choice === "custom" ? customCents : Number(choice);
+  return <section className="welcome" data-felt="felt">
+    <div className="welcome-art" aria-hidden="true">
+      <MachineCabinet preview machine={{ name: "Perfect Draw", paytableId: PAY_TABLE_LIBRARY[0]?.id ?? "", denominationCents: 25, coins: 5, lines: 1, theme: "felt" }} />
+    </div>
+    <div className="welcome-copy">
+      <p className="eyebrow">Welcome to Perfect Draw</p>
+      <h1>Practice perfect video poker.</h1>
+      <p className="welcome-lede">Every hand is checked against the exact best play for the machine's pay table. Start with a bankroll, pick a machine, and play.</p>
+      <p className="field-label">Starting bankroll</p>
+      <ChoiceChips label="Starting bankroll" value={choice} onChange={setChoice} choices={[
+        { value: "10000", label: "$100" }, { value: "50000", label: "$500" }, { value: "100000", label: "$1,000" }, { value: "custom", label: "Other" },
+      ]} />
+      {choice === "custom" && <label className="field welcome-custom"><span className="field-label">Amount (USD)</span>
+        <input aria-label="Starting bankroll amount" inputMode="decimal" placeholder="250.00" value={custom} onChange={event => setCustom(event.target.value)} autoFocus /></label>}
+      <Button variant="gold" icon="play" className="welcome-start" disabled={busy || !cents} onClick={() => cents && onCreateBankroll(cents)}>
+        {cents ? `Start with ${money(cents)}` : "Enter an amount"}
+      </Button>
+      <p className="welcome-note">Credits are for practice only: no real money, no purchases, no cash value. Everything stays on this device.</p>
+    </div>
+  </section>;
+}
+
+export function HomePage({ machines, wallets, sessions, busy, onCreate, onEdit, onDuplicate, onDelete, onPlay, onPlayWithWallet, onCreateBankroll, onAddStarter }: {
+  machines: Machine[]; wallets: Wallet[]; sessions: Record<string, Session>; busy: boolean;
+  onCreate: () => void; onEdit: (machine: Machine) => void; onDuplicate: (machine: Machine) => void; onDelete: (machine: Machine) => void;
+  onPlay: (machine: Machine, mode: "free_play" | "drill") => void; onPlayWithWallet: (machine: Machine) => void;
+  onCreateBankroll: (cents: number) => void; onAddStarter: (slug: string) => void;
 }) {
-  const table = machine ? PAY_TABLE_LIBRARY.find(item => item.id === machine.paytableId) : undefined;
-  const openCount = Object.values(sessions).filter(session => session.status !== "closed").length;
-  if (!wallets.length) return <><div className="page-heading"><div><p className="eyebrow">WELCOME TO PERFECT DRAW</p><h1>Start with a<br />bankroll.</h1></div><p className="heading-note">Set a starting balance, add a machine, and start playing.</p></div><div className="empty-state"><div className="empty-mark" aria-hidden="true">01</div><h2>No wallets yet</h2><p>A wallet tracks your practice bankroll as you play. Credits are for practice only: no real money, no purchases, no cash value.</p><button className="btn gold" type="button" onClick={onWallets}>Set up a wallet</button></div></>;
+  const returns = useLibraryReturns();
+  if (!wallets.length) return <Welcome busy={busy} onCreateBankroll={onCreateBankroll} />;
+  const openSessions = Object.values(sessions).filter(session => session.status !== "closed");
+  const recent = Object.values(sessions).sort((a, b) => b.startedAt - a.startedAt).slice(0, 4);
+
   return <>
-    <div className="page-heading"><div><p className="eyebrow">MACHINES</p><h1>Tables, set your way.</h1></div><p className="heading-note">Play full hands in Free Play, or sharpen decisions in Rapid Drill.</p></div>
-    {machines.length === 0 ? <div className="empty-state"><div className="empty-mark" aria-hidden="true">02</div><h2>No machines yet</h2><p>Add a machine with the game, pay table and bet you want to practice.</p><button className="btn" type="button" onClick={onCreate}>Create machine configuration</button></div> : <div className="layout-grid">
-      <section className="panel machine-feature" aria-label="Machine configuration carousel">
-        <div className="machine-visual" data-felt={machine?.theme ?? "felt"}>
-          <div className="machine-top"><span className="meta">MACHINE {selectedMachine + 1} OF {machines.length}</span><span className="meta">{table ? familyName(table.familyId).toUpperCase() : "CUSTOM GAME"}</span></div>
-          <div className="machine-display" aria-label={`${machine?.name ?? "Machine"} preview`}>
-            {["A", "K", "Q", "J", "10"].map(rank => <div className="display-token" key={rank} aria-hidden="true">{rank}<span style={{ fontSize: ".52em", marginLeft: 2 }}>♥</span></div>)}
-          </div>
-          <div className="machine-bottom"><div><span className="meta">{table?.name ?? "Custom pay table"}</span><h2>{machine?.name}</h2></div><span className="meta">{(FELTS.find(item => item.id === machine?.theme)?.name ?? "Casino green").toUpperCase()}</span></div>
-        </div>
-        <div className="machine-details">
-          <div className="detail-grid">
-            <div className="detail"><label>Pay table</label><strong>{table?.name ?? "Custom pay table"}</strong></div>
-            <div className="detail"><label>Game</label><strong>{table ? familyName(table.familyId) : "Custom"}</strong></div>
-            <div className="detail"><label>Denomination</label><strong>{money(machine?.denominationCents ?? 0)}</strong></div>
-            <div className="detail"><label>Bet</label><strong>{plural(machine?.coins ?? 0, "coin")} × {plural(machine?.lines ?? 0, "line")}</strong></div>
-            <div className="detail"><label>Default wallet</label><strong>{wallets.find(wallet => wallet.id === machine?.defaultWalletId)?.name ?? "Unavailable"}</strong></div>
-            <div className="detail"><label>Sessions open</label><strong>{openCount}</strong></div>
-          </div>
-          {(machine?.casinoName || machine?.location || machine?.notes) && <div className="detail" style={{ marginTop: 17 }}><label>Notes</label><strong>{[machine.casinoName, machine.location, machine.notes].filter(Boolean).join(" · ")}</strong></div>}
-          <div className="machine-controls">
-            <div className="carousel-control" aria-label="Configuration selection">
-              <IconButton icon="chevron-left" label="Previous machine" onClick={() => onSelect((selectedMachine - 1 + machines.length) % machines.length)} />
-              <div className="dots">{machines.map((item, index) => <button className={`dot-btn ${index === selectedMachine ? "active" : ""}`} key={item.id} type="button" aria-label={`Show ${item.name}`} aria-current={index === selectedMachine ? "true" : undefined} onClick={() => onSelect(index)} />)}</div>
-              <IconButton icon="chevron-right" label="Next machine" onClick={() => onSelect((selectedMachine + 1) % machines.length)} />
-            </div>
-            <div className="carousel-control"><Button variant="secondary" size="sm" icon="edit" onClick={() => machine && onEdit(machine)}>Edit</Button><Button variant="danger" size="sm" icon="trash" disabled={busy} onClick={() => machine && onDelete(machine)}>Delete</Button><Button variant="gold" icon="play" disabled={busy} onClick={() => machine && onStart(machine)}>Prepare session</Button></div>
-          </div>
-        </div>
-      </section>
-      <aside className="side-stack">
-        <Button className="add-machine-btn" icon="plus" onClick={onCreate}>New machine</Button>
-        <section className="panel panel-pad"><div className="panel-title"><div><h2>Your wallets</h2></div><a href="#/wallets" className="text-button">Manage</a></div>{wallets.slice(0, 3).map(wallet => <div className="list-row" key={wallet.id}><div className="list-main"><strong>{wallet.name}</strong></div><span className="wallet-balance">{money(wallet.balanceCents)}</span></div>)}<button className="btn secondary small" type="button" onClick={onWallets}>Wallets & ledger</button></section>
-      </aside>
+    <div className="page-heading floor-heading">
+      <div><p className="eyebrow">Machines</p><h1>{machines.length ? "Pick a machine." : "Pick your first machine."}</h1></div>
+      {machines.length > 0 && <Button icon="plus" onClick={onCreate}>New machine</Button>}
+    </div>
+
+    {machines.length === 0 ? <section className="starters" aria-label="Suggested machines">
+      <p className="starters-lede">Start with a classic, or build your own. You can change everything later.</p>
+      <div className="floor">
+        {STARTER_MACHINES.map(starter => {
+          const table = PAY_TABLE_LIBRARY.find(item => item.slug === starter.slug);
+          if (!table) return null;
+          const theme = starter.slug.startsWith("double") ? "midnight" : starter.slug.startsWith("deuces") ? "royal" : "felt";
+          return <MachineCabinet key={starter.slug} returnPct={returns.get(table.id)}
+            machine={{ name: table.name, paytableId: table.id, denominationCents: 25, coins: 5, lines: 1, theme }}
+            note={starter.blurb}
+            actions={<Button variant="gold" icon="plus" disabled={busy} onClick={() => onAddStarter(starter.slug)} aria-label={`Add ${table.name}`}>Add machine</Button>} />;
+        })}
+        <NewMachineTile onClick={onCreate} />
+      </div>
+    </section> : <div className="floor">
+      {machines.map(machine => {
+        const open = openSessions.filter(session => session.machineId === machine.id);
+        const free = open.find(session => session.mode === "free_play");
+        const drill = open.find(session => session.mode === "drill");
+        const shown = free ?? drill;
+        const value = shown ? money(Math.round(shown.state.credits * shown.machineSnapshot.denominationCents) + shown.state.creditRemainderCents) : "";
+        const status = shown ? <Badge tone={shown.status === "paused" ? "warning" : "success"} dot>
+          {shown.status === "paused" ? "Paused" : "In play"} · {shown.mode === "drill" ? "drill" : value}
+        </Badge> : undefined;
+        return <MachineCabinet key={machine.id} machine={machine} returnPct={returns.get(machine.paytableId)} status={status} actions={<>
+          <Button variant="gold" icon="play" disabled={busy} onClick={() => onPlay(machine, "free_play")} title={free ? "Continue your open session" : "Start Free Play with the machine's wallet"}>{free ? "Continue" : "Play"}</Button>
+          <Button variant="secondary" icon="cards" disabled={busy} onClick={() => onPlay(machine, "drill")} title={drill ? "Continue your open drill" : "Practice decisions without betting"}>Drill</Button>
+          <MenuButton label={`More actions for ${machine.name}`} items={[
+            { label: "Edit", icon: "edit", onSelect: () => onEdit(machine) },
+            { label: "Duplicate", icon: "copy", onSelect: () => onDuplicate(machine) },
+            { label: "Play with another wallet…", icon: "wallet", disabled: wallets.length < 2, onSelect: () => onPlayWithWallet(machine) },
+            { label: "Delete", icon: "trash", tone: "danger", onSelect: () => onDelete(machine) },
+          ]} />
+        </>} />;
+      })}
+      <NewMachineTile onClick={onCreate} />
     </div>}
-    {Object.keys(sessions).length > 0 && <section className="panel panel-pad" style={{ marginTop: 20 }}><div className="panel-title"><div><p className="eyebrow">RECENT</p><h2>Recent sessions</h2></div><a href="#/session" className="text-button">Open session room</a></div>{Object.values(sessions).sort((a, b) => b.startedAt - a.startedAt).slice(0, 4).map(item => <div className="list-row" key={item.id}><div className="list-main"><strong>{item.machineSnapshot.name} · {modeName(item.mode)}</strong><span>{dateTime(item.startedAt)}</span></div><Badge tone={item.status === "active" ? "success" : item.status === "paused" ? "warning" : "neutral"}>{item.status === "active" ? "In play" : item.status === "paused" ? "Paused" : "Closed"}</Badge>{item.status !== "closed" && <a href="#/session" className="text-button">Continue</a>}</div>)}</section>}
+
+    {recent.length > 0 && <section className="panel panel-pad recent-sessions">
+      <div className="panel-title"><div><p className="eyebrow">Recent</p><h2>Recent sessions</h2></div><a href="#/session" className="text-button">Open session room</a></div>
+      {recent.map(item => <div className="list-row" key={item.id}>
+        <div className="list-main"><strong>{item.machineSnapshot.name} · {modeName(item.mode)}</strong><span>{dateTime(item.startedAt)}</span></div>
+        <Badge tone={item.status === "active" ? "success" : item.status === "paused" ? "warning" : "neutral"}>{item.status === "active" ? "In play" : item.status === "paused" ? "Paused" : "Closed"}</Badge>
+      </div>)}
+    </section>}
   </>;
 }

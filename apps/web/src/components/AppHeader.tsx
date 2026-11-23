@@ -1,6 +1,7 @@
 import type { Session } from "@perfect-draw/shared";
 import { Badge } from "./ui";
 import { creditLabel, modeName, money } from "./UiHelpers";
+import { Icon } from "./Icons";
 import type { Route } from "../hooks/useRoute";
 
 const NAV: { route: Route; label: string }[] = [
@@ -11,8 +12,9 @@ const NAV: { route: Route; label: string }[] = [
   { route: "/settings", label: "Settings" },
 ];
 
-export function AppHeader({ route, openSessions, activeSessionId, onSelectSession }: {
+export function AppHeader({ route, openSessions, activeSessionId, onSelectSession, bankrollCents }: {
   route: Route; openSessions: Session[]; activeSessionId: string | null; onSelectSession: (id: string) => void;
+  /** Total across wallets; null before the first wallet exists. */ bankrollCents: number | null;
 }) {
   return <header className="app-header">
     <div className="header-inner">
@@ -20,6 +22,9 @@ export function AppHeader({ route, openSessions, activeSessionId, onSelectSessio
       <nav className="nav-links" aria-label="Main navigation">
         {NAV.map(item => <a key={item.route} className={`nav-link ${route === item.route ? "active" : ""}`} href={`#${item.route}`}>{item.label}</a>)}
       </nav>
+      {bankrollCents !== null && <a className="bankroll-chip" href="#/wallets" aria-label={`Bankroll ${money(bankrollCents)}. Open wallets.`}>
+        <Icon name="wallet" size={16} /><span className="bankroll-label">Bankroll</span><strong>{money(bankrollCents)}</strong>
+      </a>}
     </div>
     {openSessions.length > 0 && <div className="session-rail" aria-label="Open sessions">
       <span className="rail-label">OPEN SESSIONS</span>

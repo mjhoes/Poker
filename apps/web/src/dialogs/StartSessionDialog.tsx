@@ -6,11 +6,12 @@ import { Field, Modal, money, plural } from "../components/UiHelpers";
 import { sessionService } from "../services/sessions";
 import type { Run } from "../hooks/useActionRunner";
 
-export function StartSessionDialog({ machine, wallets, busy, run, onStarted, onClose }: {
+export function StartSessionDialog({ machine, wallets, busy, run, onStarted, onClose, initialMode = "free_play", reason }: {
   machine: Machine; wallets: Wallet[]; busy: boolean; run: Run; onStarted: () => void; onClose: () => void;
+  initialMode?: "free_play" | "drill"; /** Why the one-click start needs a choice, e.g. the default wallet is short. */ reason?: string;
 }) {
-  const [walletId, setWalletId] = useState(machine.defaultWalletId);
-  const [mode, setMode] = useState<"free_play" | "drill">("free_play");
+  const [walletId, setWalletId] = useState(wallets.some(wallet => wallet.id === machine.defaultWalletId) ? machine.defaultWalletId : wallets[0]?.id ?? "");
+  const [mode, setMode] = useState<"free_play" | "drill">(initialMode);
   const [error, setError] = useState("");
 
   async function start(event: FormEvent) {
@@ -23,7 +24,7 @@ export function StartSessionDialog({ machine, wallets, busy, run, onStarted, onC
     }, { onError: setError });
   }
 
-  return <Modal error={error} title="Prepare a session" subtitle="Choose how you want to play this machine." onClose={onClose}>
+  return <Modal error={error} title="Choose a wallet" subtitle={reason ?? "Pick the wallet and mode for this session."} onClose={onClose}>
     <form onSubmit={event => void start(event)}>
       <div className="terms-box"><strong>{machine.name}</strong> · {PAY_TABLE_LIBRARY.find(table => table.id === machine.paytableId)?.name ?? "Custom pay table"} · {money(machine.denominationCents)} · {plural(machine.coins, "coin")} × {plural(machine.lines, "line")}</div>
       <div className="form-grid">
@@ -31,7 +32,7 @@ export function StartSessionDialog({ machine, wallets, busy, run, onStarted, onC
         <Field label="Session mode"><select aria-label="Session mode" value={mode} onChange={event => setMode(event.target.value as "free_play" | "drill")}><option value="free_play">Free Play: full hands with bets and payouts</option><option value="drill">Rapid Drill: decisions only, instant feedback</option></select></Field>
       </div>
       <p className="form-hint">{mode === "drill" ? "One line at a time. Nothing is bet from your wallet." : "Bets and payouts come from the wallet you choose."}</p>
-      <div className="form-actions"><button className="btn secondary" type="button" onClick={onClose}>Cancel</button><button className="btn gold" type="submit" disabled={busy}>{busy ? "Preparing…" : "Prepare session"}</button></div>
+      <div className="form-actions"><button className="btn secondary" type="button" onClick={onClose}>Cancel</button><button className="btn gold" type="submit" disabled={busy}>{busy ? "Starting…" : "Start session"}</button></div>
     </form>
   </Modal>;
 }

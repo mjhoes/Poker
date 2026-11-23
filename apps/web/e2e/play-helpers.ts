@@ -2,10 +2,9 @@ import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import type { Records } from "@perfect-draw/shared";
 
+/** One click on the first machine's Play (or Continue) or Drill button opens the session room. */
 export async function preparePlaySession(page: Page, mode: "free_play" | "drill" = "free_play") {
-  await page.getByRole("button", { name: "Prepare session", exact: true }).first().click();
-  await page.getByRole("combobox", { name: "Session mode" }).selectOption(mode);
-  await page.getByRole("dialog").getByRole("button", { name: "Prepare session", exact: true }).click();
+  await page.getByRole("button", { name: mode === "drill" ? /^Drill$/ : /^(Play|Continue)$/ }).first().click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
 }
@@ -20,8 +19,9 @@ export async function createPlayTable(page: Page, options: { mode?: "free_play" 
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: /New machine|Create.*machine/i }).first().click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Play test table");
-  await page.getByRole("combobox", { name: "Lines", exact: true }).selectOption(String(options.lines ?? 1));
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  const lines = options.lines ?? 1;
+  await page.getByRole("radiogroup", { name: "Lines" }).getByRole("radio", { name: `${lines} line${lines === 1 ? "" : "s"}` }).click();
+  await page.getByRole("button", { name: "Add machine", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await preparePlaySession(page, options.mode);
 }

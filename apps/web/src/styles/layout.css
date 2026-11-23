@@ -48,3 +48,8 @@
   .rail-hint { display: none; }
 }
 .nav-link { white-space: nowrap; }
+.bankroll-chip { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); font-size: var(--text-sm); text-decoration: none; transition: border-color var(--dur-fast) ease; }
+.bankroll-chip:hover { border-color: var(--felt); }
+.bankroll-label { color: var(--muted); font-weight: 650; }
+.bankroll-chip strong { font-weight: 750; }
+@media (max-width: 680px) { .bankroll-label { display: none; } }

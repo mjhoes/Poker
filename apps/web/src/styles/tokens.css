@@ -79,3 +79,15 @@
   --felt-hi: #8e3340; --felt-mid: #6d222d; --felt-lo: #43121a; --felt-flat: #601d27; --felt-edge: #9c5c64;
   --felt-ink: #f8eee9; --felt-muted: #eed3d1; --felt-shadow: #24060b; --felt-accent: #ecc55e; --felt-tint: #f0e2df;
 }
+[data-felt="royal"], [data-room-felt="royal"] {
+  --felt-hi: #5d3a86; --felt-mid: #432a66; --felt-lo: #241539; --felt-flat: #3b2559; --felt-edge: #7b62a0;
+  --felt-ink: #f4effa; --felt-muted: #d9cdea; --felt-shadow: #12081f; --felt-accent: #efc75e; --felt-tint: #e9e3f0;
+}
+[data-felt="ocean"], [data-room-felt="ocean"] {
+  --felt-hi: #237a7c; --felt-mid: #165c5f; --felt-lo: #0b3638; --felt-flat: #145255; --felt-edge: #4f8f90;
+  --felt-ink: #effaf8; --felt-muted: #c6e3e0; --felt-shadow: #031c1d; --felt-accent: #f3c766; --felt-tint: #dfecea;
+}
+[data-felt="onyx"], [data-room-felt="onyx"] {
+  --felt-hi: #3c3f42; --felt-mid: #2a2c2f; --felt-lo: #151618; --felt-flat: #26282a; --felt-edge: #5b5f63;
+  --felt-ink: #f3f2ee; --felt-muted: #d0cfca; --felt-shadow: #050506; --felt-accent: #e2bd5a; --felt-tint: #e6e5e1;
+}

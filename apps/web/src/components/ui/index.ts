@@ -5,3 +5,7 @@ export type { SegmentedOption, Swatch } from "./Segmented";
 export { Badge, Disclosure, Tooltip } from "./Disclosure";
 export type { BadgeTone } from "./Disclosure";
 export { CoinAmount, dollarsFor, formatCoins } from "./CoinAmount";
+export { MenuButton } from "./Menu";
+export type { MenuItem } from "./Menu";
+export { ChoiceChips } from "./ChoiceChips";
+export type { Choice } from "./ChoiceChips";

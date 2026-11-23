@@ -6,6 +6,9 @@ export const FELTS: { id: FeltId; name: string }[] = [
   { id: "felt", name: "Casino green" },
   { id: "midnight", name: "Midnight blue" },
   { id: "classic", name: "Classic burgundy" },
+  { id: "royal", name: "Royal purple" },
+  { id: "ocean", name: "Ocean teal" },
+  { id: "onyx", name: "Onyx" },
 ];
 
 /**

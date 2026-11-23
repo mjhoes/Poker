@@ -17,10 +17,9 @@ test("production app, saved sessions and cached worker analysis reopen fully off
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: /New machine|Create.*machine/i }).first().click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Offline Jacks");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await page.getByRole("button", { name: "Add machine", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Prepare session", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Prepare session", exact: true }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByText("Optional table analysis", { exact: true }).click();
   await expect(page.getByText("99.544%", { exact: true })).toBeVisible({ timeout: 45_000 });
