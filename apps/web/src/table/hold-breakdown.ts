@@ -26,10 +26,11 @@ export function holdBreakdown(analysis: HandAnalysis, mask: number): HoldBreakdo
     rank, name: handRankName(rank), count: result.rankCounts[index] ?? 0, probability: result.rankDist[index] ?? 0,
     pay: analysis.valueVector[index] ?? 0, ev: (result.rankDist[index] ?? 0) * (analysis.valueVector[index] ?? 0),
   }));
-  const nothing = rows.find(row => row.rank === "NOTHING");
   return {
     mask, label: result.label, drawCount: result.drawCount, ev: result.ev,
-    winProbability: 1 - (nothing?.probability ?? 0), rows: rows.filter(row => row.rank !== "NOTHING"),
+    // A win is a final hand that pays; a custom table can pay zero for ranks other than "nothing".
+    winProbability: rows.reduce((sum, row) => sum + (row.pay > 0 ? row.probability : 0), 0),
+    rows: rows.filter(row => row.rank !== "NOTHING"),
   };
 }
 

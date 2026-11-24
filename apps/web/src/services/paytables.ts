@@ -1,6 +1,6 @@
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { nameSchema, paytableSchema } from "@perfect-draw/shared";
-import type { Paytable } from "@perfect-draw/shared";
+import type { GameSummary, Paytable } from "@perfect-draw/shared";
 import { db, live, stamp } from "../data/db";
 import { finalize } from "../paytables/model";
 import type { DraftTable } from "../paytables/model";
@@ -39,6 +39,20 @@ export const paytableService = {
       const row = await db.records("paytables").get(id);
       if (!row || !live(row) || row.source === "library") throw new Error("Only your own pay tables can be renamed.");
       await db.records("paytables").put(paytableSchema.parse({ ...row, name: parsed, updatedAt: Date.now() }));
+    });
+  },
+
+  /**
+   * Saves a table's figures at one bet (computed seconds earlier). It writes onto the record as it is now, so a rename,
+   * delete or backup restore made meanwhile is kept; a table that is gone or deleted is left alone. Returns whether saved.
+   */
+  async saveSummary(id: string, coins: number, summary: GameSummary) {
+    const key = String(coins) as "1" | "2" | "3" | "4" | "5";
+    return db.transaction("rw", db.records("paytables"), async () => {
+      const row = await db.records("paytables").get(id);
+      if (!row || !live(row)) return false;
+      await db.records("paytables").put(paytableSchema.parse({ ...row, summaries: { ...row.summaries, [key]: summary } }));
+      return true;
     });
   },
 

@@ -10,6 +10,7 @@ import { db, requireRecord, stamp } from "../data/db";
 import { postLedger } from "./wallets";
 import { decisionService } from "./decisions";
 import { creditState } from "./money";
+import { betForNextDeal } from "./bet";
 
 type PlayEngine = Pick<EngineAPI, "prepareRound" | "resolveRound">;
 const transactionTables = () => [db.records("sessions"), db.records("wallets"), db.records("walletLedger"), db.records("decisions")];
@@ -32,7 +33,7 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
       if (initial.state.handId && initial.state.phase === "holding") throw new Error("Finish the current hand before dealing.");
       const config = initial.machineSnapshot;
       // The bet chosen at the table (or the machine's default) is locked for this hand.
-      const coins = initial.state.betCoins ?? config.coins;
+      const coins = betForNextDeal(initial);
       const prepared = await getEngine().prepareRound(config.paytableId, coins, initial.mode === "drill" ? 1 : config.lines, initial.trainingFocus);
       const analysis = handAnalysisSchema.parse(prepared.analysis);
       const drawDecks = drawDecksSchema.parse(prepared.drawDecks);
@@ -42,7 +43,7 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
         const session = await requireRecord("sessions", id); active(session);
         if (session.state.handId !== expectedHandId) return session; // A concurrent deal already committed.
         if (session.state.handId && session.state.phase === "holding") throw new Error("Finish the current hand.");
-        if ((session.state.betCoins ?? config.coins) !== coins) throw new Error("The bet changed while dealing. Deal again.");
+        if (betForNextDeal(session) !== coins) throw new Error("The bet changed while dealing. Deal again.");
         let balanceDisplay = creditState((await requireRecord("wallets", session.walletId)).balanceCents, config.denominationCents);
         const bet = session.mode === "drill" ? 0 : safeCents(standardVariant.betCoins(coins, config.lines) * config.denominationCents);
         if (bet) {

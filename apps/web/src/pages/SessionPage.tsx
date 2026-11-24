@@ -108,7 +108,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
         onHold(session, Number(event.key) - 1);
         return;
       }
-      if ((event.key === "b" || event.key === "m") && canDeal && !busy && (!interactive || cardButton || actionButton)) {
+      if ((event.key === "b" || event.key === "m") && canDeal && !busy && !session.trainingFocus && (!interactive || cardButton || actionButton)) {
         event.preventDefault();
         if (event.key === "m") onBetMax(session);
         else onBet(session, currentBet(session).coins % 5 + 1);
@@ -211,8 +211,8 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
           {reviewing && warning ? <HoldReview grade={warning} session={session} busy={busy} open={detailsOpen} onToggle={toggleDetails}
             onUseBest={() => onSetMask(session, warning.bestMask)} onDrawAnyway={() => onSubmit(session, true)} /> : <div className="play-action-row">
             {canDeal && <>
-              <Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBet(session, bet % 5 + 1)} title="Add one credit per line (B)">Bet One</Button>
-              <Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBetMax(session)} title="Bet 5 credits per line and deal (M)">Bet Max</Button>
+              {!session.trainingFocus && <><Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBet(session, bet % 5 + 1)} title="Add one credit per line (B)">Bet One</Button>
+              <Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBetMax(session)} title="Bet 5 credits per line and deal (M)">Bet Max</Button></>}
               <Button variant="gold" icon="cards" data-play-action="deal" disabled={!canPlay} loading={busy} loadingLabel="Dealing…" onClick={() => onDeal(session)}>Deal hand</Button>
             </>}
             {state?.phase === "holding" && state.handId && freePlay && <Button variant="gold" icon="draw" data-play-action="submit" disabled={!canSubmit} loading={busy} loadingLabel="Drawing…" onClick={() => onSubmit(session)}>Draw</Button>}

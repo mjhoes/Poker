@@ -69,6 +69,18 @@ describe("persistent play loop", () => {
     expect(next.state.handCoins).toBe(5);
     expect(next.summary.coinInCents).toBe(150 + 375);
   });
+  it("keeps a focused drill at the bet its training target was found at", async () => {
+    const { play, machine, api } = await setup({ mode: "drill" });
+    const table = getLibraryPayTable("jacks-or-better-9-6");
+    const focus = { label: "RF4", analysisKey: analysisKey(table.familyId, standardVariant.valueVector(table, 5, {}), 5) };
+    const focused = await sessionService.start({ machineId: machine.id, mode: "drill", trainingFocus: focus });
+    await expect(sessionService.applyAction(focused.id, { type: "bet", coins: 2 })).rejects.toThrow("A focused drill keeps the bet it was set up for.");
+    // A session saved before this rule, with a different bet already chosen, still deals at the focus's bet and key.
+    await db.records("sessions").put({ ...(await stateOf(focused.id)), state: { ...(await stateOf(focused.id)).state, betCoins: 2 } });
+    const dealt = await play.deal(focused.id, null);
+    expect(api.prepareRound).toHaveBeenLastCalledWith(expect.any(String), 5, 1, focus);
+    expect(dealt.state.handCoins).toBe(5);
+  });
   it("can settle an old warned hand after retention without losing its original mistake", async () => {
     const { play, session } = await setup();
     const dealt = await play.deal(session.id, null), handId = dealt.state.handId!;

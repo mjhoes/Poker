@@ -6,10 +6,11 @@ import {
 import { analysisKey, getLibraryPayTable, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { deserializeAnalysis, loadPrecomputedAnalysis, loadPrecomputedManifest, serializeAnalysis } from "@perfect-draw/precomputed";
 import type { PrecomputedGameAnalysis } from "@perfect-draw/precomputed";
-import { analysisSchema, paytableSchema } from "@perfect-draw/shared";
+import { analysisSchema } from "@perfect-draw/shared";
 import { db, stamp } from "../data/db";
 import type { AnalysisSummary, EngineAPI } from "./engine-api";
 import { StatsEngine } from "./stats-engine";
+import { paytableService } from "../services/paytables";
 
 const loaded = new Map<string, PrecomputedGameAnalysis>();
 
@@ -155,7 +156,8 @@ const api: EngineAPI = {
     prepareSolver(table.familyId);
     const analysis = analyzeGame(table.familyId, standardVariant.valueVector(table, coins, {}), undefined, { betCoins: coins });
     const summary = { returnPct: analysis.returnPct, hitFreq: analysis.hitFreq, variance: analysis.variance, engineVersion: ENGINE_VERSION };
-    if (row) await db.records("paytables").put(paytableSchema.parse({ ...row, summaries: { ...row.summaries, [key]: summary } }));
+    // The computation takes seconds; this writes onto the record as it is then, never the copy read above.
+    if (row) await paytableService.saveSummary(paytableId, coins, summary);
     return { ...summary, familyId: table.familyId, betCoins: coins, source: "computed" };
   },
   async warmOffline(paytableId) {

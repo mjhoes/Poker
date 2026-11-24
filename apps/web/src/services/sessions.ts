@@ -51,6 +51,7 @@ export const sessionService: SessionService = {
       if (action.type === "bet") {
         // A dealt hand keeps the bet it was paid with; the new bet applies from the next deal.
         if (current.state.handId && current.state.phase === "holding") throw new Error("Finish this hand before changing the bet.");
+        if (current.trainingFocus && action.coins !== current.machineSnapshot.coins) throw new Error("A focused drill keeps the bet it was set up for.");
         const next = sessionSchema.parse({ ...current, updatedAt: Date.now(), state: { ...current.state, betCoins: action.coins } });
         await db.records("sessions").put(next); return next;
       }

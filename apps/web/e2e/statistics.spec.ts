@@ -150,6 +150,13 @@ test("statistics audit real decisions, exclude corrections, filter and open pers
   await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible({ timeout: 30_000 });
   const focused = (await readPlayState(page)).sessions.find(row => row.trainingFocus)!;
   expect(focused.mode).toBe("drill"); expect(focused.trainingFocus?.analysisKey).toMatch(/^[a-f0-9]{64}$/);
+  // The focus was found at one bet, so the drill keeps it: no bet changes, and B/M do nothing.
+  await expect(page.locator(".bet-total")).toHaveText("Set by this focused drill");
+  await expect(page.getByRole("radiogroup", { name: "Credits per line" }).getByRole("radio", { name: "2 credits" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Bet Max", exact: true })).toHaveCount(0);
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.keyboard.press("m");
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
   for (let index = 0; index < 2; index++) {
     if (index === 1) {
       await page.reload();

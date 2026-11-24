@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeHandFast, parseHand, standardVariant } from "@perfect-draw/engine";
+import { analyzeHandFast, getGameFamily, parseHand, standardVariant } from "@perfect-draw/engine";
 import { getLibraryPayTable } from "@perfect-draw/paytables";
 import { compareHolds, comparisonSummary, holdBreakdown, oneIn } from "../src/table/hold-breakdown";
 
@@ -32,5 +32,20 @@ describe("why one hold beats another", () => {
   it("treats equal holds as equal", () => {
     const comparison = compareHolds(analysis, royalDraw, royalDraw);
     expect(comparisonSummary(comparison, { a: "A", b: "B" })).toContain("exactly the same");
+  });
+  it("counts only paying hands as wins, even when a custom table pays zero for a made hand", () => {
+    // Jacks or better pays nothing here: holding a high pair can still lose on every draw.
+    const vector = [...standardVariant.valueVector(table, 5, {})];
+    const jacksIndex = getGameFamily(table.familyId).handRanks.indexOf("JACKS_OR_BETTER");
+    vector[jacksIndex] = 0;
+    const zeroPairs = analyzeHandFast(parseHand("Jh Jc 2s 5d 9h"), vector, table.familyId);
+    const pairOnly = holdBreakdown(zeroPairs, 0b00011);
+    const paying = pairOnly.rows.filter(row => row.pay > 0).reduce((sum, row) => sum + row.probability, 0);
+    expect(pairOnly.winProbability).toBeCloseTo(paying, 12);
+    expect(pairOnly.winProbability).toBeLessThan(0.5);
+    // A hold whose only outcomes pay zero never wins.
+    const allHeld = holdBreakdown(zeroPairs, 0b11111);
+    expect(allHeld.ev).toBe(0);
+    expect(allHeld.winProbability).toBe(0);
   });
 });
