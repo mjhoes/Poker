@@ -24,7 +24,9 @@ Build the engine first and prove it correct; everything else (training, mistake 
 - Stats: accuracy, EV lost/1000, effective return, confusion matrix, weakness ranking.
 - AI settings (bring-your-own OpenAI/Anthropic keys, direct client calls) + provider abstraction.
 - 📸 Pay table photo extraction + confirm grid. 📸 Hand photo extraction.
-- AI hand explanations (grounded).
+- AI hand explanations (grounded). Explain in plain English *why* one hold beats another and give a way to remember it,
+  built on the engine's per-hold breakdown (final-hand chances × pays = EV; see `09-UI-ROUND-2-PLAN.md`, R3). The AI
+  writes words only; every number comes from the engine.
 - 🛳️ **Cruise Rewards Tracker** (`07-CRUISE-REWARDS.md`): programs (Club Royale default), trips, live casino session timer, coin-in/points/cost per point, rewards ledger, target planner.
 - Casino-Pace Mode + practice session pace/virtual points.
 

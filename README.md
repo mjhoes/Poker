@@ -17,6 +17,7 @@ Web first (Replit), then iOS (Capacitor). **Local-first:** guest mode, all data 
 | [06 — Multiplier Games](docs/06-MULTIPLIER-GAMES.md) | Notes and hooks for Ultimate X, Super Times Pay, Multi-Strike (later) |
 | [07 — Cruise Rewards Tracker](docs/07-CRUISE-REWARDS.md) | Coin-in, loss, points, cost per point, play time, target planner (Royal Caribbean Club Royale first) |
 | [08 — Interface Polish Plan](docs/08-UI-POLISH-PLAN.md) | UI feedback round 1: dialogs, toasts, cards, dollars, feedback, table screen, machine floor, custom pay tables, felts, assets |
+| [09 — Interface Round 2 Plan](docs/09-UI-ROUND-2-PLAN.md) | Popular machines, bet changes at the table, why-this-hold breakdown, table analysis fix |
 
 ## Core principle
 **Math is deterministic; AI only reads images and writes words.** Every EV, strategy line and statistic comes from the engine. LLM output is schema-validated, checked against engine data, and confirmed by the user when it comes from a photo.
