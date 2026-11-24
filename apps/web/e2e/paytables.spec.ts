@@ -41,6 +41,7 @@ test("custom pay tables: shorthand, checks, paste, save, play and protected dele
   // The machine sheet offers the custom table, and can enter another one in place.
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: "New machine" }).first().click();
+  await page.getByRole("button", { name: /^Build your own/ }).click();
   await page.getByRole("button", { name: "Enter a pay table…" }).click();
   await page.getByRole("dialog").getByRole("textbox", { name: "Pay table shorthand" }).fill("9/5");
   await page.getByRole("dialog").getByRole("button", { name: "Apply", exact: true }).click();

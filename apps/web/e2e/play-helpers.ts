@@ -18,6 +18,7 @@ export async function createPlayTable(page: Page, options: { mode?: "free_play" 
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: /New machine|Create.*machine/i }).first().click();
+  await page.getByRole("button", { name: /^Build your own/ }).click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Play test table");
   const lines = options.lines ?? 1;
   await page.getByRole("radiogroup", { name: "Lines" }).getByRole("radio", { name: `${lines} line${lines === 1 ? "" : "s"}` }).click();

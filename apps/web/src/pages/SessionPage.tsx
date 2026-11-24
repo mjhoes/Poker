@@ -67,6 +67,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
 }) {
   const active = session?.status === "active";
   const walletName = useAppStore(store => store.wallets.find(wallet => wallet.id === session?.walletId)?.name) ?? "Deleted wallet";
+  const dealSpeed = useAppStore(store => store.dealSpeed);
   const canPlay = !!session && active && !busy;
   const state = session?.state;
   const warning = state?.warning ?? null;
@@ -162,7 +163,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
       </section>}
 
       <section className="play-console">
-        <div className="play-table" data-felt={felt} data-speed={config.speed}>
+        <div className="play-table" data-felt={felt} data-speed={dealSpeed}>
           <div className="play-topline">
             <span className="play-mode-tag">{modeName(session.mode)}</span>
             <span className="hand-counter">Hand {state?.handIndex ? String(state.handIndex).padStart(3, "0") : "—"}</span>

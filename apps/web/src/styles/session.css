@@ -230,3 +230,4 @@
   .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
   .segmented-option { padding: 7px 6px; font-size: var(--text-xs); }
 }
+.popover-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }

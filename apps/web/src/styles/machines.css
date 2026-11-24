@@ -97,3 +97,21 @@ article.cabinet:hover, article.cabinet:focus-within { transform: translateY(-3px
   .machine-sheet-preview .cabinet { display: none; }
   .machine-sheet-preview .form-actions { flex-direction: row; }
 }
+
+/* Popular machines (first step of the new machine sheet) */
+.sheet-back { display: inline-flex; align-items: center; gap: 4px; margin: -8px 0 14px; text-decoration: none; }
+.popular-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.popular-card { display: flex; flex-direction: column; gap: 10px; overflow: hidden; padding: 0 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-panel); text-align: left; }
+.popular-band { display: grid; gap: 2px; padding: 14px 16px 12px; background: radial-gradient(ellipse at 30% 0%, var(--felt-hi), var(--felt-mid) 70%, var(--felt-lo)); color: var(--felt-ink); }
+.popular-band h3 { margin: 0; color: #fff8e2; font: 700 17px var(--display); }
+.popular-band span { color: var(--felt-accent); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.popular-blurb { flex: 1 1 auto; margin: 0; padding: 0 16px; color: var(--ink-2); font-size: var(--text-md); line-height: 1.5; }
+.popular-meta { margin: 0; padding: 0 16px; color: var(--muted); font-size: var(--text-sm); }
+.popular-meta strong { color: var(--felt); }
+.popular-actions { display: flex; gap: 8px; padding: 0 16px; }
+.popular-actions .btn { flex: 1 1 0; }
+.popular-build { align-items: center; justify-content: center; gap: 8px; min-height: 200px; padding: 20px; border: 2px dashed #b7c4b6; background: #f6f6ef; color: var(--felt); box-shadow: none; text-align: center; cursor: pointer; }
+.popular-build:hover { border-color: var(--felt); background: #eef2ea; }
+.popular-build-icon { display: grid; width: 46px; height: 46px; place-items: center; border-radius: 50%; background: var(--felt); color: #fff8e2; }
+.popular-build strong { font: 700 17px var(--display); }
+.popular-build span { max-width: 240px; color: var(--muted); font-size: var(--text-sm); line-height: 1.45; }

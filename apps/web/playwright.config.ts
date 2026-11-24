@@ -6,7 +6,7 @@ function systemChromium() {
 }
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["foundation.spec.ts", "play.spec.ts", "statistics.spec.ts", "paytables.spec.ts", "analysis.spec.ts"],
+  testMatch: ["foundation.spec.ts", "play.spec.ts", "statistics.spec.ts", "paytables.spec.ts", "analysis.spec.ts", "machines.spec.ts"],
   outputDir: "../../generated-artifacts/playwright",
   timeout: 90_000,
   expect: { timeout: 15_000 },

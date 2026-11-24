@@ -52,7 +52,6 @@ export function HomePage({ machines, wallets, sessions, busy, onCreate, onEdit, 
   return <>
     <div className="page-heading floor-heading">
       <div><p className="eyebrow">Machines</p><h1>{machines.length ? "Pick a machine." : "Pick your first machine."}</h1></div>
-      {machines.length > 0 && <Button icon="plus" onClick={onCreate}>New machine</Button>}
     </div>
 
     {machines.length === 0 ? <section className="starters" aria-label="Suggested machines">

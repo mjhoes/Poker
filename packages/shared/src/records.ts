@@ -19,7 +19,9 @@ export const profileSchema = z.object({
   id: z.literal("local"), displayName: nameSchema.default("Player"), createdAt: timestamp, ...metadata,
   prefs: z.object({ activeSessionId: uuid.nullable().default(null), lastBackupAt: timestamp.nullable().default(null), lastBackupDecisionCount: z.number().int().nonnegative().default(0),
     /** Card colors: classic red/black, or four colors (diamonds blue, clubs green). */
-    deckColors: z.enum(["two", "four"]).default("two") }).default({}),
+    deckColors: z.enum(["two", "four"]).default("two"),
+    /** Deal and draw animation pace, chosen at the table; applies to every machine. */
+    dealSpeed: z.enum(["relaxed", "normal", "fast"]).default("normal") }).default({}),
 });
 export const providerSchema = z.enum(["openai", "anthropic"]);
 export const aiSettingsSchema = z.object({

@@ -10,7 +10,8 @@ import { machineService } from "../services/machines";
 import { parseCents } from "../services/money";
 import type { Run } from "../hooks/useActionRunner";
 import { MachineCabinet } from "../machines/MachineCabinet";
-import { defaultMachineName, useLibraryReturns } from "../machines/machine-info";
+import { STARTER_MACHINES, defaultMachineName, starterDraft, useLibraryReturns } from "../machines/machine-info";
+import { Icon } from "../components/Icons";
 import { useAllPaytables } from "../paytables/catalog";
 import { PayTableEditor } from "../paytables/PayTableEditor";
 import { announceSave } from "./PayTableDialogs";
@@ -63,13 +64,50 @@ export function useMachineEditor({ machine, wallets, run, onSaved }: {
     }, { success: machine ? "Machine updated." : "Machine added.", onError: setError });
   }
 
-  return { form, update, error, save, defaultName, denominationCents };
+  /** Pre-fill the editor from a popular machine, keeping the chosen default wallet. */
+  const loadStarter = (slug: string) => {
+    const draft = starterDraft(slug, form.defaultWalletId);
+    if (draft) setForm(current => ({ ...current, name: "", paytableId: draft.paytableId, denomination: (draft.denominationCents / 100).toFixed(2), coins: String(draft.coins), lines: String(draft.lines), theme: draft.theme }));
+  };
+
+  return { form, update, error, save, defaultName, denominationCents, loadStarter };
+}
+
+/** First step for a new machine: add a popular machine in one click, customize one, or build from scratch. */
+function PopularMachines({ busy, onAdd, onCustomize, onBuild }: {
+  busy: boolean; onAdd: (slug: string) => void; onCustomize: (slug: string) => void; onBuild: () => void;
+}) {
+  const returns = useLibraryReturns();
+  return <div className="popular-step">
+    <div className="popular-grid">
+      {STARTER_MACHINES.map(starter => {
+        const table = PAY_TABLE_LIBRARY.find(item => item.slug === starter.slug);
+        if (!table) return null;
+        const pct = returns.get(table.id);
+        return <article key={starter.slug} className="popular-card" data-felt={starter.theme} aria-labelledby={`popular-${starter.slug}`}>
+          <div className="popular-band"><h3 id={`popular-${starter.slug}`}>{table.name}</h3><span>{familyName(table.familyId)}</span></div>
+          <p className="popular-blurb">{starter.blurb}</p>
+          <p className="popular-meta">{pct ? <><strong>{pct.toFixed(2)}%</strong> return · </> : null}25¢ · 5 coins</p>
+          <div className="popular-actions">
+            <Button variant="gold" size="sm" icon="plus" disabled={busy} onClick={() => onAdd(starter.slug)} aria-label={`Add ${table.name}`}>Add</Button>
+            <Button variant="secondary" size="sm" icon="edit" onClick={() => onCustomize(starter.slug)} aria-label={`Customize ${table.name}`}>Customize</Button>
+          </div>
+        </article>;
+      })}
+      <button type="button" className="popular-card popular-build" onClick={onBuild}>
+        <span className="popular-build-icon" aria-hidden="true"><Icon name="plus" size={22} /></span>
+        <strong>Build your own</strong>
+        <span>Any game, pay table, bet and felt, or enter a pay table by hand.</span>
+      </button>
+    </div>
+  </div>;
 }
 
 export function MachineDialog({ machine, wallets, busy, run, onClose }: {
   machine?: Machine; wallets: Wallet[]; busy: boolean; run: Run; onClose: () => void;
 }) {
-  const { form, update, error, save, defaultName, denominationCents } = useMachineEditor({ machine, wallets, run, onSaved: onClose });
+  const { form, update, error, save, defaultName, denominationCents, loadStarter } = useMachineEditor({ machine, wallets, run, onSaved: onClose });
+  const [step, setStep] = useState<"popular" | "edit">(machine ? "edit" : "popular");
   const returns = useLibraryReturns();
   const allTables = useAllPaytables();
   const [enteringTable, setEnteringTable] = useState(false);
@@ -83,7 +121,18 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
       onSaved={result => { announceSave(result); update("paytableId", result.id); setEnteringTable(false); }} />
   </Modal>;
 
+  if (step === "popular") return <Modal error={error} className="machine-sheet" title="New machine" subtitle="Start from a popular machine, or build your own." onClose={onClose}>
+    <PopularMachines busy={busy}
+      onAdd={slug => {
+        const draft = starterDraft(slug, form.defaultWalletId);
+        if (draft) void run(async () => { await machineService.save(draft); onClose(); }, { success: `Added “${draft.name}”.` });
+      }}
+      onCustomize={slug => { loadStarter(slug); setStep("edit"); }}
+      onBuild={() => setStep("edit")} />
+  </Modal>;
+
   return <Modal error={error} className="machine-sheet" title={machine ? "Edit machine" : "New machine"} subtitle="Choose a game, a bet and a look. The preview updates as you go." onClose={onClose}>
+    {!machine && <button type="button" className="text-button sheet-back" onClick={() => setStep("popular")}><Icon name="chevron-left" size={15} />Popular machines</button>}
     <form className="machine-sheet-body" onSubmit={event => void save(event)}>
       <div className="machine-sheet-form">
         <section className="sheet-step">
@@ -122,9 +171,7 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
         <section className="sheet-step">
           <h3><span className="step-number">3</span>Look</h3>
           <FeltPicker value={form.theme} onChange={theme => update("theme", theme)} />
-          <p className="field-label sheet-sub">Deal speed</p>
-          <ChoiceChips label="Table speed" value={form.speed} onChange={speed => update("speed", speed)}
-            choices={[{ value: "relaxed", label: "Relaxed" }, { value: "normal", label: "Normal" }, { value: "fast", label: "Fast" }]} />
+          <p className="sheet-hint">Deal speed is set at the table, in ⚙ Table settings.</p>
         </section>
 
         <section className="sheet-step">
