@@ -13,6 +13,7 @@ export const sessionStartSchema = z.object({
 export const sessionActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hold"), heldMask: z.number().int().min(0).max(31), handId: r.uuid.nullable().optional() }),
   z.object({ type: z.literal("feedback"), feedbackMode: feedbackModeSchema }),
+  z.object({ type: z.literal("bet"), coins: z.number().int().min(1).max(5) }),
   // Full state is validated; credits, bankroll, payouts and summary are never client-writable.
   z.object({ type: z.literal("saveHand"), hand: r.handSchema.refine(x => x.length === 5), heldMask: z.number().int().min(0).max(31).default(0) }),
 ]);

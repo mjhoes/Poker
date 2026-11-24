@@ -158,14 +158,14 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
             </div>
           </div>
           <div className="sheet-row two">
-            <div className="field"><span className="field-label">Coins per hand</span>
-              <ChoiceChips label="Coins per hand" value={form.coins} onChange={value => update("coins", value)}
+            <div className="field"><span className="field-label">Default bet (coins per line)</span>
+              <ChoiceChips label="Default bet" value={form.coins} onChange={value => update("coins", value)}
                 choices={["1", "2", "3", "4", "5"].map(value => ({ value, label: value, name: `${value} coin${value === "1" ? "" : "s"}` }))} /></div>
             <div className="field"><span className="field-label">Lines</span>
               <ChoiceChips label="Lines" value={form.lines} onChange={value => update("lines", value)}
                 choices={["1", "3", "5", "10"].map(value => ({ value, label: value, name: `${value} line${value === "1" ? "" : "s"}` }))} /></div>
           </div>
-          {denominationCents ? <p className="sheet-hint">Each hand bets {money(denominationCents * Number(form.coins) * Number(form.lines))}{Number(form.coins) < 5 ? ". Most machines pay a bonus on the royal only at 5 coins." : "."}</p> : null}
+          {denominationCents ? <p className="sheet-hint">Each hand bets {money(denominationCents * Number(form.coins) * Number(form.lines))} by default; you can change the bet at the table{Number(form.coins) < 5 ? ". Most machines pay a bonus on the royal only at 5 coins." : "."}</p> : null}
         </section>
 
         <section className="sheet-step">

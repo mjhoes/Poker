@@ -60,7 +60,8 @@ export class StatsEngine {
       if (!live(raw) || raw.createdAt < (query.since ?? 0) || raw.createdAt > until) continue;
       const decision = decisionSchema.parse(raw);
       const session = sessionMap.get(decision.sessionId);
-      if (!session || session.machineSnapshot.coins !== query.coins ||
+      // A session can mix bets; each decision records the coins it was played at.
+      if (!session || decision.coins !== query.coins ||
         (query.mode !== "all" && session.mode !== query.mode)) continue;
       if (decision.variantKind !== "standard" || decision.analysisKey !== key || decision.coins !== query.coins) { excludedIncompatible++; continue; }
       denominations.add(decision.denominationCents);

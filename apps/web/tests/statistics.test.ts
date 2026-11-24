@@ -41,7 +41,7 @@ async function setup(coins = 5) {
   const session = await sessionService.start({ machineId: machine.id, mode: "drill" });
   return { wallet, machine, session };
 }
-function decision(session: Session, options: { loss?: number; at?: number; correction?: boolean; other?: boolean; key?: string; deleted?: boolean; denomination?: number } = {}) {
+function decision(session: Session, options: { loss?: number; at?: number; correction?: boolean; other?: boolean; key?: string; deleted?: boolean; denomination?: number; coins?: number } = {}) {
   return decisionSchema.parse({
     id: newId(), ...stamp(), deletedAt: options.deleted ? Date.now() : null, sessionId: session.id,
     paytableId: table.id, analysisKey: options.key ?? key, canonicalHandId: options.other ? otherId : firstId,
@@ -49,7 +49,7 @@ function decision(session: Session, options: { loss?: number; at?: number; corre
     chosenEv: 7 - (options.loss ?? 1), bestEv: 7, evLoss: options.loss ?? 1,
     bestLabel: "ORIGINAL_ORDER_TIE_LABEL", chosenLabel: "DRAW5", gapToSecond: 1,
     decisionMs: 150, handIndexInSession: 1, msSinceSessionStart: 150, priorOutcome: null,
-    createdAt: options.at ?? Date.now(), isCorrection: options.correction ?? false, coins: session.machineSnapshot.coins,
+    createdAt: options.at ?? Date.now(), isCorrection: options.correction ?? false, coins: options.coins ?? session.machineSnapshot.coins,
     denominationCents: options.denomination ?? 25,
   });
 }
@@ -122,6 +122,14 @@ describe("statistics worker and local service", () => {
     await db.records("dailyAggregates").put({ ...legacy, bucketKey: JSON.stringify(JSON.parse(legacy.bucketKey).slice(0, -1)) });
     expect(await engine.report(query)).toMatchObject({ n: 3, denominations: [25, 100], undenominatedArchived: 1 });
     expect(await engine.report({ ...query, denominationCents: 100 })).toMatchObject({ n: 1, evLostTotal: 0.5 });
+  });
+  it("reports a session that changed its bet under each decision's own coin count", async () => {
+    const { session } = await setup();
+    const twoCoinKey = analysisKey(table.familyId, standardVariant.valueVector(table, 2, {}), 2);
+    await db.records("decisions").bulkAdd([decision(session, { loss: 1 }), decision(session, { coins: 2, key: twoCoinKey, loss: 0.5 })]);
+    const engine = new StatsEngine(async () => game);
+    expect(await engine.report({ paytableId: table.id, coins: 5 })).toMatchObject({ n: 1, evLostTotal: 1, excludedIncompatible: 0 });
+    expect(await engine.report({ paytableId: table.id, coins: 2 })).toMatchObject({ n: 1, evLostTotal: 0.5, excludedIncompatible: 0 });
   });
   it("atomically retains raw rows on a write failure or a changed preparation snapshot", async () => {
     const { session } = await setup();

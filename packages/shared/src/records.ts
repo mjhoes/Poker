@@ -88,6 +88,10 @@ export const sessionStateSchema = z.object({
   warning: gradeSchema.nullable().default(null), feedback: gradeSchema.nullable().default(null),
   outcome: outcomeSchema.nullable().default(null), attempts: z.number().int().nonnegative().default(0),
   priorOutcome: z.string().nullable().default(null),
+  /** Coins per line chosen for the next deal; null means the machine's default bet. */
+  betCoins: z.number().int().min(1).max(5).nullable().default(null),
+  /** Coins per line locked for the hand in play (or last played); null on hands dealt before bets could change. */
+  handCoins: z.number().int().min(1).max(5).nullable().default(null),
 }).superRefine((state, ctx) => {
   if (state.hand.length === 0 && (state.heldMask !== 0 || state.phase !== "ready")) ctx.addIssue({ code: "custom", message: "A non-ready state needs a hand" });
   if (state.handId) {

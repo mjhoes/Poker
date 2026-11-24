@@ -231,3 +231,19 @@
   .segmented-option { padding: 7px 6px; font-size: var(--text-xs); }
 }
 .popover-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* Bet controls on the felt (BET ONE / BET MAX live in the action row) */
+.bet-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; }
+.bet-label { color: var(--felt-muted); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.bet-controls .choice-group { gap: 5px; }
+.bet-controls .choice { min-width: 36px; min-height: 34px; align-items: center; padding: 6px 10px; border-color: color-mix(in srgb, var(--felt-ink) 35%, transparent); background: color-mix(in srgb, var(--felt-shadow) 30%, transparent); color: var(--felt-ink); font-weight: 800; }
+.bet-controls .choice:hover:not(:disabled) { border-color: var(--felt-accent); }
+.bet-controls .choice.selected { border-color: var(--felt-accent); background: var(--felt-accent); color: #2a2208; box-shadow: none; }
+.bet-controls .choice:disabled { opacity: .55; cursor: not-allowed; }
+.bet-controls .choice.selected:disabled { opacity: 1; }
+.bet-total { display: inline-flex; align-items: center; gap: 5px; color: var(--felt-ink); font-size: var(--text-sm); font-weight: 650; }
+.bet-note { flex-basis: 100%; margin: 0; color: var(--felt-accent); font-size: var(--text-xs); text-align: center; }
+.play-action-row .bet-button { min-width: 110px; }
+@media (max-width: 680px) {
+  .play-action-row .bet-button { flex: 1 1 40%; }
+}

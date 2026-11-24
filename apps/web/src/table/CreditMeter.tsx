@@ -33,7 +33,7 @@ function Meter({ label, value, dollars, tone }: { label: string; value: string; 
 }
 
 /** Bottom-edge instrument strip. Free Play shows bet, win and credits; Rapid Drill shows how the drill is going. */
-export function CreditMeter({ session }: { session: Session }) {
+export function CreditMeter({ session, betCoins }: { session: Session; betCoins: number }) {
   const { state, machineSnapshot: config, summary } = session;
   const win = state.phase === "complete" && state.outcome ? state.outcome.totalPayoutCoins : 0;
   const shownWin = useCountUp(win);
@@ -45,7 +45,7 @@ export function CreditMeter({ session }: { session: Session }) {
       <Meter label="EV lost" value={summary.evLost.toFixed(2)} dollars={dollarsFor(summary.evLost, config.denominationCents)} />
     </div>;
   }
-  const bet = config.coins * config.lines;
+  const bet = betCoins * config.lines;
   const creditsCents = Math.round(state.credits * config.denominationCents) + state.creditRemainderCents;
   return <div className="credit-meter" aria-label="Credit meter">
     <Meter label="Bet" value={bet.toLocaleString()} dollars={money(bet * config.denominationCents)} />

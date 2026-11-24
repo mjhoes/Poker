@@ -34,7 +34,6 @@ export async function rollupDecisions(timeZone: string,
     if (key !== first.analysisKey) throw new Error("Historical engine version cannot be safely summarized; raw history has been retained.");
     const ranges = new Map<string, { firstAt: number; lastAt: number }>();
     const observations: StatsObservation[] = group.map(decision => {
-      if (sessions.get(decision.sessionId)!.machineSnapshot.coins !== decision.coins) throw new Error("Historical bet mismatch; raw history has been retained.");
       const canonical = analysis.perHand.get(decision.canonicalHandId);
       if (!canonical) throw new Error("Historical canonical hand is missing; raw history has been retained.");
       const bucket = JSON.stringify([localDay(decision.createdAt, timeZone), canonical.bestLabel, decision.chosenLabel]);

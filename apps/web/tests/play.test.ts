@@ -47,6 +47,28 @@ async function hold(id: string, handId: string, mask: number) {
   await sessionService.applyAction(id, { type: "hold", heldMask: mask, handId });
 }
 describe("persistent play loop", () => {
+  it("bets the credits chosen at the table, locks them for the hand, and records them on the decision", async () => {
+    const { play, session, wallet, api } = await setup({ lines: 3 });
+    await sessionService.applyAction(session.id, { type: "bet", coins: 2 });
+    const dealt = await play.deal(session.id, null), handId = dealt.state.handId!;
+    expect(api.prepareRound).toHaveBeenLastCalledWith(expect.any(String), 2, 3, null);
+    expect(dealt.state).toMatchObject({ betCoins: 2, handCoins: 2 });
+    // 2 coins × 3 lines × 25¢ = $1.50 bet, not the machine's default 5 coins.
+    expect(dealt.summary.coinInCents).toBe(150);
+    expect((await walletService.list()).find(row => row.id === wallet.id)!.balanceCents).toBe(10000 - 150);
+    await expect(sessionService.applyAction(session.id, { type: "bet", coins: 5 })).rejects.toThrow("Finish this hand before changing the bet.");
+    await hold(session.id, handId, 0b11111);
+    const settled = await play.submit(session.id, handId);
+    expect(api.resolveRound).toHaveBeenLastCalledWith(expect.anything(), 0b11111, expect.anything(), expect.any(String), 2);
+    // A royal at 2 coins pays 500 per line, not the 5-coin 4,000.
+    expect(settled.state.outcome!.lines.map(line => line.payoutCoins)).toEqual([500, 500, 500]);
+    expect((await db.records("decisions").get(handId))).toMatchObject({ coins: 2, lines: 3 });
+    // Between hands the bet can change again, and the next deal uses it.
+    await sessionService.applyAction(session.id, { type: "bet", coins: 5 });
+    const next = await play.deal(session.id, handId);
+    expect(next.state.handCoins).toBe(5);
+    expect(next.summary.coinInCents).toBe(150 + 375);
+  });
   it("can settle an old warned hand after retention without losing its original mistake", async () => {
     const { play, session } = await setup();
     const dealt = await play.deal(session.id, null), handId = dealt.state.handId!;

@@ -31,7 +31,9 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
       if (initial.state.handId !== expectedHandId) throw new Error("This session has moved to another hand.");
       if (initial.state.handId && initial.state.phase === "holding") throw new Error("Finish the current hand before dealing.");
       const config = initial.machineSnapshot;
-      const prepared = await getEngine().prepareRound(config.paytableId, config.coins, initial.mode === "drill" ? 1 : config.lines, initial.trainingFocus);
+      // The bet chosen at the table (or the machine's default) is locked for this hand.
+      const coins = initial.state.betCoins ?? config.coins;
+      const prepared = await getEngine().prepareRound(config.paytableId, coins, initial.mode === "drill" ? 1 : config.lines, initial.trainingFocus);
       const analysis = handAnalysisSchema.parse(prepared.analysis);
       const drawDecks = drawDecksSchema.parse(prepared.drawDecks);
       if (drawDecks.length !== (initial.mode === "drill" ? 1 : config.lines) ||
@@ -40,8 +42,9 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
         const session = await requireRecord("sessions", id); active(session);
         if (session.state.handId !== expectedHandId) return session; // A concurrent deal already committed.
         if (session.state.handId && session.state.phase === "holding") throw new Error("Finish the current hand.");
+        if ((session.state.betCoins ?? config.coins) !== coins) throw new Error("The bet changed while dealing. Deal again.");
         let balanceDisplay = creditState((await requireRecord("wallets", session.walletId)).balanceCents, config.denominationCents);
-        const bet = session.mode === "drill" ? 0 : safeCents(standardVariant.betCoins(config.coins, config.lines) * config.denominationCents);
+        const bet = session.mode === "drill" ? 0 : safeCents(standardVariant.betCoins(coins, config.lines) * config.denominationCents);
         if (bet) {
           const wallet = await requireRecord("wallets", session.walletId);
           if (wallet.balanceCents < bet) throw new Error("Insufficient credits in this wallet. Add credits to keep playing.");
@@ -54,7 +57,7 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
           state: {
             ...session.state, hand: analysis.hand, heldMask: 0, phase: "holding", ...balanceDisplay, primaryGrade: null,
             handId: newId(), handIndex: session.summary.hands + 1, dealtAt: now, decisionStartedAt: now,
-            decisionElapsedMs: 0, analysis, drawDecks, warning: null, feedback: null, outcome: null, attempts: 0,
+            decisionElapsedMs: 0, analysis, drawDecks, warning: null, feedback: null, outcome: null, attempts: 0, handCoins: coins,
           },
         });
         await db.records("sessions").put(next); return next;
@@ -69,13 +72,14 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
       if (!analysis || initial.state.phase !== "holding") throw new Error("Deal a hand first.");
       const mask = initial.state.heldMask;
       const config = initial.machineSnapshot;
+      const coins = initial.state.handCoins ?? config.coins;
       const submittedAt = Date.now();
       const grade = gradeDecision(analysis, mask, initial.mode === "drill" ? 1 : config.lines);
       const warn = initial.mode === "free_play" && initial.state.feedbackMode === "warn_before_draw" && !grade.correct;
       if (confirmMistake && (!warn || initial.state.warning?.chosenMask !== mask)) throw new Error("Review this hold before confirming the warning.");
       const shouldWarn = warn && !confirmMistake;
       const outcome = initial.mode === "free_play" && !shouldWarn
-        ? outcomeSchema.parse(await getEngine().resolveRound(analysis.hand, mask, initial.state.drawDecks, config.paytableId, config.coins)) : null;
+        ? outcomeSchema.parse(await getEngine().resolveRound(analysis.hand, mask, initial.state.drawDecks, config.paytableId, coins)) : null;
       if (outcome && outcome.lines.length !== config.lines) throw new Error("Engine line count does not match this machine.");
       return db.transaction("rw", transactionTables(), async () => {
         const session = await requireRecord("sessions", id); active(session);
@@ -88,13 +92,13 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
         if (!reuseWarning) {
           const decision = decisionSchema.parse({
             id: attempts === 0 ? handId : newId(), ...stamp(), sessionId: id, handId,
-            paytableId: config.paytableId, analysisKey: analysisKey(analysis.familyId, analysis.valueVector, config.coins),
+            paytableId: config.paytableId, analysisKey: analysisKey(analysis.familyId, analysis.valueVector, coins),
             variantKind: session.variant.kind, variantState: session.state.variantState,
             canonicalHandId: canonicalizeHand(analysis.hand).id, dealtCards: analysis.hand,
             ...grade, decisionMs: session.state.decisionElapsedMs + Math.max(0, submittedAt - (session.state.decisionStartedAt ?? submittedAt)),
             handIndexInSession: session.state.handIndex, msSinceSessionStart: Math.max(0, submittedAt - session.startedAt),
             priorOutcome: session.state.priorOutcome, createdAt: submittedAt, attemptIndex: attempts,
-            isCorrection: attempts > 0, coins: config.coins, lines: initial.mode === "drill" ? 1 : config.lines,
+            isCorrection: attempts > 0, coins, lines: initial.mode === "drill" ? 1 : config.lines,
             denominationCents: config.denominationCents,
           });
           await decisionService.record(decision); attempts++;
