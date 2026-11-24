@@ -1,7 +1,7 @@
 # 09 — Interface Round 2 Plan
 
 Second round of feedback, after the polish in `08-UI-POLISH-PLAN.md` shipped. Four items: machine setup, changing
-the bet during play, explaining *why* a hold is better, and the broken table analysis. Status: **awaiting approval**.
+the bet during play, explaining *why* a hold is better, and the broken table analysis. Status: **questions answered (see Decisions); ready to build on approval**.
 
 ---
 
@@ -124,12 +124,26 @@ the bet during play, explaining *why* a hold is better, and the broken table ana
   - an older service worker on the deployed site
 - The panel only shows return, variance and hit frequency, and those don't need the download at all.
 
+**What the panel does today (measured)**
+- **It does not recompute anything,** but it loads far more than it shows. To display three numbers (return,
+  variance, hit frequency), it loads the full hand-by-hand analysis for the table.
+- **First time on a device:** download 857 KB, unpack it into 10 MB of data covering all 134,459 distinct starting
+  hands, build an index of it, then save a 10 MB copy in the browser's storage.
+- **Every later page load:** read that 10 MB copy back and rebuild the index, about 0.5 s on a desktop and more on a
+  phone.
+- **In the Replit preview** it is slower still. The preview runs in development mode and compiles the engine's modules
+  on first use; the deployed site is a pre-built bundle.
+- **Those three numbers** are already in the small summary file (`/analyses/manifest.json`) that the machine tiles use.
+
 **Plan**
-- **Compute the panel locally for the current bet.** The engine computes the exact return, variance and hit
-  frequency on the device in about 2–3 seconds. That:
-  - removes the download from the panel
-  - shows figures for the bet actually being played (replacing the "5-coin baseline" warning)
-  - works offline for every table, built-in or custom
+- **Show the three numbers without loading the full analysis:**
+  - **Built-in table at max bet:** read them from the summary file, which is instant and already cached for offline
+    use.
+  - **Any other bet, or a custom table:** compute them exactly on the device once (about 2–3 s), then save the small
+    result per table and bet, so it's instant next time and works offline.
+  - This replaces the "5-coin baseline" warning with figures for the bet actually being played.
+- **Full analysis only where needed:** load the hand-by-hand analysis only for Statistics and targeted drills, where
+  every hand's best play is required.
 - **Find and fix the download failure too:** Statistics and targeted drills still use the precomputed files.
   - Reproduce on the Replit preview and the deployed site, using the details you send.
   - Add up to two retries with backoff for network errors.
@@ -150,13 +164,12 @@ the bet during play, explaining *why* a hold is better, and the broken table ana
 
 Each step ships with unit and end-to-end tests, updated screenshot baselines and notes in `replit.md`.
 
-## Questions
+## Decisions (confirmed)
 
-1. **Add-machine entry:** keep only the "+ New machine" tile at the end of the floor (recommended), or only the
-   header button?
-2. **Popular machines:** the current three plus 8/5 Bonus, 9/6 Bonus Deluxe, 10/7 Double Bonus and NSUD Deuces, or
-   just the current three?
-3. **Deal speed:** one preference for all machines (recommended), or per session?
-4. **Lines:** keep lines fixed per machine (recommended), or make them changeable at the table like the bet?
-5. **Table analysis error:** where did you see it, the Replit preview or the deployed site? Did the machine cabinets
-   show a return % (for example "99.54% return") on that same visit?
+1. **Add-machine entry:** keep only the "+ New machine" tile at the end of the floor; remove the header button.
+2. **Popular machines:** the current three plus 8/5 Bonus Poker, 9/6 Bonus Poker Deluxe, 10/7 Double Bonus and NSUD
+   Deuces Wild.
+3. **Deal speed:** one player preference for all machines.
+4. **Lines:** fixed per machine, as on real multi-play machines.
+5. **Table analysis error:** seen in the Replit preview. It didn't reproduce on a retry, which was slow to load. That
+   fits a transient download failure plus the heavy full-analysis load described under R4.
