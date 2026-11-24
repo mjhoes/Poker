@@ -1,7 +1,7 @@
 # 09 — Interface Round 2 Plan
 
 Second round of feedback, after the polish in `08-UI-POLISH-PLAN.md` shipped. Four items: machine setup, changing
-the bet during play, explaining *why* a hold is better, and the broken table analysis. Status: **questions answered (see Decisions); ready to build on approval**.
+the bet during play, explaining *why* a hold is better, and the broken table analysis. Status: **built (R1–R4 done; see replit.md "Interface round 2")**.
 
 ---
 

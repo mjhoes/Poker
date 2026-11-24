@@ -22,5 +22,7 @@ export interface EngineAPI {
   previewGame(familyId: GameFamilyId, vector: ValueVector): Promise<GamePreview>;
   /** Return, variance and hit frequency for a table at a bet, without loading the full hand-by-hand analysis. */
   tableSummary(paytableId: string, coins: number): Promise<TableSummary>;
+  /** Downloads a built-in table's analysis file (without loading it) so it is available offline. */
+  warmOffline(paytableId: string): Promise<boolean>;
   generateDrill(options: Omit<DrillOptions, "random">): Promise<DrillHand>;
 }

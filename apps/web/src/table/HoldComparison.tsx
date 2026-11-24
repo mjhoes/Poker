@@ -55,7 +55,7 @@ export function HoldComparison({ session, grade }: { session: Session; grade: Gr
     <div className="ev-bars">
       <EvBar label="Best hold" comparison={comparison} side="a" scale={scale} />
       <EvBar label={bShort} comparison={comparison} side="b" scale={scale} />
-      <p className="ev-legend">{[...new Set([...comparison.a.rows, ...comparison.b.rows].filter(row => row.ev > 0.005).map(row => category(row.rank)))].map(key =>
+      <p className="ev-legend">{[...new Set(comparison.rows.filter(row => row.a.ev > 0.005 || row.b.ev > 0.005).map(row => category(row.rank)))].map(key =>
         <span key={key}><i className={`ev-swatch seg-${key}`} />{{ royal: "Royal", sflush: "Straight flush", quads: "Four of a kind", full: "Full house", flush: "Flush", straight: "Straight", trips: "Three of a kind", twopair: "Two pair", pair: "High pair" }[key]}</span>)}</p>
     </div>
 

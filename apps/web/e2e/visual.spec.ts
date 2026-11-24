@@ -95,6 +95,9 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await page.getByRole("button", { name: "Draw", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Hold review" })).toBeVisible();
   await shot(page, "08-hold-review");
+  await page.getByText("Why is the best hold better?").click();
+  await expect(page.getByRole("region", { name: "Why the best hold is better" })).toBeVisible();
+  await shot(page, "08b-why-best-hold");
   await page.getByRole("button", { name: "Draw anyway", exact: true }).click();
   await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
   await shot(page, "09-settled-three-lines");

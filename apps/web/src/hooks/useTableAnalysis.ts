@@ -18,6 +18,12 @@ export function useTableAnalysis(session: Session | undefined, inRoom: boolean, 
 
   useEffect(() => { setAnalysis(null); setError(""); setLoading(false); }, [inRoom, session?.id, paytableId, coins]);
   useEffect(() => { setRequested(false); }, [inRoom, session?.id, paytableId]);
+  // Shortly after a table opens, keep its full analysis file for offline statistics and drills (download only).
+  useEffect(() => {
+    if (!inRoom || !paytableId) return;
+    const timer = setTimeout(() => { engineClient().warmOffline(paytableId).catch(() => undefined); }, 2000);
+    return () => clearTimeout(timer);
+  }, [inRoom, paytableId]);
 
   useEffect(() => {
     if (!inRoom || !session || !requested || !paytableId || !coins) return;
