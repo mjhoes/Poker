@@ -278,7 +278,8 @@ R4 — table analysis without the full download:
 - "Optional table analysis" calls the worker's `tableSummary(paytableId, coins)`. It returns, in order:
   figures saved on the pay table record (`computed` for max bet, `summaries["1".."5"]` for other bets),
   the manifest entry for a built-in table at max bet, or an exact local `analyzeGame` at that bet, which
-  is then saved in `summaries`. The 10 MB per-hand analysis is no longer loaded for this panel.
+  is then saved in `summaries` via `paytableService.saveSummary` (it re-reads the record in a transaction, so a
+  rename, delete or restore made during the computation is never undone). The 10 MB per-hand analysis is no longer loaded for this panel.
 - Worker downloads use `fetchWithRetry` (3 tries); if a built-in analysis file still can't be fetched,
   `loadAnalysis` computes it on the device instead.
 - Shortly after a table opens, `warmOffline(paytableId)` downloads (without parsing) that built-in
@@ -297,10 +298,12 @@ R2 — changing the bet at the table:
   Deal charges `betCoins ?? config.coins`; draw, grading and decisions use `handCoins`. Decisions record
   their coins, so statistics keep bets apart. Use `currentBet(session)` from `table/BetControls.tsx`.
 - Bet controls sit under Deal/Draw (1–5 chips, Bet Max); keys `b` cycles the bet, `m` bets max and deals.
+- A focused drill (started from "Train this") keeps the machine's bet: its training key was found at that bet.
+  `betForNextDeal()` in `services/bet.ts` is the one rule for the next deal's coins; the bet action refuses changes.
 
 R3 — why one hold beats another:
 - `table/hold-breakdown.ts` (pure, unit-tested) rebuilds each hold's EV from the engine's per-hold
-  `rankCounts`/`rankDist` × the value vector, compares two holds row by row, picks the deciding hands,
+  `rankCounts`/`rankDist` × the value vector (a "win" is a final hand paying more than zero), compares two holds row by row, picks the deciding hands,
   and writes a plain summary sentence. `table/HoldComparison.tsx` renders it inside the details drawer
   ("Why is the best hold better?"): summary, value bars, a per-hand table (stacked cards on phones),
   and "Compare another hold" (toggle cards or pick from the top five).
