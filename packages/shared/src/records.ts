@@ -35,15 +35,19 @@ export const aiUsageSchema = z.object({
   inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative(),
   estCost: z.number().finite().nonnegative(), createdAt: timestamp,
 });
+/** Engine-computed whole-game figures for one bet (coins per line). Small and regenerable. */
+export const gameSummarySchema = z.object({
+  returnPct: z.number().finite(), hitFreq: z.number().finite().min(0).max(1),
+  variance: z.number().finite().nonnegative(), engineVersion: z.string(),
+});
 export const paytableSchema = z.object({
   id: hash, ...metadata, familyId: familyIdSchema, name: nameSchema,
   pays: z.record(z.tuple([z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative()])),
   source: z.enum(["library", "photo", "manual"]), createdAt: timestamp,
   /** Engine-computed max-bet (5-coin) figures for a custom table, saved with it so lists can show the return. */
-  computed: z.object({
-    returnPct: z.number().finite(), hitFreq: z.number().finite().min(0).max(1),
-    variance: z.number().finite().nonnegative(), engineVersion: z.string(),
-  }).optional(),
+  computed: gameSummarySchema.optional(),
+  /** Saved per-bet figures (keys "1"–"5"), so the table analysis panel never recomputes or downloads twice. */
+  summaries: z.record(z.enum(["1", "2", "3", "4", "5"]), gameSummarySchema).optional(),
 });
 export const analysisSchema = z.object({
   key: hash, ...metadata, paytableId: hash, variantKind: variantKindSchema.default("standard"),
@@ -127,6 +131,7 @@ export const decisionSchema = z.object({
   denominationCents: positiveCents.default(25),
 });
 export type Paytable = z.infer<typeof paytableSchema>;
+export type GameSummary = z.infer<typeof gameSummarySchema>;
 export type Machine = z.infer<typeof machineSchema>;
 export type MachineDraft = z.infer<typeof machineDraftSchema>;
 export type Wallet = z.infer<typeof walletSchema>;

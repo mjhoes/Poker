@@ -57,7 +57,7 @@ function App() {
 
   const play = useSessionActions({ runner, confirm, shownSessionId: shownSession?.id, onShowSession: setSessionViewId, onOpenRoom: openRoom });
   const backup = useBackup({ run, confirm });
-  const tableAnalysis = useTableAnalysis(shownSession, route === "/session");
+  const tableAnalysis = useTableAnalysis(shownSession, route === "/session", shownSession?.machineSnapshot.coins);
   const ledger = useWalletLedger(selectedWallet, [wallets, decisionCount]);
 
   // Ctrl+1–9 switches between open sessions from anywhere in the app.

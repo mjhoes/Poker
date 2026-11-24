@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { findPaytable } from "../paytables/catalog";
 import type { FeedbackMode, Session } from "@perfect-draw/shared";
-import type { AnalysisSummary } from "../worker/engine-api";
+import type { TableSummary } from "../worker/engine-api";
 import { creditLabel, dateTime, familyName, modeName, money, plural } from "../components/UiHelpers";
 import type { FeltId } from "../components/Felt";
 import { Badge, Button, CoinAmount, Disclosure, Tooltip } from "../components/ui";
@@ -58,7 +58,7 @@ function SessionHistory({ sessions, onSelect }: { sessions: Session[]; onSelect:
 }
 
 export function SessionPage({ session, felt, sessions, analysis, analysisError, analysisLoading, busy, playError, onRetryPlay, onPause, onResume, onClose, onSelect, onHold, onSetMask, onDeal, onSubmit, onFeedback, onRetry }: {
-  session?: Session; felt: FeltId; sessions: Session[]; analysis: AnalysisSummary | null; analysisError: string; analysisLoading: boolean; busy: boolean;
+  session?: Session; felt: FeltId; sessions: Session[]; analysis: TableSummary | null; analysisError: string; analysisLoading: boolean; busy: boolean;
   playError: string; onRetryPlay: () => void;
   onPause: (session: Session) => void; onResume: (session: Session) => void; onClose: (session: Session) => void; onSelect: (id: string) => void;
   onHold: (session: Session, index: number) => void; onSetMask: (session: Session, mask: number) => void;
@@ -245,9 +245,9 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
           <Disclosure summary="Optional table analysis" onToggle={open => {
             if (open && !analysis && !analysisLoading && !analysisError) onRetry();
           }}>
-            {analysisLoading ? <><div className="skeleton" style={{ minHeight: 85, marginTop: 12 }} /><p className="settings-copy" style={{ marginTop: 12 }}>Loading analysis. You can keep playing.</p></> : analysisError ? <div className="play-error" role="alert" style={{ marginTop: 12 }}>Table analysis unavailable: {analysisError}<br /><button className="text-button" type="button" onClick={onRetry}>Retry analysis</button></div> : analysis ? <>
-              {config.coins < 5 && <div className="warning-card">Analysis below is a 5-coin baseline, not the configured {config.coins}-coin return.</div>}
-              <div className="analysis-stats"><div className="analysis-stat"><span>Computed return</span><strong>{analysis.returnPct.toFixed(3)}%</strong></div><div className="analysis-stat"><span>Variance</span><strong>{analysis.variance.toFixed(3)}</strong></div><div className="analysis-stat"><span>Hit frequency</span><strong>{(analysis.hitFreq * 100).toFixed(2)}%</strong></div><div className="analysis-stat"><span>Baseline bet</span><strong>{analysis.betCoins} coins</strong></div></div>
+            {analysisLoading ? <><div className="skeleton" style={{ minHeight: 85, marginTop: 12 }} /><p className="settings-copy" style={{ marginTop: 12 }}>Computing the exact figures for a {plural(config.coins, "coin")} bet. This takes a few seconds once; you can keep playing.</p></> : analysisError ? <div className="play-error" role="alert" style={{ marginTop: 12 }}>Table analysis unavailable: {analysisError}<br /><button className="text-button" type="button" onClick={onRetry}>Retry analysis</button></div> : analysis ? <>
+              <div className="analysis-stats"><div className="analysis-stat"><span>Computed return</span><strong>{analysis.returnPct.toFixed(3)}%</strong></div><div className="analysis-stat"><span>Variance</span><strong>{analysis.variance.toFixed(3)}</strong></div><div className="analysis-stat"><span>Hit frequency</span><strong>{(analysis.hitFreq * 100).toFixed(2)}%</strong></div><div className="analysis-stat"><span>Bet</span><strong>{plural(analysis.betCoins, "coin")}</strong></div></div>
+              <p className="disclosure-note">Exact, with perfect play at this bet. Computed by the engine on this device.</p>
             </> : <p className="settings-copy">Analysis hasn't loaded yet.</p>}
           </Disclosure>
         </section>
