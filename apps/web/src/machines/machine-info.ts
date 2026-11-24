@@ -24,17 +24,22 @@ export const gameLabel = (paytableId: string) => {
 
 /** Suggested first machines, one click each. */
 export const STARTER_MACHINES = [
-  { slug: "jacks-or-better-9-6", blurb: "The classic. Simple strategy, 99.5% return." },
-  { slug: "double-double-bonus-9-6", blurb: "Big quad bonuses, higher swings." },
-  { slug: "deuces-wild-full-pay", blurb: "Wild deuces. Over 100% with perfect play." },
+  { slug: "jacks-or-better-9-6", blurb: "The classic. Simple strategy, 99.5% return.", theme: "felt" },
+  { slug: "double-double-bonus-9-6", blurb: "Big quad bonuses, higher swings.", theme: "midnight" },
+  { slug: "deuces-wild-full-pay", blurb: "Wild deuces. Over 100% with perfect play.", theme: "royal" },
+  { slug: "bonus-poker-8-5", blurb: "Jacks or Better with bonus quads: four aces pay 80. Common on floors.", theme: "ocean" },
+  { slug: "bonus-poker-deluxe-9-6", blurb: "Every four of a kind pays 80, but two pair pays only 1.", theme: "classic" },
+  { slug: "double-bonus-10-7", blurb: "Over 100% with perfect play; two pair pays only 1. Big swings.", theme: "onyx" },
+  { slug: "deuces-wild-nsud", blurb: "\"Not So Ugly Ducks\": five of a kind 16, straight flush 10. 99.7%.", theme: "royal" },
 ] as const;
+export type StarterSlug = typeof STARTER_MACHINES[number]["slug"];
 
 export function starterDraft(slug: string, walletId: string): MachineDraft | null {
   const table = PAY_TABLE_LIBRARY.find(item => item.slug === slug);
   if (!table) return null;
   return {
     name: defaultMachineName(table.id, 25, 1), paytableId: table.id, variant: { kind: "standard", config: {} },
-    denominationCents: 25, coins: 5, lines: 1, theme: slug.startsWith("double") ? "midnight" : slug.startsWith("deuces") ? "royal" : "felt",
+    denominationCents: 25, coins: 5, lines: 1, theme: STARTER_MACHINES.find(starter => starter.slug === slug)?.theme ?? "felt",
     speed: "normal", defaultWalletId: walletId, casinoName: "", location: "", notes: "",
   };
 }

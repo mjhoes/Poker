@@ -39,6 +39,7 @@ async function addWallet(page: Page) {
 async function addMachine(page: Page, name: string, lines: string, felt: string, game?: string) {
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: "New machine" }).first().click();
+  await page.getByRole("button", { name: /^Build your own/ }).click();
   if (game) await page.getByRole("radiogroup", { name: "Game" }).getByRole("radio", { name: new RegExp(`^${game}`) }).click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill(name);
   await page.getByRole("radiogroup", { name: "Lines" }).getByRole("radio", { name: `${lines} line${lines === "1" ? "" : "s"}` }).click();
@@ -69,6 +70,9 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await shot(page, "03-wallets");
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await shot(page, "03b-starter-machines");
+  await page.getByRole("button", { name: "New machine" }).first().click();
+  await shot(page, "03c-popular-machines-sheet", false);
+  await page.keyboard.press("Escape");
   await addMachine(page, "Quarter Jacks", "1", "Casino green");
   await page.locator(".modal").evaluate(element => { element.scrollTop = 0; }); // Typing the name scrolled the sheet.
   await shot(page, "04-new-machine-dialog", false);
@@ -91,6 +95,9 @@ test("desktop tour: setup, machines, Free Play, review, settlement and report", 
   await page.getByRole("button", { name: "Draw", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Hold review" })).toBeVisible();
   await shot(page, "08-hold-review");
+  await page.getByText("Why is the best hold better?").click();
+  await expect(page.getByRole("region", { name: "Why the best hold is better" })).toBeVisible();
+  await shot(page, "08b-why-best-hold");
   await page.getByRole("button", { name: "Draw anyway", exact: true }).click();
   await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
   await shot(page, "09-settled-three-lines");

@@ -23,6 +23,7 @@ import { PayTableDialog, RenamePaytableDialog } from "./dialogs/PayTableDialogs"
 import { paytableService } from "./services/paytables";
 import { preferencesService } from "./services/preferences";
 import { findPaytable } from "./paytables/catalog";
+import { currentBet } from "./table/BetControls";
 import { HomePage } from "./pages/HomePage";
 import { WalletsPage } from "./pages/WalletsPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -57,7 +58,7 @@ function App() {
 
   const play = useSessionActions({ runner, confirm, shownSessionId: shownSession?.id, onShowSession: setSessionViewId, onOpenRoom: openRoom });
   const backup = useBackup({ run, confirm });
-  const tableAnalysis = useTableAnalysis(shownSession, route === "/session");
+  const tableAnalysis = useTableAnalysis(shownSession, route === "/session", shownSession ? currentBet(shownSession).coins : undefined);
   const ledger = useWalletLedger(selectedWallet, [wallets, decisionCount]);
 
   // Ctrl+1–9 switches between open sessions from anywhere in the app.
@@ -151,7 +152,8 @@ function App() {
         busy={busy} playError={play.playError} onRetryPlay={play.retryPlay}
         onPause={play.pause} onResume={play.resume} onClose={play.close}
         onSelect={id => { if (sessions[id]?.status === "closed") setSessionViewId(id); else void play.activate(id); }}
-        onHold={play.toggleHeld} onSetMask={play.setHeldMask} onDeal={play.deal} onSubmit={play.submit} onFeedback={play.setFeedback} />}
+        onHold={play.toggleHeld} onSetMask={play.setHeldMask} onDeal={play.deal} onSubmit={play.submit} onFeedback={play.setFeedback}
+        onBet={play.setBet} onBetMax={play.betMax} />}
       <div className="footer-note">PRACTICE CREDITS ONLY · NO REAL MONEY · YOUR DATA STAYS ON THIS DEVICE</div>
     </main>
     <ToastViewport />

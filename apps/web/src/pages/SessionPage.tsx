@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { findPaytable } from "../paytables/catalog";
 import type { FeedbackMode, Session } from "@perfect-draw/shared";
-import type { AnalysisSummary } from "../worker/engine-api";
+import type { TableSummary } from "../worker/engine-api";
 import { creditLabel, dateTime, familyName, modeName, money, plural } from "../components/UiHelpers";
 import type { FeltId } from "../components/Felt";
 import { Badge, Button, CoinAmount, Disclosure, Tooltip } from "../components/ui";
@@ -15,6 +15,7 @@ import { CreditMeter } from "../table/CreditMeter";
 import { TableSettings } from "../table/TableSettings";
 import { HoldReview, MistakeFeedback, OptimalFeedback, gradeLabel } from "../table/Feedback";
 import { winningMask } from "../table/cards";
+import { BetControls, currentBet } from "../table/BetControls";
 
 const Ev = ({ value, session }: { value: number; session: Session }) =>
   <CoinAmount amount={value} denominationCents={session.machineSnapshot.denominationCents} digits={3} />;
@@ -57,16 +58,18 @@ function SessionHistory({ sessions, onSelect }: { sessions: Session[]; onSelect:
   </div>)}</>;
 }
 
-export function SessionPage({ session, felt, sessions, analysis, analysisError, analysisLoading, busy, playError, onRetryPlay, onPause, onResume, onClose, onSelect, onHold, onSetMask, onDeal, onSubmit, onFeedback, onRetry }: {
-  session?: Session; felt: FeltId; sessions: Session[]; analysis: AnalysisSummary | null; analysisError: string; analysisLoading: boolean; busy: boolean;
+export function SessionPage({ session, felt, sessions, analysis, analysisError, analysisLoading, busy, playError, onRetryPlay, onPause, onResume, onClose, onSelect, onHold, onSetMask, onDeal, onSubmit, onFeedback, onRetry, onBet, onBetMax }: {
+  session?: Session; felt: FeltId; sessions: Session[]; analysis: TableSummary | null; analysisError: string; analysisLoading: boolean; busy: boolean;
   playError: string; onRetryPlay: () => void;
   onPause: (session: Session) => void; onResume: (session: Session) => void; onClose: (session: Session) => void; onSelect: (id: string) => void;
   onHold: (session: Session, index: number) => void; onSetMask: (session: Session, mask: number) => void;
   onDeal: (session: Session) => void; onSubmit: (session: Session, confirmMistake?: boolean) => void;
   onFeedback: (session: Session, mode: FeedbackMode) => void; onRetry: () => void;
+  onBet: (session: Session, coins: number) => void; onBetMax: (session: Session) => void;
 }) {
   const active = session?.status === "active";
   const walletName = useAppStore(store => store.wallets.find(wallet => wallet.id === session?.walletId)?.name) ?? "Deleted wallet";
+  const dealSpeed = useAppStore(store => store.dealSpeed);
   const canPlay = !!session && active && !busy;
   const state = session?.state;
   const warning = state?.warning ?? null;
@@ -105,6 +108,12 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
         onHold(session, Number(event.key) - 1);
         return;
       }
+      if ((event.key === "b" || event.key === "m") && canDeal && !busy && !session.trainingFocus && (!interactive || cardButton || actionButton)) {
+        event.preventDefault();
+        if (event.key === "m") onBetMax(session);
+        else onBet(session, currentBet(session).coins % 5 + 1);
+        return;
+      }
       if (event.key === " " || event.key === "Enter") {
         if (actionButton) event.preventDefault();
         else if (interactive && !cardButton) return;
@@ -118,7 +127,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [session, state?.phase, state?.handId, canToggle, canDeal, busy, cardSet.length, onHold, onDeal, onSubmit, warning]);
+  }, [session, state?.phase, state?.handId, canToggle, canDeal, busy, cardSet.length, onHold, onDeal, onSubmit, onBet, onBetMax, warning]);
 
   if (!session) return <>
     <div className="page-heading"><div><p className="eyebrow">Session room</p><h1>No table open</h1></div><p className="heading-note">Pick a machine to play, or open a past session's report.</p></div>
@@ -137,13 +146,14 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
   const hits = new Set(outcome?.lines.filter(line => line.payoutCoins > 0).map(line => line.rank) ?? []);
   const suggestedMask = reviewing && warning ? warning.bestMask : 0;
   const handKey = state?.handId ?? "preview";
+  const bet = currentBet(session).coins;
 
   return <>
     <header className="session-bar">
       <div>
         <p className="eyebrow session-eyebrow">{modeName(session.mode)} {statusBadge(session)}</p>
         <h1>{config.name}</h1>
-        <p className="session-bar-meta">{libraryTable?.name ?? "Custom pay table"} · {money(config.denominationCents)} per coin · {plural(config.coins, "coin")}{freePlay ? ` × ${plural(config.lines, "line")}` : " · no bet"}</p>
+        <p className="session-bar-meta">{libraryTable?.name ?? "Custom pay table"} · {money(config.denominationCents)} per coin · bet {plural(bet, "coin")}{freePlay ? ` × ${plural(config.lines, "line")}` : " · no wager"}</p>
       </div>
       {session.status !== "closed" && <div className="session-bar-actions">
         {session.status === "active" ? <Button variant="secondary" icon="pause" disabled={busy} onClick={() => onPause(session)}>Pause</Button> : <Button variant="gold" icon="play" disabled={busy} onClick={() => onResume(session)}>Resume</Button>}
@@ -162,14 +172,14 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
       </section>}
 
       <section className="play-console">
-        <div className="play-table" data-felt={felt} data-speed={config.speed}>
+        <div className="play-table" data-felt={felt} data-speed={dealSpeed}>
           <div className="play-topline">
             <span className="play-mode-tag">{modeName(session.mode)}</span>
             <span className="hand-counter">Hand {state?.handIndex ? String(state.handIndex).padStart(3, "0") : "—"}</span>
             {session.status !== "closed" && <TableSettings session={session} busy={busy} onFeedback={mode => onFeedback(session, mode)} />}
           </div>
 
-          <PayTable paytableId={config.paytableId} coins={config.coins} hits={hits} />
+          <PayTable paytableId={config.paytableId} coins={bet} hits={hits} />
           <LineRows session={session} familyId={familyId} />
 
           <div className="hand-zone">
@@ -191,7 +201,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
               <div className="hand-cards is-empty" aria-hidden="true">{[0, 1, 2, 3, 4].map(index => <span key={index} className="hand-card-slot"><CardBack /></span>)}</div>
               <div className="placeholder-caption">
                 <h2>{session.status === "active" ? "Ready when you are." : session.status === "paused" ? "Session paused." : "Session closed."}</h2>
-                <p>{session.status === "active" ? freePlay ? `Each deal bets ${plural(config.coins * config.lines, "credit")} (${money(config.coins * config.lines * config.denominationCents)}).` : "Deal a hand to start drilling." : session.status === "paused" ? "Resume to pick up exactly where you left off." : "This session's report is below."}</p>
+                <p>{session.status === "active" ? freePlay ? `Each deal bets ${plural(bet * config.lines, "credit")} (${money(bet * config.lines * config.denominationCents)}).` : "Deal a hand to start drilling." : session.status === "paused" ? "Resume to pick up exactly where you left off." : "This session's report is below."}</p>
               </div>
             </>}
           </div>
@@ -200,12 +210,16 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
 
           {reviewing && warning ? <HoldReview grade={warning} session={session} busy={busy} open={detailsOpen} onToggle={toggleDetails}
             onUseBest={() => onSetMask(session, warning.bestMask)} onDrawAnyway={() => onSubmit(session, true)} /> : <div className="play-action-row">
-            {canDeal && <Button variant="gold" icon="cards" data-play-action="deal" disabled={!canPlay} loading={busy} loadingLabel="Dealing…" onClick={() => onDeal(session)}>Deal hand</Button>}
+            {canDeal && <>
+              {!session.trainingFocus && <><Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBet(session, bet % 5 + 1)} title="Add one credit per line (B)">Bet One</Button>
+              <Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBetMax(session)} title="Bet 5 credits per line and deal (M)">Bet Max</Button></>}
+              <Button variant="gold" icon="cards" data-play-action="deal" disabled={!canPlay} loading={busy} loadingLabel="Dealing…" onClick={() => onDeal(session)}>Deal hand</Button>
+            </>}
             {state?.phase === "holding" && state.handId && freePlay && <Button variant="gold" icon="draw" data-play-action="submit" disabled={!canSubmit} loading={busy} loadingLabel="Drawing…" onClick={() => onSubmit(session)}>Draw</Button>}
             {state?.phase === "holding" && state.handId && !freePlay && <Button variant="gold" icon="check" data-play-action="submit" disabled={!canSubmit} loading={busy} loadingLabel="Checking…" onClick={() => onSubmit(session)}>Check answer</Button>}
           </div>}
           {active && !reviewing && cardSet.length === 5 && state?.phase === "holding" && <p className="keyboard-hint">1–5 hold cards · Space or Enter {freePlay ? "draws" : "checks"}</p>}
-          {active && (state?.phase === "ready" || complete) && <p className="keyboard-hint">Space or Enter deals</p>}
+          {active && (state?.phase === "ready" || complete) && <p className="keyboard-hint">Space or Enter deals · B bet one · M bet max</p>}
           {state?.phase === "holding" && !state.handId && <p className="status-note">This is a saved preview hand. Deal to start a real hand.</p>}
 
           {finalGrade && (finalGrade.correct
@@ -213,7 +227,8 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
             : <MistakeFeedback grade={finalGrade} session={session} open={detailsOpen} onToggle={toggleDetails} />)}
           {playError && <div className="play-error" role="alert">{playError}<br /><button className="text-button" type="button" onClick={onRetryPlay}>Retry this action</button></div>}
 
-          <CreditMeter session={session} />
+          {session.status !== "closed" && <BetControls session={session} busy={busy} onBet={coins => onBet(session, coins)} />}
+          <CreditMeter session={session} betCoins={bet} />
         </div>
 
         {session.status === "closed" && <ClosedSummary session={session} />}
@@ -235,7 +250,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
             <div className="detail-grid">
               <div className="detail"><label>Pay table</label><strong>{libraryTable?.name ?? "Custom pay table"}</strong></div>
               <div className="detail"><label>Game</label><strong>{familyName(analysis?.familyId ?? familyId)}</strong></div>
-              <div className="detail"><label>Coins × lines</label><strong>{config.coins} × {freePlay ? config.lines : 1}</strong></div>
+              <div className="detail"><label>Default bet × lines</label><strong>{config.coins} × {freePlay ? config.lines : 1}</strong></div>
               <div className="detail"><label>Denomination</label><strong>{money(config.denominationCents)}</strong></div>
               <div className="detail"><label>Wallet</label><strong>{walletName}</strong></div>
               <div className="detail"><label>Started</label><strong>{dateTime(session.startedAt)}</strong></div>
@@ -245,9 +260,9 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
           <Disclosure summary="Optional table analysis" onToggle={open => {
             if (open && !analysis && !analysisLoading && !analysisError) onRetry();
           }}>
-            {analysisLoading ? <><div className="skeleton" style={{ minHeight: 85, marginTop: 12 }} /><p className="settings-copy" style={{ marginTop: 12 }}>Loading analysis. You can keep playing.</p></> : analysisError ? <div className="play-error" role="alert" style={{ marginTop: 12 }}>Table analysis unavailable: {analysisError}<br /><button className="text-button" type="button" onClick={onRetry}>Retry analysis</button></div> : analysis ? <>
-              {config.coins < 5 && <div className="warning-card">Analysis below is a 5-coin baseline, not the configured {config.coins}-coin return.</div>}
-              <div className="analysis-stats"><div className="analysis-stat"><span>Computed return</span><strong>{analysis.returnPct.toFixed(3)}%</strong></div><div className="analysis-stat"><span>Variance</span><strong>{analysis.variance.toFixed(3)}</strong></div><div className="analysis-stat"><span>Hit frequency</span><strong>{(analysis.hitFreq * 100).toFixed(2)}%</strong></div><div className="analysis-stat"><span>Baseline bet</span><strong>{analysis.betCoins} coins</strong></div></div>
+            {analysisLoading ? <><div className="skeleton" style={{ minHeight: 85, marginTop: 12 }} /><p className="settings-copy" style={{ marginTop: 12 }}>Computing the exact figures for a {plural(bet, "coin")} bet. This takes a few seconds once; you can keep playing.</p></> : analysisError ? <div className="play-error" role="alert" style={{ marginTop: 12 }}>Table analysis unavailable: {analysisError}<br /><button className="text-button" type="button" onClick={onRetry}>Retry analysis</button></div> : analysis ? <>
+              <div className="analysis-stats"><div className="analysis-stat"><span>Computed return</span><strong>{analysis.returnPct.toFixed(3)}%</strong></div><div className="analysis-stat"><span>Variance</span><strong>{analysis.variance.toFixed(3)}</strong></div><div className="analysis-stat"><span>Hit frequency</span><strong>{(analysis.hitFreq * 100).toFixed(2)}%</strong></div><div className="analysis-stat"><span>Bet</span><strong>{plural(analysis.betCoins, "coin")}</strong></div></div>
+              <p className="disclosure-note">Exact, with perfect play at this bet. Computed by the engine on this device.</p>
             </> : <p className="settings-copy">Analysis hasn't loaded yet.</p>}
           </Disclosure>
         </section>

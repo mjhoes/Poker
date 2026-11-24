@@ -12,6 +12,7 @@ async function createWallet(page: Page, name = "Cruise practice", amount = "100.
 async function createMachine(page: Page) {
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: /New machine|Create.*machine/i }).first().click();
+  await page.getByRole("button", { name: /^Build your own/ }).click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Quarter Jacks");
   await page.getByRole("button", { name: "Add machine", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);

@@ -38,6 +38,23 @@ describe("custom pay tables", () => {
     await backupService.import(backup);
     expect((await paytableService.listCustom()).map(row => row.name)).toEqual(["Ship 7/5"]);
   });
+  it("saves per-bet figures onto the current record, never undoing a rename, delete or restore made meanwhile", async () => {
+    const { id } = await paytableService.saveCustom({ name: "7/5 Jacks", draft: draft("7/5") });
+    const figures = { returnPct: 0.95, hitFreq: 0.45, variance: 19, engineVersion: "test" };
+    // The figures were computed from a copy read before the rename; the rename survives.
+    await paytableService.rename(id, "Ship 7/5");
+    expect(await paytableService.saveSummary(id, 2, figures)).toBe(true);
+    expect(await db.records("paytables").get(id)).toMatchObject({ name: "Ship 7/5", summaries: { "2": figures } });
+    // A deleted table stays deleted and unchanged.
+    await paytableService.remove(id);
+    const deleted = await db.records("paytables").get(id);
+    expect(await paytableService.saveSummary(id, 3, figures)).toBe(false);
+    expect(await db.records("paytables").get(id)).toEqual(deleted);
+    // A table that a restore removed is not recreated.
+    await db.records("paytables").delete(id);
+    expect(await paytableService.saveSummary(id, 3, figures)).toBe(false);
+    expect(await db.records("paytables").get(id)).toBeUndefined();
+  });
   it("refuses to delete a table a machine uses, then deletes it once unused", async () => {
     const { id } = await paytableService.saveCustom({ name: "7/5 Jacks", draft: draft("7/5") });
     const wallet = await walletService.create({ name: "Bankroll", initialCents: 1000 });

@@ -10,9 +10,27 @@ import { analysisSchema } from "@perfect-draw/shared";
 import { db, stamp } from "../data/db";
 import type { AnalysisSummary, EngineAPI } from "./engine-api";
 import { StatsEngine } from "./stats-engine";
+import { paytableService } from "../services/paytables";
 
 const loaded = new Map<string, PrecomputedGameAnalysis>();
+
+/**
+ * Static analysis files are fetched with two retries on network errors (a dev proxy or a cold start can drop one), and
+ * a final failure names the file instead of the browser's bare "Failed to fetch".
+ */
+async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  let last: unknown;
+  for (const wait of [0, 400, 1500]) {
+    if (wait) await new Promise(resolve => setTimeout(resolve, wait));
+    try { return await fetch(input, init); } catch (error) { last = error; }
+  }
+  const reason = last instanceof Error ? last.message : String(last);
+  throw new Error(`Couldn't download ${url.replace(/^.*?(analyses\/)/, "$1")} (${reason}).`);
+}
+const download = { fetch: fetchWithRetry as typeof fetch };
 let solverFamily = "";
+const warmed = new Set<string>();
 function retain(key: string, analysis: PrecomputedGameAnalysis) {
   loaded.delete(key); loaded.set(key, analysis);
   registerTrainingAnalysis(key, analysis);
@@ -95,8 +113,14 @@ const api: EngineAPI = {
       }
     }
     if (!table) throw new Error("No cached analysis with this key. Analyze this pay table first.");
-    const manifest = await loadPrecomputedManifest();
-    return cache(await loadPrecomputedAnalysis(table.id, manifest), table.id);
+    try {
+      const manifest = await loadPrecomputedManifest(download);
+      return cache(await loadPrecomputedAnalysis(table.id, manifest, download), table.id);
+    } catch (downloadError) {
+      // The static file is only a shortcut: the engine can compute the same analysis exactly on this device.
+      try { return await api.analyzeGame(table.familyId, standardVariant.valueVector(table, 5, {}), 5); }
+      catch { throw downloadError; }
+    }
   },
   async analyzeGame(family, vector, betCoins, progress) {
     prepareSolver(family);
@@ -113,6 +137,44 @@ const api: EngineAPI = {
     prepareSolver(family);
     const analysis = analyzeGame(family, vector, undefined, { betCoins: 5 });
     return { returnPct: analysis.returnPct, hitFreq: analysis.hitFreq, variance: analysis.variance, engineVersion: ENGINE_VERSION };
+  },
+  async tableSummary(paytableId, coins) {
+    if (!Number.isInteger(coins) || coins < 1 || coins > 5) throw new Error("Choose 1–5 coins.");
+    const row = await db.records("paytables").get(paytableId);
+    const library = PAY_TABLE_LIBRARY.find(table => table.id === paytableId);
+    const table = row ?? library;
+    if (!table || row?.deletedAt != null) throw new Error("This pay table is no longer available.");
+    const key = String(coins) as "1" | "2" | "3" | "4" | "5";
+    const saved = row?.summaries?.[key] ?? (coins === 5 ? row?.computed : undefined);
+    if (saved?.engineVersion === ENGINE_VERSION) return { ...saved, familyId: table.familyId, betCoins: coins, source: "saved" };
+    if (library && coins === 5) {
+      try {
+        const entry = (await loadPrecomputedManifest(download)).entries.find(item => item.paytableId === paytableId);
+        if (entry) return { returnPct: entry.returnPct, hitFreq: entry.hitFreq, variance: entry.variance, engineVersion: ENGINE_VERSION, familyId: table.familyId, betCoins: coins, source: "library" };
+      } catch { /* Fall through to the exact local computation. */ }
+    }
+    prepareSolver(table.familyId);
+    const analysis = analyzeGame(table.familyId, standardVariant.valueVector(table, coins, {}), undefined, { betCoins: coins });
+    const summary = { returnPct: analysis.returnPct, hitFreq: analysis.hitFreq, variance: analysis.variance, engineVersion: ENGINE_VERSION };
+    // The computation takes seconds; this writes onto the record as it is then, never the copy read above.
+    if (row) await paytableService.saveSummary(paytableId, coins, summary);
+    return { ...summary, familyId: table.familyId, betCoins: coins, source: "computed" };
+  },
+  async warmOffline(paytableId) {
+    // Fetch (never parse) a built-in table's analysis file so the service worker keeps it for offline statistics and
+    // drills. Skipped when it is already on this device; one try per table per run.
+    const table = PAY_TABLE_LIBRARY.find(item => item.id === paytableId);
+    if (!table || warmed.has(paytableId)) return false;
+    warmed.add(paytableId);
+    const key = analysisKey(table.familyId, standardVariant.valueVector(table, 5, {}), 5);
+    if (loaded.has(key) || (await db.records("analyses").get(key))?.engineVersion === ENGINE_VERSION) return true;
+    const entry = (await loadPrecomputedManifest(download)).entries.find(item => item.paytableId === paytableId);
+    if (!entry) return false;
+    const url = `/analyses/${entry.file}`;
+    if (typeof caches !== "undefined" && await caches.match(url)) return true;
+    const response = await fetchWithRetry(url);
+    await response.arrayBuffer();
+    return response.ok;
   },
   async generateDrill(options) {
     await api.loadAnalysis(options.analysisKey);

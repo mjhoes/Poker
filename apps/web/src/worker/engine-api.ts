@@ -6,6 +6,8 @@ import type { RoundOutcome } from "@perfect-draw/engine";
 import type { StatsQuery, StatsReportView, Session } from "@perfect-draw/shared";
 
 export type GamePreview = { returnPct: number; hitFreq: number; variance: number; engineVersion: string };
+/** Whole-game figures for one table and bet, and where they came from. */
+export type TableSummary = GamePreview & { familyId: GameFamilyId; betCoins: number; source: "library" | "saved" | "computed" };
 export type AnalysisSummary = Omit<GameAnalysis, "perHand"> & { key: string; strategyLists: readonly StrategyList[] };
 export interface EngineAPI {
   rollupDecisions(timeZone: string): Promise<number>;
@@ -18,5 +20,9 @@ export interface EngineAPI {
   loadAnalysis(keyOrPaytableId: string): Promise<AnalysisSummary>;
   /** Max-bet return for an unsaved pay table (the editor's live figure). Nothing is cached. */
   previewGame(familyId: GameFamilyId, vector: ValueVector): Promise<GamePreview>;
+  /** Return, variance and hit frequency for a table at a bet, without loading the full hand-by-hand analysis. */
+  tableSummary(paytableId: string, coins: number): Promise<TableSummary>;
+  /** Downloads a built-in table's analysis file (without loading it) so it is available offline. */
+  warmOffline(paytableId: string): Promise<boolean>;
   generateDrill(options: Omit<DrillOptions, "random">): Promise<DrillHand>;
 }

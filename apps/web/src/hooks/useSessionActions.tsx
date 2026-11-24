@@ -71,6 +71,12 @@ export function useSessionActions({ runner, confirm, shownSessionId, onShowSessi
     setHeldMask: (session: Session, heldMask: number) => void runPlay(() =>
       sessionService.applyAction(session.id, { type: "hold", heldMask, handId: session.state.handId })),
     deal: (session: Session) => void runPlay(() => playService.deal(session.id, session.state.handId)),
+    setBet: (session: Session, coins: number) => void runPlay(() => sessionService.applyAction(session.id, { type: "bet", coins })),
+    /** Like a machine's BET MAX: five credits per line, then deal. */
+    betMax: (session: Session) => void runPlay(async () => {
+      await sessionService.applyAction(session.id, { type: "bet", coins: 5 });
+      await playService.deal(session.id, session.state.handId);
+    }),
     submit: (session: Session, confirmMistake = false) => {
       const handId = session.state.handId;
       if (handId) void runPlay(() => playService.submit(session.id, handId, confirmMistake));

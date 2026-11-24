@@ -16,6 +16,7 @@ test("production app, saved sessions and cached worker analysis reopen fully off
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: /New machine|Create.*machine/i }).first().click();
+  await page.getByRole("button", { name: /^Build your own/ }).click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Offline Jacks");
   await page.getByRole("button", { name: "Add machine", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -23,6 +24,8 @@ test("production app, saved sessions and cached worker analysis reopen fully off
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByText("Optional table analysis", { exact: true }).click();
   await expect(page.getByText("99.544%", { exact: true })).toBeVisible({ timeout: 45_000 });
+  // Opening the table keeps its full analysis file for offline statistics, without loading it.
+  await expect.poll(() => page.evaluate(async () => (await (await caches.open("perfect-draw-analyses-v4")).keys()).length), { timeout: 30_000 }).toBe(1);
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Offline Jacks", exact: true })).toBeVisible();

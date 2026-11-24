@@ -19,7 +19,9 @@ export const profileSchema = z.object({
   id: z.literal("local"), displayName: nameSchema.default("Player"), createdAt: timestamp, ...metadata,
   prefs: z.object({ activeSessionId: uuid.nullable().default(null), lastBackupAt: timestamp.nullable().default(null), lastBackupDecisionCount: z.number().int().nonnegative().default(0),
     /** Card colors: classic red/black, or four colors (diamonds blue, clubs green). */
-    deckColors: z.enum(["two", "four"]).default("two") }).default({}),
+    deckColors: z.enum(["two", "four"]).default("two"),
+    /** Deal and draw animation pace, chosen at the table; applies to every machine. */
+    dealSpeed: z.enum(["relaxed", "normal", "fast"]).default("normal") }).default({}),
 });
 export const providerSchema = z.enum(["openai", "anthropic"]);
 export const aiSettingsSchema = z.object({
@@ -35,15 +37,19 @@ export const aiUsageSchema = z.object({
   inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative(),
   estCost: z.number().finite().nonnegative(), createdAt: timestamp,
 });
+/** Engine-computed whole-game figures for one bet (coins per line). Small and regenerable. */
+export const gameSummarySchema = z.object({
+  returnPct: z.number().finite(), hitFreq: z.number().finite().min(0).max(1),
+  variance: z.number().finite().nonnegative(), engineVersion: z.string(),
+});
 export const paytableSchema = z.object({
   id: hash, ...metadata, familyId: familyIdSchema, name: nameSchema,
   pays: z.record(z.tuple([z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative()])),
   source: z.enum(["library", "photo", "manual"]), createdAt: timestamp,
   /** Engine-computed max-bet (5-coin) figures for a custom table, saved with it so lists can show the return. */
-  computed: z.object({
-    returnPct: z.number().finite(), hitFreq: z.number().finite().min(0).max(1),
-    variance: z.number().finite().nonnegative(), engineVersion: z.string(),
-  }).optional(),
+  computed: gameSummarySchema.optional(),
+  /** Saved per-bet figures (keys "1"–"5"), so the table analysis panel never recomputes or downloads twice. */
+  summaries: z.record(z.enum(["1", "2", "3", "4", "5"]), gameSummarySchema).optional(),
 });
 export const analysisSchema = z.object({
   key: hash, ...metadata, paytableId: hash, variantKind: variantKindSchema.default("standard"),
@@ -82,6 +88,10 @@ export const sessionStateSchema = z.object({
   warning: gradeSchema.nullable().default(null), feedback: gradeSchema.nullable().default(null),
   outcome: outcomeSchema.nullable().default(null), attempts: z.number().int().nonnegative().default(0),
   priorOutcome: z.string().nullable().default(null),
+  /** Coins per line chosen for the next deal; null means the machine's default bet. */
+  betCoins: z.number().int().min(1).max(5).nullable().default(null),
+  /** Coins per line locked for the hand in play (or last played); null on hands dealt before bets could change. */
+  handCoins: z.number().int().min(1).max(5).nullable().default(null),
 }).superRefine((state, ctx) => {
   if (state.hand.length === 0 && (state.heldMask !== 0 || state.phase !== "ready")) ctx.addIssue({ code: "custom", message: "A non-ready state needs a hand" });
   if (state.handId) {
@@ -127,6 +137,7 @@ export const decisionSchema = z.object({
   denominationCents: positiveCents.default(25),
 });
 export type Paytable = z.infer<typeof paytableSchema>;
+export type GameSummary = z.infer<typeof gameSummarySchema>;
 export type Machine = z.infer<typeof machineSchema>;
 export type MachineDraft = z.infer<typeof machineDraftSchema>;
 export type Wallet = z.infer<typeof walletSchema>;

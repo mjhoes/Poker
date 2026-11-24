@@ -1,9 +1,10 @@
 import { describeLabel } from "@perfect-draw/engine";
 import type { Session } from "@perfect-draw/shared";
-import { Button, CoinAmount } from "../components/ui";
+import { Button, CoinAmount, Disclosure } from "../components/ui";
 import { Icon } from "../components/Icons";
 import { CardFace } from "./CardFace";
 import { cardName, maskIndexes } from "./cards";
+import { HoldComparison } from "./HoldComparison";
 
 type Grade = NonNullable<Session["state"]["feedback"]>;
 
@@ -45,6 +46,10 @@ export function DecisionDetails({ grade, session }: { grade: Grade; session: Ses
         <strong><Ev value={grade.evLoss} session={session} />{multiLine(session) && <> <span className="ev-divider">/</span> <Ev value={grade.totalEvLoss} session={session} /></>}</strong></div>
     </div>
     <p className="decision-note">Expected value is the average return of a hold over every possible draw, in credits per line. Equivalent holds count as optimal.</p>
+    {hand.length === 5 && session.state.analysis && <Disclosure className="why-disclosure"
+      summary={grade.correct ? "Why is this the best hold? Compare it with others" : "Why is the best hold better? See what each hold can make"}>
+      <HoldComparison session={session} grade={grade} />
+    </Disclosure>}
   </div>;
 }
 
