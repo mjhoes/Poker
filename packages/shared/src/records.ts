@@ -17,7 +17,9 @@ export const entity = { id: uuid, ...metadata };
 export const nameSchema = z.string().trim().min(1).max(100);
 export const profileSchema = z.object({
   id: z.literal("local"), displayName: nameSchema.default("Player"), createdAt: timestamp, ...metadata,
-  prefs: z.object({ activeSessionId: uuid.nullable().default(null), lastBackupAt: timestamp.nullable().default(null), lastBackupDecisionCount: z.number().int().nonnegative().default(0) }).default({}),
+  prefs: z.object({ activeSessionId: uuid.nullable().default(null), lastBackupAt: timestamp.nullable().default(null), lastBackupDecisionCount: z.number().int().nonnegative().default(0),
+    /** Card colors: classic red/black, or four colors (diamonds blue, clubs green). */
+    deckColors: z.enum(["two", "four"]).default("two") }).default({}),
 });
 export const providerSchema = z.enum(["openai", "anthropic"]);
 export const aiSettingsSchema = z.object({
@@ -37,6 +39,11 @@ export const paytableSchema = z.object({
   id: hash, ...metadata, familyId: familyIdSchema, name: nameSchema,
   pays: z.record(z.tuple([z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative(), z.number().finite().nonnegative()])),
   source: z.enum(["library", "photo", "manual"]), createdAt: timestamp,
+  /** Engine-computed max-bet (5-coin) figures for a custom table, saved with it so lists can show the return. */
+  computed: z.object({
+    returnPct: z.number().finite(), hitFreq: z.number().finite().min(0).max(1),
+    variance: z.number().finite().nonnegative(), engineVersion: z.string(),
+  }).optional(),
 });
 export const analysisSchema = z.object({
   key: hash, ...metadata, paytableId: hash, variantKind: variantKindSchema.default("standard"),
@@ -49,7 +56,7 @@ export const machineDraftSchema = z.object({
   name: nameSchema, paytableId: hash, variant: variantSchema,
   denominationCents: positiveCents.max(100000), coins: z.number().int().min(1).max(5).default(5),
   lines: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(10)]).default(1),
-  theme: z.enum(["felt", "midnight", "classic"]).default("felt"),
+  theme: z.enum(["felt", "midnight", "classic", "royal", "ocean", "onyx"]).default("felt"),
   speed: z.enum(["relaxed", "normal", "fast"]).default("normal"),
   defaultWalletId: uuid, casinoName: z.string().max(120).default(""),
   location: z.string().max(200).default(""), notes: z.string().max(2000).default(""),
@@ -119,6 +126,7 @@ export const decisionSchema = z.object({
   coins: z.number().int().min(1).max(5).default(5), lines: z.number().int().min(1).max(10).default(1),
   denominationCents: positiveCents.default(25),
 });
+export type Paytable = z.infer<typeof paytableSchema>;
 export type Machine = z.infer<typeof machineSchema>;
 export type MachineDraft = z.infer<typeof machineDraftSchema>;
 export type Wallet = z.infer<typeof walletSchema>;

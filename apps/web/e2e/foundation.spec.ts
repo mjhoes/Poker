@@ -3,9 +3,9 @@ import type { Page } from "@playwright/test";
 
 async function createWallet(page: Page, name = "Cruise practice", amount = "100.00") {
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
-  await page.getByRole("button", { name: /Create play-money wallet|New wallet/ }).first().click();
+  await page.getByRole("button", { name: /Set up a wallet|New wallet/ }).first().click();
   await page.getByRole("textbox", { name: "Wallet name", exact: true }).fill(name);
-  await page.getByRole("textbox", { name: "Opening play-money amount", exact: true }).fill(amount);
+  await page.getByRole("textbox", { name: "Starting balance", exact: true }).fill(amount);
   await page.getByRole("button", { name: "Create wallet", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 }
@@ -13,18 +13,17 @@ async function createMachine(page: Page) {
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   await page.getByRole("button", { name: /New machine|Create.*machine/i }).first().click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Quarter Jacks");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await page.getByRole("button", { name: "Add machine", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 }
 async function prepareSession(page: Page) {
-  await page.getByRole("button", { name: /Prepare session/i }).first().click();
-  await page.getByRole("dialog").getByRole("button", { name: "Prepare session", exact: true }).click();
+  await page.getByRole("button", { name: /^(Play|Continue)$/ }).first().click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeVisible();
 }
 test("machines, wallets, sessions, worker and backup survive reload", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  page.on("dialog", dialog => dialog.accept());
   await page.goto("/");
   await createWallet(page);
   await createMachine(page);
@@ -100,6 +99,11 @@ test("machines, wallets, sessions, worker and backup survive reload", async ({ p
   await createWallet(page, "Temporary", "0");
   await page.getByRole("link", { name: "Settings", exact: true }).click();
   await page.getByLabel("Import backup file").setInputFiles({ name: "backup.json", mimeType: "application/json", buffer: Buffer.from(json) });
+  const restoreDialog = page.getByRole("dialog");
+  const replace = restoreDialog.getByRole("button", { name: "Replace my data", exact: true });
+  await expect(replace).toBeDisabled();
+  await restoreDialog.getByRole("checkbox").check();
+  await replace.click();
   await expect(page.getByText(/Backup restored:/)).toBeVisible();
   await page.waitForTimeout(1200); // Restore intentionally reloads the app after confirming success.
   await expect.poll(() => page.evaluate(async () => {
@@ -122,7 +126,7 @@ test("mobile wallet forms validate input and fit the viewport", async ({ page })
   await createWallet(page);
   await page.getByRole("button", { name: /Top.up|Add credits/i }).first().click();
   await page.getByRole("textbox", { name: "Amount in dollars" }).fill("-1");
-  await page.getByRole("button", { name: "Record top-up", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Add credits", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByText(/greater than.*0.00/).first()).toBeVisible();
   await page.keyboard.press("Escape");
@@ -131,7 +135,6 @@ test("mobile wallet forms validate input and fit the viewport", async ({ page })
 });
 
 test("wallet transfers and machine editing/deletion are wired to persistent services", async ({ page }) => {
-  page.on("dialog", dialog => dialog.accept());
   await page.goto("/");
   await createWallet(page);
   await createWallet(page, "Reserve", "0");
@@ -145,15 +148,22 @@ test("wallet transfers and machine editing/deletion are wired to persistent serv
   await expect(page.getByRole("button", { name: "Select wallet Reserve", exact: true })).toContainText("$25.00");
   await expect(page.getByRole("button", { name: "Select wallet Main practice", exact: true })).toContainText("$75.00");
   await createMachine(page);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "More actions for Quarter Jacks", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
   await page.getByRole("textbox", { name: "Machine name", exact: true }).fill("Dollar Jacks");
   await page.getByRole("textbox", { name: "Denomination in dollars", exact: true }).fill("1.00");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Dollar Jacks", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "More actions for Dollar Jacks", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  const confirmDelete = page.getByRole("dialog");
+  await expect(confirmDelete.getByRole("heading", { name: "Delete “Dollar Jacks”?" })).toBeVisible();
+  await expect(confirmDelete.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+  await confirmDelete.getByRole("button", { name: "Delete machine", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Dollar Jacks", exact: true })).toHaveCount(0);
 });
 
 test("unavailable workers do not prevent wallet management", async ({ page }) => {

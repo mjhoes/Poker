@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { describeLabel, localDayBounds } from "@perfect-draw/engine";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
-import type { Machine, StatsQuery, StatsReport } from "@perfect-draw/shared";
+import { useAllPaytables } from "../paytables/catalog";
+import type { Machine, StatsQuery, StatsReportView } from "@perfect-draw/shared";
+import { dollarsFor } from "../components/ui";
+import { denominationLabel } from "../machines/machine-info";
 import { TrendChart, WeaknessRankingChart } from "../components/StatisticsCharts";
 import { statsService } from "../services/statistics";
 
@@ -13,9 +16,11 @@ const describe = (label: string, familyId: string) => {
   catch { return label; }
 };
 const percent = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(3)}%`;
-const coins = (value: number | null | undefined, digits = 3) => {
+/** Credit amounts (per line at this bet), with dollars when the report covers a single known denomination. */
+const creditsFormatter = (denominationCents: number | null) => (value: number | null | undefined, digits = 3) => {
   if (value == null || !Number.isFinite(value)) return "—";
-  return value !== 0 && Math.abs(value) < 0.001 ? `${value.toExponential(2)} coins` : `${value.toFixed(digits)} coins`;
+  const amount = value !== 0 && Math.abs(value) < 0.001 ? `${value.toExponential(2)} credits` : `${value.toFixed(digits)} credits`;
+  return denominationCents ? `${amount} (${dollarsFor(value, denominationCents)})` : amount;
 };
 const count = (value: number) => new Intl.NumberFormat().format(value);
 const dateEpoch = (value: string, end = false) => {
@@ -40,7 +45,8 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
   const [mode, setMode] = useState<StatsQuery["mode"]>("all");
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
-  const [report, setReport] = useState<StatsReport | null>(null);
+  const [report, setReport] = useState<StatsReportView | null>(null);
+  const [denomination, setDenomination] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -53,7 +59,8 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
   const [training, setTraining] = useState(false);
   const [trainingError, setTrainingError] = useState("");
   const requestId = useRef(0);
-  const selectedTable = PAY_TABLE_LIBRARY.find(table => table.id === paytableId);
+  const allTables = useAllPaytables();
+  const selectedTable = allTables.find(table => table.id === paytableId);
   const matchedMachines = useMemo(
     () => machines.filter(machine => machine.paytableId === paytableId && machine.coins === coinValue),
     [machines, paytableId, coinValue],
@@ -81,6 +88,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
       paytableId,
       coins: coinValue as 1 | 2 | 3 | 4 | 5,
       mode: mode ?? "all",
+      ...(denomination ? { denominationCents: Number(denomination) } : {}),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       ...(start === undefined ? {} : { since: start }),
       ...(end === undefined ? {} : { until: end }),
@@ -96,7 +104,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
       if (requestId.current === thisRequest) setLoading(false);
     });
     return () => { requestId.current++; };
-  }, [paytableId, coinValue, mode, since, until, decisionCount, refreshKey]);
+  }, [paytableId, coinValue, mode, since, until, denomination, decisionCount, refreshKey]);
 
   const confusionRows = useMemo(() => {
     if (!report) return [];
@@ -133,6 +141,10 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
   }
   const filterSummary = `${selectedTable?.name ?? "Selected paytable"} · ${coinValue} coin${coinValue === 1 ? "" : "s"} · ${mode === "all" ? "all modes" : mode === "drill" ? "Rapid Drill" : "Free Play"}`;
   const showNoDecisions = !!report && report.n === 0;
+  const dollarDenomination = denomination ? Number(denomination)
+    : report && report.denominations.length === 1 && report.undenominatedArchived === 0 ? report.denominations[0] : null;
+  const coins = creditsFormatter(dollarDenomination);
+  const denominationChoices = [...new Set([...(report?.denominations ?? []), ...(denomination ? [Number(denomination)] : [])])].sort((a, b) => a - b);
 
   return <div className="stats-page">
     <div className="page-heading stats-heading">
@@ -146,8 +158,9 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
     <section className="panel stats-filters" aria-label="Report filters">
       <div className="stats-filter-top"><div><p className="eyebrow">REPORT SCOPE</p><h2>One game configuration at a time</h2></div><span className="stats-scope">{filterSummary}</span></div>
       <div className="stats-filter-grid">
-        <label className="field"><span className="field-label">Saved paytable</span><select value={paytableId} onChange={event => setPaytableId(event.target.value)} aria-label="Saved paytable">
-          {PAY_TABLE_LIBRARY.map(table => <option key={table.id} value={table.id}>{table.name}</option>)}
+        <label className="field"><span className="field-label">Saved paytable</span><select value={paytableId} onChange={event => { setPaytableId(event.target.value); setDenomination(""); }} aria-label="Saved paytable">
+          <optgroup label="Built-in">{allTables.filter(table => table.source === "library").map(table => <option key={table.id} value={table.id}>{table.name}</option>)}</optgroup>
+          {allTables.some(table => table.source !== "library") && <optgroup label="Your pay tables">{allTables.filter(table => table.source !== "library").map(table => <option key={table.id} value={table.id}>{table.name}</option>)}</optgroup>}
         </select></label>
         <label className="field"><span className="field-label">Coins per hand</span><select value={coinValue} onChange={event => setCoinValue(Number(event.target.value))} aria-label="Coins per hand">
           {[1, 2, 3, 4, 5].map(value => <option key={value} value={value}>{value} coin{value === 1 ? "" : "s"}</option>)}
@@ -155,9 +168,17 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
         <label className="field"><span className="field-label">Mode</span><select value={mode} onChange={event => setMode(event.target.value as StatsQuery["mode"])} aria-label="Session mode">
           <option value="all">All modes</option><option value="free_play">Free Play</option><option value="drill">Rapid Drill</option>
         </select></label>
+        <label className="field"><span className="field-label">Denomination</span><select value={denomination} onChange={event => setDenomination(event.target.value)} aria-label="Denomination">
+          <option value="">All denominations</option>
+          {denominationChoices.map(cents => <option key={cents} value={cents}>{denominationLabel(cents)}</option>)}
+        </select></label>
         <label className="field"><span className="field-label">From (local)</span><input type="date" value={since} onChange={event => setSince(event.target.value)} /></label>
         <label className="field"><span className="field-label">Through (local)</span><input type="date" value={until} onChange={event => setUntil(event.target.value)} /></label>
       </div>
+      {report && !dollarDenomination && report.n > 0 && <p className="stats-dollar-note">{report.denominations.length > 1
+        ? "This report mixes denominations, so figures are shown in credits. Choose a denomination to see dollars."
+        : "Some archived history predates denomination tracking, so figures are shown in credits. Choose a denomination to see dollars for newer play."}</p>}
+      {report && denomination && report.undenominatedArchived > 0 && <p className="stats-dollar-note">{count(report.undenominatedArchived)} archived decisions have no recorded denomination and are left out of this view.</p>}
       <p className="stats-filter-foot">Reports never combine paytables or coin counts. Dates include complete local days ({Intl.DateTimeFormat().resolvedOptions().timeZone}), including DST. Archived daily buckets retain their saved local dates and timezone.</p>
     </section>
 

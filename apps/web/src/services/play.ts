@@ -44,7 +44,7 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
         const bet = session.mode === "drill" ? 0 : safeCents(standardVariant.betCoins(config.coins, config.lines) * config.denominationCents);
         if (bet) {
           const wallet = await requireRecord("wallets", session.walletId);
-          if (wallet.balanceCents < bet) throw new Error("Insufficient play-money balance. Top up this session's wallet.");
+          if (wallet.balanceCents < bet) throw new Error("Insufficient credits in this wallet. Add credits to keep playing.");
           balanceDisplay = creditState((await postLedger(session.walletId, -bet, "bet", { sessionId: id })).balanceCents, config.denominationCents);
         }
         const now = Date.now();

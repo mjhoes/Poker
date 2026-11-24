@@ -11,12 +11,24 @@ use([BarChart, LineChart, GridComponent, TooltipComponent, AxisPointerComponent,
 
 type TrendMetric = "accuracyPct" | "evLostPer1000" | "asDrilledReturnPct";
 
+/** Chart colors come from the design tokens in tokens.css, so charts follow the app's palette. */
+function chartTokens() {
+  const style = getComputedStyle(document.documentElement);
+  const token = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
+  return {
+    accuracy: token("--chart-accuracy", "#2d7058"), loss: token("--chart-loss", "#c8792b"), ret: token("--chart-return", "#3c5684"),
+    bar: token("--chart-bar", "#2d7058"), axis: token("--chart-axis", "#6e7a72"), axisLine: token("--chart-axis-line", "#cbd3c8"),
+    grid: token("--chart-grid", "#e4e8df"), ink: token("--chart-ink", "#364437"),
+    font: token("--font-ui", "system-ui, sans-serif"),
+  };
+}
+
 export function formatCoinValue(value: number | null | undefined, digits = 3) {
   if (value == null || !Number.isFinite(value)) return "—";
   const magnitude = Math.abs(value);
   const formatted = value !== 0 && magnitude < 0.001 ? value.toExponential(2)
     : value !== 0 && magnitude < 1 ? value.toPrecision(5) : value.toFixed(digits);
-  return `${formatted} coins`;
+  return `${formatted} credits`;
 }
 
 function labelFor(label: string, familyId: string) {
@@ -33,10 +45,10 @@ export function TrendChart({ report, metric }: { report: StatsReport; metric: Tr
   const chart = useRef<ReturnType<typeof init> | null>(null);
   const rows = report.trend;
   const meta = metric === "accuracyPct"
-    ? { label: "Daily accuracy", unit: "%", color: "#61A9BD", format: (value: number) => `${value.toFixed(2)}%` }
+    ? { label: "Daily accuracy", unit: "%", color: chartTokens().accuracy, format: (value: number) => `${value.toFixed(2)}%` }
     : metric === "evLostPer1000"
-      ? { label: "EV loss per 1,000 hands", unit: "coins / 1,000 hands", color: "#E98E2E", format: (value: number) => formatCoinValue(value) }
-      : { label: "As-drilled return", unit: "%", color: "#44986D", format: (value: number) => `${value.toFixed(3)}%` };
+      ? { label: "EV loss per 1,000 hands", unit: "credits / 1,000 hands", color: chartTokens().loss, format: (value: number) => formatCoinValue(value) }
+      : { label: "As-drilled return", unit: "%", color: chartTokens().ret, format: (value: number) => `${value.toFixed(3)}%` };
 
   useEffect(() => {
     const node = host.current;
@@ -61,21 +73,21 @@ export function TrendChart({ report, metric }: { report: StatsReport; metric: Tr
       },
       xAxis: {
         type: "time",
-        axisLabel: { color: "#6e7a72", hideOverlap: true, formatter: "{MMM} {d}, {yyyy}" },
-        axisLine: { lineStyle: { color: "#cbd4ca" } },
+        axisLabel: { color: chartTokens().axis, hideOverlap: true, formatter: "{MMM} {d}, {yyyy}" },
+        axisLine: { lineStyle: { color: chartTokens().axisLine } },
       },
       yAxis: {
         type: "value",
         scale: true,
         name: meta.unit,
-        nameTextStyle: { color: "#6e7a72", fontSize: 10 },
+        nameTextStyle: { color: chartTokens().axis, fontSize: 10 },
         axisLabel: {
-          color: "#6e7a72",
+          color: chartTokens().axis,
           formatter: (value: number) => meta.unit === "%"
             ? `${value}%`
             : metric === "evLostPer1000" ? formatCoinValue(value).replace(/ coins$/, "") : `${value}`,
         },
-        splitLine: { lineStyle: { color: "#e4e8df" } },
+        splitLine: { lineStyle: { color: chartTokens().grid } },
       },
       series: [{
         name: meta.label,
@@ -134,28 +146,28 @@ export function WeaknessRankingChart({ categories, familyId }: { categories: Cat
         name: "coins / real hand",
         nameLocation: "middle",
         nameGap: 23,
-        nameTextStyle: { color: "#6e7a72", fontSize: 9 },
-        axisLabel: { color: "#6e7a72", formatter: (value: number) => formatCoinValue(value).replace(/ coins$/, "") },
-        axisLine: { lineStyle: { color: "#cbd4ca" } },
-        splitLine: { lineStyle: { color: "#e4e8df" } },
+        nameTextStyle: { color: chartTokens().axis, fontSize: 9 },
+        axisLabel: { color: chartTokens().axis, formatter: (value: number) => formatCoinValue(value).replace(/ credits$/, "") },
+        axisLine: { lineStyle: { color: chartTokens().axisLine } },
+        splitLine: { lineStyle: { color: chartTokens().grid } },
       },
       yAxis: {
         type: "category",
         data: names,
         inverse: true,
-        axisLabel: { color: "#526259", width: 148, overflow: "truncate", fontSize: 10 },
-        axisLine: { lineStyle: { color: "#cbd4ca" } },
+        axisLabel: { color: chartTokens().ink, width: 148, overflow: "truncate", fontSize: 10 },
+        axisLine: { lineStyle: { color: chartTokens().axisLine } },
       },
       series: [{
         name: "Engine weakness",
         type: "bar",
         data: ranked.map(category => category.weakness),
         barMaxWidth: 22,
-        itemStyle: { color: "#61A9BD", borderRadius: [0, 3, 3, 0] },
+        itemStyle: { color: chartTokens().bar, borderRadius: [0, 3, 3, 0] },
         label: {
           show: true,
           position: "right",
-          color: "#385447",
+          color: chartTokens().ink,
           fontSize: 9,
           formatter: (input: unknown) => {
             const value = input && typeof input === "object" && "value" in input ? Number(input.value) : NaN;

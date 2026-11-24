@@ -51,6 +51,8 @@ export const dailyAggregateSchema = z.object({
   ...entity, bucketKey: z.string().min(1), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   timeZone: z.string().min(1), paytableId: hash, analysisKey: hash,
   coins: z.number().int().min(1).max(5), variantKind: z.literal("standard"), mode: sessionSchema.shape.mode,
+  /** Absent on buckets archived before denominations were tracked; those cannot be shown in dollars. */
+  denominationCents: positiveCents.optional(),
   bestLabel: z.string().min(1).max(250), chosenLabel: z.string().min(1).max(250),
   n: z.number().int().nonnegative(), errors: z.number().int().nonnegative(), evLostTotal: z.number().finite().nonnegative(),
   weightedN: z.number().finite().nonnegative(), weightedErrors: z.number().finite().nonnegative(),
@@ -66,5 +68,8 @@ export const dailyAggregateSchema = z.object({
     (row.n > 0 && row.weightedN <= 0) || (row.errors === 0 && (row.evLostTotal || row.weightedEvLost || row.weightedErrors)) ||
     (row.errors > 0 && (row.evLostTotal <= 0 || row.weightedEvLost <= 0 || row.weightedErrors <= 0)) ||
     row.n + row.excludedCorrections === 0) issue("Inconsistent aggregate counts or losses.");
-  if (row.bucketKey !== JSON.stringify([row.day, row.paytableId, row.coins, row.variantKind, row.bestLabel, row.chosenLabel, row.analysisKey, row.mode, row.timeZone])) issue("Invalid aggregate bucket key.");
+  // Buckets archived before denominations were tracked have no denomination in their key or record.
+  const keyParts: unknown[] = [row.day, row.paytableId, row.coins, row.variantKind, row.bestLabel, row.chosenLabel, row.analysisKey, row.mode, row.timeZone];
+  if (row.denominationCents !== undefined) keyParts.push(row.denominationCents);
+  if (row.bucketKey !== JSON.stringify(keyParts)) issue("Invalid aggregate bucket key.");
 });

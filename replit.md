@@ -151,3 +151,123 @@ hold masks must be remapped to the user's original card order before use.
 - Backups include and validate aggregates, and their decision counters include
   archived history. A gentle global backup reminder appears after about 500
   decisions since export, rather than only inside Settings.
+
+## Interface polish (docs/08-UI-POLISH-PLAN.md)
+
+The interface plan and its confirmed decisions live in `docs/08-UI-POLISH-PLAN.md`.
+Work happens in phases; each phase keeps `pnpm build` (the Static Deployment) green.
+
+Phase 1 (done):
+- No native browser dialogs. Use `useConfirm()` from `src/components/ConfirmDialog.tsx`
+  (`if (!await confirm({ title, body, confirmLabel, tone })) return;`). Danger dialogs
+  focus Cancel first; restore also requires a checkbox acknowledgement.
+- Notices are toasts (`toast.success/info/error` from `src/components/Toasts.tsx`).
+  Success/info auto-dismiss; errors persist until dismissed; errors raised while a
+  dialog is open stay inside that dialog. Don't add a notice for something the screen
+  already shows.
+- Felt themes are CSS tokens (`--felt-*`) selected by `data-felt` on a table/cabinet and
+  `data-room-felt` on the app shell. An open session follows its machine's current felt
+  (`feltFor` in `src/components/Felt.tsx`); felt is appearance, not frozen session terms.
+- Cards use `--suit-red` / `--suit-black`. Final-hand cards stay full opacity.
+- Copy: say "practice credits / not real money" only on the welcome card, the New wallet
+  dialog and the footer. Use `familyName`, `handRankName` and `plural` from `UiHelpers`
+  rather than raw ids.
+- e2e: the statistics test resolves workspace source paths from the test file, so it runs
+  outside `/home/runner/workspace`. Several e2e tests import `/src/...` modules into the
+  page; if files were edited while `pnpm dev` was running, restart the dev server before
+  `pnpm test:e2e`, or hot-reloaded module copies can make those checks fail spuriously.
+
+Phase 2 (done):
+- Styles live in `apps/web/src/styles/`, imported in cascade order from `main.tsx`:
+  `tailwind` (preflight only) → `fonts` → `tokens` → `base` → `layout` → `components` →
+  page files (`machines`, `wallets`, `settings`, `session`, `stats`). Use tokens from
+  `tokens.css` (`--ink`, `--muted`, `--space-*`, `--radius-*`, `--felt-*`, …) rather than
+  new hex values. Avoid broad descendant selectors such as `.panel span`; they restyle
+  nested components (use `> span`).
+- Fonts are self-hosted (`@fontsource-variable/inter`, `@fontsource-variable/bricolage-grotesque`,
+  Latin subset only, declared in `styles/fonts.css`) and precached by the service worker
+  (`globPatterns` includes `woff2`). Inter for UI and numbers (tabular figures are on by
+  default); Bricolage Grotesque for page titles, machine names, empty states and dialogs.
+- UI primitives are in `src/components/ui/`: `Button` (variants, icon, loading),
+  `IconButton`, `Segmented`, `SwatchPicker`, `Disclosure`, `Badge`, `Tooltip`, `CoinAmount`.
+  Icons are inline SVG in `src/components/Icons.tsx`. Prefer these over raw markup.
+- Every credit amount shows its dollar value: use `<CoinAmount amount denominationCents />`
+  or `formatCoins()`. Session amounts are called "credits"; sub-cent values read "<$0.01".
+- `App.tsx` only composes the app. Dialogs (`src/dialogs/`) own their form and inline error
+  state; actions go through `useActionRunner().run(action, { success, onError })`, which
+  shares one busy flag. Other logic lives in `src/hooks/` (`useSessionActions`, `useBackup`,
+  `useTableAnalysis`, `useWalletLedger`, `useRoute`).
+- Screenshot regression: `pnpm test:visual` (dev server running) replays a seeded tour and
+  compares against `apps/web/e2e/__screenshots__/`. Baselines depend on the browser build;
+  on a new machine run `pnpm test:visual --update-snapshots` once, review the images, and
+  commit them. Update baselines whenever a visual change is intended.
+
+Phase 3 (done) — the session table:
+- The table lives in `apps/web/src/table/`: `CardFace`/`CardBack` (original SVG card art, colored by
+  `--suit-*` tokens, memoized), `PlayingCard` (hold toggle; keeps the accessible names tests rely on),
+  `PayTable` (library pay table with the bet column lit and winning rows highlighted), `LineRows`
+  (lines 2…N of multi-line play), `CreditMeter` (bet / win / credits, or drill progress),
+  `Feedback` (three grade levels) and `TableSettings` (gear popover holding feedback timing).
+- `winningMask()` in `table/cards.ts` decides which cards light up for a win. It is display-only and
+  unit-tested; payouts always come from the engine.
+- Feedback: an optimal hold shows a brief "Optimal" stamp and a small pill (details closed); a weaker
+  hold shows a one-line bar with the cost and the details drawer open; warn-before-draw outlines the
+  best hold on the table and swaps the Draw button for "Use best hold" / "Draw anyway". Keep the
+  `h3` texts "Optimal hold", "A different hold was stronger" and "Hold review": e2e tests use them.
+- Deal/draw animations: cards are keyed by hand id, position and card, so only new cards animate.
+  Timing comes from the machine's speed (`data-speed` on `.play-table`); reduced motion disables it.
+- Feedback-timing buttons are inside the "Table settings" popover; tests open it first.
+
+Phase 4 (done) — the Machines floor:
+- First run (no wallets) shows a welcome card: pick a starting bankroll and a "Bankroll" wallet is
+  created. With a wallet but no machines, three starter machines can be added in one click.
+- Each machine is a `MachineCabinet` (`src/machines/`) tinted by its felt. Its screen shows the
+  computed max-bet return read from `/analyses/manifest.json` (`useLibraryReturns`); nothing is
+  shown if the manifest is unavailable. The last tile is always "+ New machine".
+- Play/Drill are one click (`playMachine` in `App.tsx`): continue the machine's open session in that
+  mode, or start one with its default wallet. The wallet dialog (`StartSessionDialog`) opens only if
+  that wallet is gone or cannot cover one bet, or from "Play with another wallet…" in the ⋯ menu.
+- The ⋯ menu (`MenuButton`, WAI-ARIA menu pattern) holds Edit, Duplicate, Play with another wallet
+  and Delete. Tests open it by its label "More actions for <machine name>".
+- The machine editor is a sheet with a live cabinet preview. Choices are radio chips
+  (`ChoiceChips`): Game, Pay table, Denomination (plus the "Denomination in dollars" field), Coins per
+  hand, Lines, Table felt and Table speed. Name is optional; a blank name becomes e.g.
+  "9/6 Jacks or Better · 25¢ · 3-play". The submit button reads "Add machine" / "Save changes".
+- Felts: felt, midnight, classic, royal, ocean, onyx (shared schema enum; older data stays valid).
+- The header shows the total bankroll across wallets and links to the Wallets page.
+
+Phase 5 (done) — custom pay tables:
+- Players enter pay tables by hand from Settings → "New pay table", or from the machine editor's
+  "Enter a pay table…" (the sheet swaps to the editor and selects the saved table).
+- `src/paytables/model.ts` is the pure, unit-tested core: start from a library table, shorthand
+  (`9/6`, `10/7/5`, a full top-to-bottom list, deuces `200/25/15/9/5/3/2/2/1`), pasted text (one
+  hand per line, 1 or 5 numbers; unknown lines are reported, never guessed), checks (errors block
+  saving; warnings flag likely typos using orderings valid in every game), and `finalize()`, which
+  adds the zero "nothing" row and hashes the content into the table id.
+- A table's id is its content hash, so saving pays that match a built-in table uses that table, and
+  saving the same pays twice returns the first copy (`paytableService.saveCustom`).
+- Custom tables live in Dexie (`source: "manual"`), are loaded into the app store, and are found with
+  `findPaytable()` / `useAllPaytables()` from `src/paytables/catalog.ts`. Use those instead of
+  `PAY_TABLE_LIBRARY` wherever a table's name, game or pays is shown.
+- The editor's live return comes from the worker's `previewGame` (max bet, about 2–3 s, not cached).
+  The figures are saved on the record (`computed`), so lists and cabinets can show the return.
+  The first full analysis of a custom table (for "Optional table analysis") is computed by the
+  worker in about 15–20 s and then cached in `analyses`.
+- A custom table cannot be deleted while a machine or an open session uses it; past sessions,
+  statistics and backups keep referencing it (it is soft-deleted).
+
+Phase 6 (done) — statistics in dollars, deck colors, charts, icons:
+- Statistics accept an optional `denominationCents` filter. Reports also return `denominations`
+  (in scope) and `undenominatedArchived` (archived decisions with no recorded denomination).
+  The page shows dollars beside credit figures when the scope has one known denomination,
+  and otherwise explains why figures stay in credits.
+- Daily aggregates now record `denominationCents` (also appended to `bucketKey`). Buckets archived
+  earlier have neither; they stay valid, count in totals, and are excluded from a denomination view.
+  No Dexie version bump was needed (no new index).
+- Deck colors are a profile preference (`prefs.deckColors`, "two" | "four"), set in Settings and
+  applied with `data-deck` on the app shell; suit colors come from `--suit-*` tokens.
+- Chart colors come from `--chart-*` tokens in `tokens.css` (read at render time).
+- App icons: `public/icon.svg` plus PNGs (192, 512, maskable 512, apple-touch 180) listed in the
+  PWA manifest. Sources are in `apps/web/assets-src/`; regenerate with
+  `node scripts/render-icons.cjs` from `apps/web` (needs the Playwright Chromium).
+

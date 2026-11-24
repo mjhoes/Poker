@@ -5,7 +5,7 @@ import {
 import type { GameAnalysis, HandAnalysis } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import { decisionSchema, recordSchemas, statsQuerySchema } from "@perfect-draw/shared";
-import type { StatsQuery, StatsReport } from "@perfect-draw/shared";
+import type { StatsQuery, StatsReportView } from "@perfect-draw/shared";
 import { db, live, requireRecord } from "../data/db";
 
 /** Derived short-coin analyses need no strategy induction or incompatible asset-schema changes. */
@@ -42,7 +42,7 @@ export class StatsEngine {
     }
     return { key, analysis };
   }
-  async report(input: StatsQuery): Promise<StatsReport> {
+  async report(input: StatsQuery): Promise<StatsReportView> {
     const query = statsQuerySchema.parse(input);
     const { key, analysis } = await this.game(query.paytableId, query.coins);
     const now = Date.now(), until = Math.min(now, query.until ?? now);
@@ -53,7 +53,8 @@ export class StatsEngine {
       db.records("dailyAggregates").where("paytableId").equals(query.paytableId).toArray(),
     ]));
     const sessionMap = new Map(sessions.filter(live).map(row => [row.id, row]));
-    let excludedIncompatible = 0;
+    let excludedIncompatible = 0, undenominatedArchived = 0;
+    const denominations = new Set<number>();
     const observations = [];
     for (const raw of decisions) {
       if (!live(raw) || raw.createdAt < (query.since ?? 0) || raw.createdAt > until) continue;
@@ -62,6 +63,8 @@ export class StatsEngine {
       if (!session || session.machineSnapshot.coins !== query.coins ||
         (query.mode !== "all" && session.mode !== query.mode)) continue;
       if (decision.variantKind !== "standard" || decision.analysisKey !== key || decision.coins !== query.coins) { excludedIncompatible++; continue; }
+      denominations.add(decision.denominationCents);
+      if (query.denominationCents !== undefined && decision.denominationCents !== query.denominationCents) continue;
       const canonical = analysis.perHand.get(decision.canonicalHandId);
       if (!canonical) throw new Error("A saved decision is absent from the selected game analysis.");
       observations.push({
@@ -76,9 +79,16 @@ export class StatsEngine {
       const row = recordSchemas.dailyAggregates.parse(raw);
       if (row.analysisKey !== key) { excludedIncompatible += row.n + row.excludedCorrections; continue; }
       if (row.firstAt < (query.since ?? 0) || row.lastAt > until) throw new Error("Archived history can only be filtered by whole local days in its saved timezone. Widen the date range.");
+      if (row.denominationCents === undefined) undenominatedArchived += row.n;
+      else denominations.add(row.denominationCents);
+      // A denomination filter cannot include archived buckets whose denomination was never recorded.
+      if (query.denominationCents !== undefined && row.denominationCents !== query.denominationCents) continue;
       aggregates.push(row);
     }
-    return { ...computeStatistics(observations, categoryDistribution(analysis), now, { timeZone: query.timeZone, aggregates }), excludedIncompatible };
+    return {
+      ...computeStatistics(observations, categoryDistribution(analysis), now, { timeZone: query.timeZone, aggregates }), excludedIncompatible,
+      denominations: [...denominations].sort((a, b) => a - b), undenominatedArchived,
+    };
   }
   async validateTraining(paytableId: string, coins: number, label: string) {
     const { key, analysis } = await this.game(paytableId, coins);
