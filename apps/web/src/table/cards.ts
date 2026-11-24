@@ -7,6 +7,9 @@ export type SuitName = typeof SUIT_NAMES[number];
 export const rankLabel = (card: number) => RANK_LABELS[cardRank(card)];
 export const suitName = (card: number): SuitName => SUIT_NAMES[cardSuit(card)];
 export const cardName = (card: number) => `${rankLabel(card)} of ${suitName(card)}`;
+const SUIT_SYMBOLS = { clubs: "♣", diamonds: "♦", hearts: "♥", spades: "♠" } as const;
+/** "10♠" — compact text for naming a hold in a list. */
+export const shortCard = (card: number) => `${rankLabel(card)}${SUIT_SYMBOLS[suitName(card)]}`;
 export const maskIndexes = (mask: number) => [0, 1, 2, 3, 4].filter(index => (mask & (1 << index)) !== 0);
 
 const DEUCE = 0;
