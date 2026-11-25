@@ -18,7 +18,8 @@ import { AcrossPanel, RecentHands, StrategyPanel } from "../analyzer/AnalyzerPan
 import { CardPicker } from "../analyzer/CardPicker";
 import { decodeAnalyzerQuery, encodeAnalyzerQuery, handText, randomHand, readHandText } from "../analyzer/hand-input";
 import { rankHolds } from "../analyzer/ranked-holds";
-import { acrossTargets, buildTargets, defaultTarget } from "../analyzer/targets";
+import { acrossTargets, buildTargets, resolveTarget } from "../analyzer/targets";
+import type { AnalyzerTarget } from "../analyzer/targets";
 
 const SHOWN_HOLDS = 8;
 
@@ -33,7 +34,8 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
   const recentHands = useAppStore(state => state.recentHands);
   const targets = useMemo(() => buildTargets(machines, tables), [machines, tables]);
   const initial = useMemo(() => decodeAnalyzerQuery(search), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const start = defaultTarget(targets, { paytableId: initial.paytableId, coins: initial.coins, session: activeSession, sessions });
+  const resolved = useMemo(() => resolveTarget(targets, { requested: initial.tableRequested, paytableId: initial.paytableId, coins: initial.coins, session: activeSession, sessions }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const start = targets.find(item => item.key === resolved.target?.key) ?? resolveTarget(targets, { session: activeSession, sessions }).target;
 
   const [cards, setCards] = useState<number[]>(initial.hand ?? []);
   const [text, setText] = useState(initial.hand ? handText(initial.hand) : "");
@@ -46,10 +48,13 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
   const [showAll, setShowAll] = useState(false);
   const [computed, setComputed] = useState<{ key: string; value: HandAnalysis } | null>(null);
   const [error, setError] = useState("");
+  /** Set when a link or recent hand named a table this device doesn't have: we say which table is shown instead. */
+  const [missingTable, setMissingTable] = useState(resolved.missing);
   const written = useRef(search);
 
   const target = targets.find(item => item.key === targetKey) ?? start;
-  const complete = cards.length === 5;
+  // Five cards from valid input only: text with an error (six cards, a typo) is never analyzed, saved or put in the address.
+  const complete = cards.length === 5 && !textError;
   const handKey = cards.join(",");
   const denomination = target?.denominationCents ?? null;
   // Only an analysis of exactly these cards, table and bet is shown (never a stale one for a moment).
@@ -62,9 +67,9 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
     written.current = search;
     const next = decodeAnalyzerQuery(search);
     if (!next.hand) return;
-    const nextTarget = defaultTarget(targets, { paytableId: next.paytableId, coins: next.coins });
+    const { target: nextTarget, missing } = resolveTarget(targets, { requested: next.tableRequested, paytableId: next.paytableId, coins: next.coins });
     setCards(next.hand); setText(handText(next.hand)); setTextError(null); setHeld(next.held); setMarking(false); setSelected(null);
-    if (nextTarget) { setTargetKey(nextTarget.key); setCoins(next.coins ?? nextTarget.coins); }
+    showTarget(nextTarget, next.coins, missing);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep the address in step with the hand, so a reload or bookmark reopens it.
@@ -102,17 +107,23 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
     if (read.cards.join(",") !== handKey) { setCards(read.cards); setHeld(null); setMarking(false); setSelected(null); setShowAll(false); }
   };
   const toggleCard = (card: number) => changeCards(cards.includes(card) ? cards.filter(item => item !== card) : [...cards, card].slice(0, 5));
+  function showTarget(next: AnalyzerTarget | undefined, nextCoins: number | null, missing: boolean) {
+    if (next) { setTargetKey(next.key); setCoins(nextCoins ?? next.coins); }
+    setMissingTable(missing);
+  }
   const chooseTarget = (key: string) => {
     const next = targets.find(item => item.key === key);
     if (!next) return;
-    setTargetKey(key); setCoins(next.coins); setSelected(null);
+    setTargetKey(key); setCoins(next.coins); setSelected(null); setMissingTable(false);
   };
   const openRecent = (hand: RecentHand) => {
-    const nextTarget = defaultTarget(targets, { paytableId: hand.paytableId, coins: hand.coins });
+    const { target: nextTarget, missing } = resolveTarget(targets, { requested: true, paytableId: hand.paytableId, coins: hand.coins });
     changeCards([...hand.hand]);
-    if (nextTarget) { setTargetKey(nextTarget.key); setCoins(hand.coins); }
+    showTarget(nextTarget, hand.coins, missing);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  /** Changing what was held shows the comparison for the new hold, not a hold picked from the list earlier. */
+  const changeHeld = (next: number | null) => { setHeld(next); setSelected(null); };
 
   const ranked = analysis ? rankHolds(analysis.results, coins) : null;
   const best = ranked?.rows[0];
@@ -148,7 +159,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
                 className={`analyzer-slot ${inBest ? "is-best" : ""} ${marking ? (kept ? "is-kept" : "is-dropped") : ""}`}
                 aria-label={marking ? `${cardName(card)}, ${kept ? "kept" : "not kept"}` : `${cardName(card)}. Remove`}
                 aria-pressed={marking ? kept : undefined}
-                onClick={() => marking ? setHeld((held ?? 0) ^ (1 << index)) : changeCards(cards.filter((_, position) => position !== index))}>
+                onClick={() => marking ? changeHeld((held ?? 0) ^ (1 << index)) : changeCards(cards.filter((_, position) => position !== index))}>
                 <CardFace card={card} />
                 {marking && kept && <span className="slot-tag">Kept</span>}
                 {inBest && <span className="slot-tag is-best">Best</span>}
@@ -189,10 +200,13 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
               choices={["1", "2", "3", "4", "5"].map(choice => ({ value: choice, label: choice, name: `${choice} coin${choice === "1" ? "" : "s"}` }))} />
           </div>
           {betNote && <p className="bet-note analyzer-bet-note">{betNote}</p>}
+          {missingTable && target && <p className="analyzer-missing" role="alert">The pay table in that link or recent hand isn't on this device (it may have been deleted). Showing <strong>{target.name}</strong> at {coins} coin{coins === 1 ? "" : "s"} instead; choose another table above.</p>}
         </section>
 
         {error && <div className="error-banner" role="alert">{error}</div>}
-        {!complete && <section className="panel panel-pad analyzer-empty"><p className="eyebrow">{5 - cards.length} CARD{5 - cards.length === 1 ? "" : "S"} TO GO</p><h2>Pick five cards to see every hold ranked.</h2></section>}
+        {!complete && <section className="panel panel-pad analyzer-empty">{textError
+          ? <><p className="eyebrow">CHECK THE HAND</p><h2>Fix the hand above to see every hold ranked.</h2></>
+          : <><p className="eyebrow">{5 - cards.length} CARD{5 - cards.length === 1 ? "" : "S"} TO GO</p><h2>Pick five cards to see every hold ranked.</h2></>}</section>}
 
         {ranked && best && analysis && <section className="panel panel-pad analyzer-results" aria-label="Holds ranked">
           <div className="analyzer-results-head">
@@ -204,9 +218,9 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
             <div className="analyzer-mine">
               {marking ? <><p>Tap the cards you kept, then press Done.</p><div className="analyzer-buttons">
                 <Button variant="secondary" size="sm" onClick={() => setMarking(false)}>Done</Button>
-                <Button variant="secondary" size="sm" onClick={() => { setHeld(null); setMarking(false); }}>Remove</Button></div></>
+                <Button variant="secondary" size="sm" onClick={() => { changeHeld(null); setMarking(false); }}>Remove</Button></div></>
                 : mine ? <><p>{mine.best ? <>What you held <strong>is a best hold</strong>.</> : <>What you held costs <strong>{value(mine.behind)}</strong> credits per line.</>}</p>
-                  <button type="button" className="link-button" onClick={() => setMarking(true)}>Change what I held</button></>
+                  <button type="button" className="link-button" onClick={() => { setMarking(true); setSelected(null); }}>Change what I held</button></>
                 : <Button variant="secondary" size="sm" onClick={() => { setHeld(held ?? 0); setMarking(true); setSelected(null); }}>What I held…</Button>}
             </div>
           </div>

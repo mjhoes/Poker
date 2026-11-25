@@ -26,12 +26,21 @@ export function buildTargets(machines: readonly Machine[], tables: readonly Payt
   return [...machineTargets, ...tableTargets];
 }
 
-/** Where to start: the table named in the address, else the open session's machine, else the last machine played, else 9/6 Jacks. */
-export function defaultTarget(targets: readonly AnalyzerTarget[], options: { paytableId?: string | null; coins?: number | null; session?: Session; sessions?: readonly Session[] }) {
+/**
+ * Where to start: the table a link or recent hand names (`requested`), else the open session's machine, else the last
+ * machine played, else 9/6 Jacks. `missing` is true when a table was requested but is not available on this device
+ * (deleted, or from another device) — the caller must say so rather than silently show a different table.
+ */
+export function resolveTarget(targets: readonly AnalyzerTarget[], options: { requested?: boolean; paytableId?: string | null; coins?: number | null; session?: Session; sessions?: readonly Session[] }) {
   if (options.paytableId) {
     const machines = targets.filter(target => target.kind === "machine" && target.paytableId === options.paytableId);
-    return machines.find(target => target.coins === options.coins) ?? machines[0] ?? targets.find(target => target.key === `table:${options.paytableId}`);
+    const found = machines.find(target => target.coins === options.coins) ?? machines[0] ?? targets.find(target => target.key === `table:${options.paytableId}`);
+    if (found) return { target: found, missing: false };
   }
+  return { target: defaultTarget(targets, options), missing: !!options.requested || !!options.paytableId };
+}
+
+function defaultTarget(targets: readonly AnalyzerTarget[], options: { session?: Session; sessions?: readonly Session[] }) {
   const recent = options.session ?? [...(options.sessions ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)[0];
   const fromSession = recent && targets.find(target => target.key === `machine:${recent.machineId}`);
   return fromSession ?? targets.find(target => target.key === `table:${PAY_TABLE_LIBRARY.find(table => table.slug === "jacks-or-better-9-6")!.id}`) ?? targets[0];

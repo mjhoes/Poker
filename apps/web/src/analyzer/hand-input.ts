@@ -40,7 +40,10 @@ export function readHandText(text: string): HandText {
 }
 
 /** What the analyzer's address holds: `#/analyze?hand=AsKsQd7c2h&table=<id>&bet=5&held=3`. */
-export interface AnalyzerQuery { hand: number[] | null; paytableId: string | null; coins: number | null; held: number | null }
+export interface AnalyzerQuery {
+  hand: number[] | null; paytableId: string | null; coins: number | null; held: number | null;
+  /** The address named a table (valid or not); with `paytableId` null it was malformed. */ tableRequested: boolean;
+}
 
 export function encodeAnalyzerQuery(query: { hand: readonly number[]; paytableId: string; coins: number; held?: number | null }) {
   const params = new URLSearchParams({ hand: handCode(query.hand), table: query.paytableId, bet: String(query.coins) });
@@ -60,6 +63,7 @@ export function decodeAnalyzerQuery(search: string): AnalyzerQuery {
     paytableId: table && /^[a-f0-9]{64}$/.test(table) ? table : null,
     coins: Number.isInteger(coins) && coins >= 1 && coins <= 5 ? coins : null,
     held: heldMask !== null && heldMask >= 0 && heldMask <= 31 ? heldMask : null,
+    tableRequested: table !== null,
   };
 }
 

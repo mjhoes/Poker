@@ -123,3 +123,56 @@ test("a played hand opens in the analyzer with what was held", async ({ page }) 
   await expect(results.locator(".analyzer-best-value")).toContainText(analysis.best.ev.toFixed(3));
   await expect(results.locator(".analyzer-best-value .analyzer-dollars")).toContainText("$");
 });
+
+test("unavailable tables are named, invalid input is never analyzed, and changing what I held updates the comparison", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  const missing = "f".repeat(64);
+  const results = page.getByRole("region", { name: "Holds ranked" });
+  const notice = page.locator(".analyzer-missing");
+
+  // Fresh load of a link to a table this device doesn't have: a notice, and results on the table shown.
+  await page.goto(`/#/analyze?hand=AsAc8d8h3c&table=${missing}&bet=3`);
+  await expect(notice).toContainText("isn't on this device");
+  await expect(notice).toContainText("Showing 9/6 Jacks or Better at 3 coins instead");
+  await expect(results.getByRole("heading", { level: 2 })).toContainText("A♠ A♣ 8♦ 8♥");
+  // Choosing a table clears the notice.
+  await page.getByRole("combobox", { name: "Machine or pay table" }).selectOption({ label: "9/6 Double Double Bonus" });
+  await expect(notice).toHaveCount(0);
+
+  // Already open: a link to an unavailable table names it too, instead of keeping Double Double Bonus silently.
+  await page.evaluate(table => { window.location.hash = `#/analyze?hand=KsKd5c5h9s&table=${table}&bet=5`; }, missing);
+  await expect(page.getByRole("textbox", { name: "Type a hand" })).toHaveValue("Ks Kd 5c 5h 9s");
+  await expect(notice).toContainText("Showing 9/6 Jacks or Better at 5 coins instead");
+  await expect(page.getByRole("combobox", { name: "Machine or pay table" })).toHaveValue(/^table:/);
+  await expect(page.getByRole("combobox", { name: "Machine or pay table" }).locator("option:checked")).toHaveText("9/6 Jacks or Better");
+
+  // Six cards: an error, no results, and nothing written to the address or recent hands.
+  const recent = page.getByRole("region", { name: "Recent hands" }).getByRole("listitem");
+  await expect(recent.first()).toContainText("5 coins"); // K K 5 5 9 on 9/6 Jacks has been saved
+  const before = await recent.count();
+  await page.getByRole("textbox", { name: "Type a hand" }).fill("2c 3d 4h 5s 6c 7d");
+  await expect(page.getByRole("alert").filter({ hasText: "That's 6 cards; a hand has five." })).toBeVisible();
+  await expect(results).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Fix the hand above to see every hold ranked." })).toBeVisible();
+  await expect(page).toHaveURL(/#\/analyze$/);
+  await page.waitForTimeout(1200); // longer than the recent-hands delay
+  await expect(recent).toHaveCount(before);
+  await expect(recent.first().getByRole("button")).toHaveAccessibleName(/^Open K♠ K♦ 5♣ 5♥ 9♠, 9\/6 Jacks or Better, 5 coins$/);
+
+  // Pick a hold from the list, then change what I held: the comparison follows the new hold.
+  await page.getByRole("textbox", { name: "Type a hand" }).fill("As Ac 8d 8h 3c");
+  await results.getByRole("list", { name: "All holds, best first" }).getByRole("button").nth(3).click();
+  await expect(results.getByRole("heading", { level: 3 })).not.toHaveText("Why the best hold beats what you held");
+  await results.getByRole("button", { name: "What I held…" }).click();
+  for (const name of ["A of spades", "A of clubs"]) await page.getByRole("button", { name: `${name}, not kept` }).click();
+  await expect(results.getByRole("heading", { level: 3 })).toHaveText("Why the best hold beats what you held");
+  await results.getByRole("button", { name: "Done", exact: true }).click();
+  // While changing what I held, a hold picked from the list gives way as soon as a card is toggled.
+  await results.getByRole("button", { name: "Change what I held" }).click();
+  await results.getByRole("list", { name: "All holds, best first" }).getByRole("button").nth(1).click();
+  await expect(results.getByRole("heading", { level: 3 })).not.toHaveText("Why the best hold beats what you held");
+  await page.getByRole("button", { name: "8 of diamonds, not kept" }).click();
+  await expect(results.getByRole("heading", { level: 3 })).toHaveText("Why the best hold beats what you held");
+  await expect(results.locator(".hold-row.is-selected .hold-badge.is-mine")).toBeVisible();
+  expect(errors).toEqual([]);
+});

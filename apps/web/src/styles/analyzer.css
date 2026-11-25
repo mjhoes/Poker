@@ -131,3 +131,4 @@ div.analyzer-note p { margin: 0; }
   .hold-rank { grid-area: rank; } .hold-cards { grid-area: cards; } .hold-name { grid-area: name; font-size: var(--text-xs); }
   .hold-ev { grid-area: ev; } .hold-behind { grid-area: behind; font-size: var(--text-xs); }
 }
+.analyzer-missing { margin: 12px 0 0; padding: 9px 12px; border-left: 3px solid var(--danger); border-radius: 0 var(--radius-md) var(--radius-md) 0; background: color-mix(in srgb, var(--danger) 9%, transparent); color: var(--ink); font-size: var(--text-xs); line-height: 1.5; }

@@ -5,6 +5,7 @@ const cardsOf = (text: string) => text.split(" ").map(parseCard);
 import { getLibraryPayTable } from "@perfect-draw/paytables";
 import { decodeAnalyzerQuery, encodeAnalyzerQuery, handText, randomHand, readHandText } from "../src/analyzer/hand-input";
 import { compareAcross, rankHolds } from "../src/analyzer/ranked-holds";
+import { buildTargets, resolveTarget } from "../src/analyzer/targets";
 import { parseHash } from "../src/hooks/useRoute";
 import { db, initializeDatabase } from "../src/data/db";
 import { preferencesService } from "../src/services/preferences";
@@ -45,16 +46,32 @@ describe("the analyzer's address", () => {
     const hand = parseHand("As Ks Qd 7c 2h");
     const search = encodeAnalyzerQuery({ hand, paytableId: jacks.id, coins: 3, held: 0b00011 });
     expect(search).toBe(`hand=AsKsQd7c2h&table=${jacks.id}&bet=3&held=3`);
-    expect(decodeAnalyzerQuery(search)).toEqual({ hand, paytableId: jacks.id, coins: 3, held: 3 });
+    expect(decodeAnalyzerQuery(search)).toEqual({ hand, paytableId: jacks.id, coins: 3, held: 3, tableRequested: true });
   });
   it("ignores anything invalid rather than guessing", () => {
-    expect(decodeAnalyzerQuery("hand=AsAs&table=nope&bet=9&held=40")).toEqual({ hand: null, paytableId: null, coins: null, held: null });
+    expect(decodeAnalyzerQuery("hand=AsAs&table=nope&bet=9&held=40")).toEqual({ hand: null, paytableId: null, coins: null, held: null, tableRequested: true });
+    expect(decodeAnalyzerQuery("hand=AsKsQd7c2h").tableRequested).toBe(false);
   });
   it("routes #/analyze with its search, and unknown pages home", () => {
     expect(parseHash("#/analyze?hand=AsKsQd7c2h&bet=5")).toEqual({ route: "/analyze", search: "hand=AsKsQd7c2h&bet=5" });
     expect(parseHash("#/stats")).toEqual({ route: "/stats", search: "" });
     expect(parseHash("#/nowhere?x=1")).toEqual({ route: "/", search: "" });
     expect(parseHash("")).toEqual({ route: "/", search: "" });
+  });
+});
+
+describe("choosing the table", () => {
+  const tables = [jacks, ddb].map(table => ({ id: table.id, name: table.name, familyId: table.familyId, pays: table.pays, source: "library" as const }));
+  const targets = buildTargets([], tables);
+  it("uses the table a link names when it is available", () => {
+    expect(resolveTarget(targets, { requested: true, paytableId: ddb.id, coins: 5 })).toMatchObject({ target: { paytableId: ddb.id }, missing: false });
+  });
+  it("says when a named table is missing or malformed instead of silently showing another", () => {
+    const unknown = resolveTarget(targets, { requested: true, paytableId: "f".repeat(64), coins: 5 });
+    expect(unknown.missing).toBe(true);
+    expect(unknown.target?.paytableId).toBe(jacks.id); // the fallback is shown, with a notice
+    expect(resolveTarget(targets, { requested: true, paytableId: null }).missing).toBe(true);
+    expect(resolveTarget(targets, {}).missing).toBe(false);
   });
 });
 
