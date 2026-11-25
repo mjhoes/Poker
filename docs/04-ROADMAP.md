@@ -19,7 +19,7 @@ Build the engine first and prove it correct; everything else (training, mistake 
 - Machines, wallets (ledger), multi-session switcher, Free Play with 3 feedback modes.
 - Rapid Drill + decision logging (local, IndexedDB).
 - Export/import backup.
-- Hand Analyzer (manual entry).
+- Hand Analyzer (manual entry) ✅ — `10-HAND-ANALYZER-PLAN.md`.
 - Pay table manual editor + library + analysis view.
 - Stats: accuracy, EV lost/1000, effective return, confusion matrix, weakness ranking.
 - AI settings (bring-your-own OpenAI/Anthropic keys, direct client calls) + provider abstraction.

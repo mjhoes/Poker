@@ -1,14 +1,14 @@
 import { rollupDecisions } from "../services/retention";
 import { expose } from "comlink";
 import {
-  analyzeGame, analyzeHandFast, clearSubsetCache, clearTrainingCache, dealRound, ENGINE_VERSION, generateHand, generateStrategyList, registerTrainingAnalysis, resolveRound, standardVariant, STRATEGY_TIERS,
+  analyzeGame, analyzeHand, analyzeHandFast, clearSubsetCache, clearTrainingCache, dealRound, ENGINE_VERSION, generateHand, generateStrategyList, registerTrainingAnalysis, resolveRound, standardVariant, STRATEGY_TIERS, strategyChoice,
 } from "@perfect-draw/engine";
 import { analysisKey, getLibraryPayTable, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { deserializeAnalysis, loadPrecomputedAnalysis, loadPrecomputedManifest, serializeAnalysis } from "@perfect-draw/precomputed";
 import type { PrecomputedGameAnalysis } from "@perfect-draw/precomputed";
 import { analysisSchema } from "@perfect-draw/shared";
 import { db, stamp } from "../data/db";
-import type { AnalysisSummary, EngineAPI } from "./engine-api";
+import type { AcrossAnalysis, AnalysisSummary, EngineAPI } from "./engine-api";
 import { StatsEngine } from "./stats-engine";
 import { paytableService } from "../services/paytables";
 
@@ -175,6 +175,45 @@ const api: EngineAPI = {
     const response = await fetchWithRetry(url);
     await response.arrayBuffer();
     return response.ok;
+  },
+  async hasStrategyCharts(paytableId) {
+    const library = PAY_TABLE_LIBRARY.find(table => table.id === paytableId);
+    if (library) return true;
+    const row = await db.records("paytables").get(paytableId);
+    if (!row || row.deletedAt != null) return false;
+    const key = analysisKey(row.familyId, standardVariant.valueVector(row, 5, {}), 5);
+    return loaded.has(key) || (await db.records("analyses").get(key))?.engineVersion === ENGINE_VERSION;
+  },
+  async strategyCitation(cards, paytableId, tier) {
+    const value = await api.loadAnalysis(paytableId);
+    const analysis = loaded.get(value.key);
+    if (!analysis) throw new Error("The strategy charts were unloaded. Try again.");
+    registerTrainingAnalysis(value.key, analysis);
+    const list = value.strategyLists.find(item => item.tier === tier);
+    if (!list) throw new Error(`No ${tier} chart for this table.`);
+    prepareSolver(analysis.familyId);
+    const hand = analyzeHandFast(cards, analysis.valueVector, analysis.familyId);
+    const choice = strategyChoice(hand, list);
+    const picked = hand.results.find(row => row.mask === choice.mask)!;
+    return {
+      tier, mask: choice.mask, label: picked.label, ev: picked.ev, bestMask: hand.best.mask, bestEv: hand.best.ev,
+      line: choice.line, lineCount: list.lines.length, lineLabel: choice.line === null ? null : list.lines[choice.line].label,
+      exception: choice.exception !== null, chartReturnPct: list.returnPct, optimalReturnPct: value.returnPct, familyId: analysis.familyId,
+    };
+  },
+  async analyzeAcross(cards, targets) {
+    const results: AcrossAnalysis[] = [];
+    for (const target of targets) {
+      const row = await db.records("paytables").get(target.paytableId);
+      const table = row ?? PAY_TABLE_LIBRARY.find(item => item.id === target.paytableId);
+      if (!table || (row && row.deletedAt != null)) continue;
+      // One hand on many families: the direct solver (about 10 ms) beats building each family's subset tables (~0.5 s).
+      const hand = analyzeHand(cards, standardVariant.valueVector(table, target.coins, {}), table.familyId);
+      const evByMask = Array.from({ length: 32 }, () => 0);
+      for (const hold of hand.results) evByMask[hold.mask] = hold.ev;
+      results.push({ paytableId: target.paytableId, coins: target.coins, familyId: table.familyId, bestMask: hand.best.mask, bestLabel: hand.best.label, bestEv: hand.best.ev, evByMask });
+    }
+    return results;
   },
   async generateDrill(options) {
     await api.loadAnalysis(options.analysisKey);

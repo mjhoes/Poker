@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   analyzeGame, analyzeHandFast, canonicalizeHand, clearTrainingCache, evaluateRule, generateHand,
   generateStrategyList, getCanonicalHands, labelHold, parseHand, registerTrainingAnalysis,
-  selectStrategyHold, validateRuleAST,
+  selectStrategyHold, strategyChoice, validateRuleAST, describeHold,
   MEMORIZABLE_STRATEGY_TIERS, STRATEGY_TIERS, strategyExceptionCount, strategyMeetsTarget,
 } from "../src";
 import type { GameAnalysis, RuleAST, StrategyList } from "../src";
@@ -96,6 +96,26 @@ describe("engine-derived strategy tiers", () => {
     expect(beginnerErrors).toBeGreaterThan(0);
     expect(() => selectStrategyHold(analyzeHandFast(parseHand("As Ks Qs Js Ts"), values.map(value => value * 2)), lists[2])).toThrow(/payout/);
     expect(selectStrategyHold(analyzeHandFast(parseHand("As Ks Qs Js Ts"), values), { ...lists[0], lines: [] })).toBe(0);
+  }, 60_000);
+
+  it("cites the chart line that picks each hold, agreeing with the hold the chart selects", () => {
+    let cited = 0;
+    for (const cards of seededHands(200)) {
+      const hand = analyzeHandFast(cards, values);
+      for (const list of lists) {
+        const choice = strategyChoice(hand, list);
+        expect(choice.mask).toBe(selectStrategyHold(hand, list));
+        if (list.tier === "Perfect") { expect(choice.line).toBeNull(); continue; }
+        if (choice.line === null) { expect(choice.mask).toBe(0); continue; }
+        cited++;
+        const line = list.lines[choice.line];
+        expect(line).toBeDefined();
+        // Without an exception, the chosen hold is described by the cited line.
+        // (Refined charts name lines "BASE|context"; the base is the hold's category.)
+        if (!choice.exception) expect((line.alternatives ?? [line.label]).map(label => label.split("|")[0])).toContain(describeHold(cards, choice.mask, "jacks_or_better").base);
+      }
+    }
+    expect(cited).toBeGreaterThan(500);
   }, 60_000);
 
   it("resolves remaining Double Bonus conflicts using explicit suit relationships", () => {

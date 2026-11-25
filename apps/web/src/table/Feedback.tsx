@@ -5,6 +5,7 @@ import { Icon } from "../components/Icons";
 import { CardFace } from "./CardFace";
 import { cardName, maskIndexes } from "./cards";
 import { HoldComparison } from "./HoldComparison";
+import { encodeAnalyzerQuery } from "../analyzer/hand-input";
 
 type Grade = NonNullable<Session["state"]["feedback"]>;
 
@@ -45,7 +46,8 @@ export function DecisionDetails({ grade, session }: { grade: Grade; session: Ses
       <div className="feedback-metric"><span>{multiLine(session) ? `EV lost · per line / all ${session.machineSnapshot.lines} lines` : "EV lost"}</span>
         <strong><Ev value={grade.evLoss} session={session} />{multiLine(session) && <> <span className="ev-divider">/</span> <Ev value={grade.totalEvLoss} session={session} /></>}</strong></div>
     </div>
-    <p className="decision-note">Expected value is the average return of a hold over every possible draw, in credits per line. Equivalent holds count as optimal.</p>
+    <p className="decision-note">Expected value is the average return of a hold over every possible draw, in credits per line. Equivalent holds count as optimal.
+      {hand.length === 5 && <> <a className="analyzer-link" href={`#/analyze?${encodeAnalyzerQuery({ hand, paytableId: session.machineSnapshot.paytableId, coins: session.state.handCoins ?? session.machineSnapshot.coins, held: grade.chosenMask })}`}>Open in analyzer</a></>}</p>
     {hand.length === 5 && session.state.analysis && <Disclosure className="why-disclosure"
       summary={grade.correct ? "Why is this the best hold? Compare it with others" : "Why is the best hold better? See what each hold can make"}>
       <HoldComparison session={session} grade={grade} />

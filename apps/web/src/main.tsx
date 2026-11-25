@@ -14,6 +14,7 @@ import "./styles/wallets.css";
 import "./styles/settings.css";
 import "./styles/session.css";
 import "./styles/stats.css";
+import "./styles/analyzer.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

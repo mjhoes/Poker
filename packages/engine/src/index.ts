@@ -20,8 +20,8 @@ export type { GameAnalysis, GameHandResult, AnalysisProgress } from "./game-anal
 export { describeHold, labelHold } from "./labels";
 export type { HoldPattern } from "./labels";
 export { registerTrainingAnalysis, clearTrainingCache } from "./training";
-export { generateStrategyList, selectStrategyHold, STRATEGY_TIERS, MEMORIZABLE_STRATEGY_TIERS } from "./strategies";
-export type { StrategyList, StrategyLine, StrategyTier, StrategyException } from "./strategies";
+export { generateStrategyList, selectStrategyHold, strategyChoice, STRATEGY_TIERS, MEMORIZABLE_STRATEGY_TIERS } from "./strategies";
+export type { StrategyList, StrategyLine, StrategyTier, StrategyException, StrategyChoice } from "./strategies";
 export { strategyExceptionCount, strategyMeetsTarget, strategyTarget } from "./strategy-targets";
 export { CHART_TIE_RULE, isChartLabel, holdPreference } from "./hold-policy";
 export { formatStrategyChart } from "./chart-sections";

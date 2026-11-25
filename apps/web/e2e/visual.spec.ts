@@ -209,3 +209,15 @@ test("phone layouts: first run, starter machine and play", async ({ page }) => {
   await shot(page, "19b-phone-settled");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
+
+test("hand analyzer on desktop and phone", async ({ page }) => {
+  for (const [name, viewport] of [["22-analyzer", { width: 1280, height: 900 }], ["23-phone-analyzer", { width: 390, height: 844 }]] as const) {
+    await seededPage(page, viewport);
+    await page.goto("/#/analyze?hand=AsAc8d8h3c");
+    await expect(page.locator(".citation")).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByText(/The best hold changes on|The same hold is best/)).toBeVisible();
+    await expect(page.getByRole("region", { name: "Recent hands" }).getByRole("listitem")).toHaveCount(1);
+    await shot(page, name);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+  }
+});

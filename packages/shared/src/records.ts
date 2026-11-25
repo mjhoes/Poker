@@ -15,13 +15,19 @@ export const variantStateSchema = z.record(z.unknown()).default({});
 export const metadata = { updatedAt: timestamp, deletedAt: timestamp.nullable().default(null) };
 export const entity = { id: uuid, ...metadata };
 export const nameSchema = z.string().trim().min(1).max(100);
+export const recentHandSchema = z.object({
+  hand: z.array(z.number().int().min(0).max(51)).length(5).refine(cards => new Set(cards).size === 5, "Duplicate cards"),
+  paytableId: hash, coins: z.number().int().min(1).max(5), at: timestamp,
+});
 export const profileSchema = z.object({
   id: z.literal("local"), displayName: nameSchema.default("Player"), createdAt: timestamp, ...metadata,
   prefs: z.object({ activeSessionId: uuid.nullable().default(null), lastBackupAt: timestamp.nullable().default(null), lastBackupDecisionCount: z.number().int().nonnegative().default(0),
     /** Card colors: classic red/black, or four colors (diamonds blue, clubs green). */
     deckColors: z.enum(["two", "four"]).default("two"),
     /** Deal and draw animation pace, chosen at the table; applies to every machine. */
-    dealSpeed: z.enum(["relaxed", "normal", "fast"]).default("normal") }).default({}),
+    dealSpeed: z.enum(["relaxed", "normal", "fast"]).default("normal"),
+    /** The Hand Analyzer's recent hands, newest first. */
+    recentHands: z.array(recentHandSchema).max(20).default([]) }).default({}),
 });
 export const providerSchema = z.enum(["openai", "anthropic"]);
 export const aiSettingsSchema = z.object({
@@ -138,6 +144,7 @@ export const decisionSchema = z.object({
 });
 export type Paytable = z.infer<typeof paytableSchema>;
 export type GameSummary = z.infer<typeof gameSummarySchema>;
+export type RecentHand = z.infer<typeof recentHandSchema>;
 export type Machine = z.infer<typeof machineSchema>;
 export type MachineDraft = z.infer<typeof machineDraftSchema>;
 export type Wallet = z.infer<typeof walletSchema>;

@@ -2,7 +2,7 @@
 
 Spec: F3.2–F3.4 in `02-PRODUCT-SPEC.md` (Prompt 10 in `05-REPLIT-AGENT-PROMPTS.md`). Photo entry (F3.1) waits for the
 photo round, and the AI explanation waits for the AI provider round; this round leaves a place for both.
-Status: **draft, awaiting approval**.
+Status: **built** (see replit.md "Hand Analyzer").
 
 Goal: enter any five cards — a hand from the casino, a hand you're unsure about — pick the game and bet, and see every
 hold ranked with exactly what it is worth and why, using the same engine numbers as play.
@@ -66,6 +66,12 @@ hold ranked with exactly what it is worth and why, using the same engine numbers
   changes the answer (e.g. a hand whose best hold differs between 9/6 Jacks and Double Double Bonus); "Open in analyzer"
   from a played hand; reload keeps the hand (address).
 - Visual: analyzer desktop and phone shots added to the tour.
+
+## Decisions (confirmed)
+1. Strategy citation: the **Expert** chart by default, with a switch for Beginner and Intermediate.
+2. Across pay tables: **your machines plus the seven popular tables**.
+3. **Recent hands:** yes — the last 20 analyzed hands, kept locally (in the profile, so backups include them).
+4. Phone picker: **rank row, then suit row** on small screens; the full 4 × 13 grid on larger ones.
 
 ## Questions
 1. **Chart tier for the citation:** cite the **Expert** chart by default with a switch for Beginner / Intermediate, or
