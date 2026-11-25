@@ -164,7 +164,8 @@ test("warnings survive reload, corrections keep the mistake, and silent play rep
   await expect(page.getByText("EV lost · all lines", { exact: true })).toBeVisible();
 });
 
-test("mobile Rapid Drill saves immediate keyboard feedback without wallet movements", async ({ page }) => {
+// Tagged @timing: runs on its own after the suite (see playwright.config.ts), since it measures responsiveness.
+test("mobile Rapid Drill saves immediate keyboard feedback without wallet movements", { tag: "@timing" }, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await createPlayTable(page, { mode: "drill", amount: "0" });
   const latencies: number[] = [];

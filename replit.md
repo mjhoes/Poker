@@ -419,3 +419,8 @@ R3 — why one hold beats another:
   `analyzer:recent-saved`. Tests poll `performance.getEntriesByName(name)` instead of `waitForTimeout`.
 - Checks that something did *not* happen after a delay (the recent-hands save) install Playwright's clock
   (`page.clock.install()`) and jump past the delay with `page.clock.runFor(…)`, then compare the signal count.
+- The responsiveness check (mobile Rapid Drill feedback under 50 ms, tagged `@timing` in `e2e/play.spec.ts`) runs as
+  its own Playwright project `timing`, in a fresh worker after the `e2e` project, so ~30 earlier tests in the same
+  browser don't skew its measurement. If an `e2e` test fails, it is reported as "did not run"; run it alone with
+  `pnpm --filter @perfect-draw/web exec playwright test --project=timing`. The visual and offline configs declare
+  their own single project.
