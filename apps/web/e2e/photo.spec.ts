@@ -34,8 +34,8 @@ async function renderPhoto(browser: Browser, body: string) {
 const tableImage = (rows: readonly (readonly [string, readonly number[]])[]) =>
   `<table>${rows.map(([label, pays]) => `<tr><td style="padding-right:40px">${label}</td>${pays.map(pay => `<td style="padding:0 14px">${pay}</td>`).join("")}</tr>`).join("")}</table>`;
 
-/** How many times the app signalled an outcome that leaves nothing on screen (see src/diagnostics.ts). */
-const signals = (page: Page, name: string) => page.evaluate(mark => performance.getEntriesByName(mark).length, name);
+/** How many times the app signalled an outcome that leaves nothing on screen (see src/diagnostics.ts; clock-independent). */
+const signals = (page: Page, name: string) => page.evaluate(mark => (window as unknown as { __perfectDrawSignals?: Record<string, number> }).__perfectDrawSignals?.[mark] ?? 0, name);
 
 async function mockVision(page: Page, replies: { paytable?: object[]; hand?: object[]; hold?: Promise<void> }) {
   const calls: { kind: "paytable" | "hand"; model: string; hasImage: boolean }[] = [];

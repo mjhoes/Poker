@@ -15,8 +15,8 @@ const goodText = {
 
 interface Calls { anthropic: { model: string; headers: Record<string, string> }[]; openai: { model: string; headers: Record<string, string> }[] }
 
-/** How many times the app signalled an outcome that leaves nothing on screen (see src/diagnostics.ts). */
-const signals = (page: Page, name: string) => page.evaluate(mark => performance.getEntriesByName(mark).length, name);
+/** How many times the app signalled an outcome that leaves nothing on screen (see src/diagnostics.ts; clock-independent). */
+const signals = (page: Page, name: string) => page.evaluate(mark => (window as unknown as { __perfectDrawSignals?: Record<string, number> }).__perfectDrawSignals?.[mark] ?? 0, name);
 
 async function mockProviders(page: Page, replies: { anthropic?: object[]; openai?: object[]; hold?: Promise<void> } = {}) {
   const calls: Calls = { anthropic: [], openai: [] };

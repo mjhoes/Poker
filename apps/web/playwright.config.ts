@@ -21,7 +21,7 @@ export default defineConfig({
   /*
    * The responsiveness check (tagged @timing: drill feedback under 50 ms) runs by itself in a fresh worker after the
    * rest of the suite, so its measurement isn't skewed by a browser that has already run ~30 tests. If another test
-   * fails, Playwright skips it (reported as "did not run"); run it alone with `--project=timing`.
+   * fails, Playwright skips it (reported as "did not run"); run it alone with `--project=timing --no-deps`.
    */
   projects: [
     { name: "e2e", grepInvert: /@timing/ },
