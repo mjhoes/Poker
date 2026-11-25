@@ -22,3 +22,13 @@ attributes.
 **How to apply:** Keep browser-test workspace imports type-only or JSON-free.
 Check library metadata in Vitest or in the browser instead of importing its raw
 JSON-dependent barrel into the Playwright runner.
+
+Do not use performance-timeline marks as acknowledgments in tests that install
+Playwright's clock.
+
+**Why:** The installed fake clock stubs `performance.mark` and returns an empty
+array from `getEntriesByName`, so signal-count assertions can pass as `0 === 0`
+even after the event occurs.
+
+**How to apply:** Use a clock-independent acknowledgment counter in clock tests.
+Re-probe this behavior after upgrading Playwright rather than assuming it changed.
