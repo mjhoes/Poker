@@ -8,7 +8,7 @@ import { db } from "../data/db";
 import { creditState } from "./money";
 import { countDecisions } from "./retention";
 
-export const backupTables = (Object.keys(recordSchemas) as TableName[]).filter(x => x !== "aiKeys" && x !== "analyses");
+export const backupTables = (Object.keys(recordSchemas) as TableName[]).filter(x => x !== "aiKeys" && x !== "analyses" && x !== "aiExplanations");
 const envelopeSchema = z.object({
   format: z.literal("perfect-draw-backup"), version: z.literal(1),
   exportedAt: z.number().int().nonnegative(), tables: z.record(z.array(z.unknown())),

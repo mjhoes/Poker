@@ -35,6 +35,8 @@ export class LocalDatabase extends Dexie {
         Object.assign(session.state, creditState(cents, denomination));
       });
     });
+    // Saved AI explanations (keyed by the comparison they explain); a cache, not part of backups.
+    this.version(4).stores({ aiExplanations: "id, createdAt" });
   }
   records<K extends TableName>(name: K): Table<Records[K], string> { return this.table(name); }
 }

@@ -18,7 +18,7 @@ export const sessionActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("saveHand"), hand: r.handSchema.refine(x => x.length === 5), heldMask: z.number().int().min(0).max(31).default(0) }),
 ]);
 export const recordSchemas = {
-  profile: r.profileSchema, aiSettings: r.aiSettingsSchema, aiKeys: r.aiKeySchema, aiUsage: r.aiUsageSchema,
+  profile: r.profileSchema, aiSettings: r.aiSettingsSchema, aiKeys: r.aiKeySchema, aiUsage: r.aiUsageSchema, aiExplanations: r.aiExplanationSchema,
   paytables: r.paytableSchema, analyses: r.analysisSchema, machines: r.machineSchema, wallets: r.walletSchema,
   walletLedger: r.ledgerSchema, sessions: r.sessionSchema, decisions: r.decisionSchema,
   categoryMastery: f.masterySchema, heuristicCards: f.heuristicSchema, uploads: f.uploadSchema, scoutingLog: f.scoutingSchema,

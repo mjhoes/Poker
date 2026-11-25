@@ -36,6 +36,20 @@ export const aiSettingsSchema = z.object({
   coachProvider: providerSchema.default("anthropic"), coachModel: z.string().default(""),
   heuristicsProvider: providerSchema.default("anthropic"), heuristicsModel: z.string().default(""),
   fallbackEnabled: z.boolean().default(false), rememberKeys: z.boolean().default(false),
+  /** Light / medium / heavy model for coaching text; a non-empty *Model field overrides it. */
+  coachTier: z.enum(["light", "medium", "heavy"]).default("heavy"),
+  visionTier: z.enum(["light", "medium", "heavy"]).default("heavy"),
+});
+export const aiTierSchema = z.enum(["light", "medium", "heavy"]);
+/** A saved AI explanation of one hold comparison, so the same question is never paid for twice. Not in backups. */
+export const aiExplanationSchema = z.object({
+  id: z.string().min(1).max(300), ...metadata, createdAt: timestamp,
+  provider: providerSchema, model: z.string().min(1), tier: aiTierSchema, promptVersion: z.number().int().positive(),
+  explanation: z.object({
+    summary: z.string().min(1).max(2000), why: z.string().min(1).max(2000), howToRemember: z.string().min(1).max(2000),
+    commonMistake: z.string().max(2000).nullable(),
+  }),
+  inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative(), estCost: z.number().finite().nonnegative(),
 });
 export const aiKeySchema = z.object({ provider: providerSchema, key: z.string().min(1), ...metadata });
 export const aiUsageSchema = z.object({
@@ -145,6 +159,10 @@ export const decisionSchema = z.object({
 export type Paytable = z.infer<typeof paytableSchema>;
 export type GameSummary = z.infer<typeof gameSummarySchema>;
 export type RecentHand = z.infer<typeof recentHandSchema>;
+export type AiTier = z.infer<typeof aiTierSchema>;
+export type AiSettings = z.infer<typeof aiSettingsSchema>;
+export type AiExplanation = z.infer<typeof aiExplanationSchema>;
+export type AiProvider = z.infer<typeof providerSchema>;
 export type Machine = z.infer<typeof machineSchema>;
 export type MachineDraft = z.infer<typeof machineDraftSchema>;
 export type Wallet = z.infer<typeof walletSchema>;
