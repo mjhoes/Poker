@@ -1,17 +1,18 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
-import { AiError } from "./types";
+import { AiError, parseReply } from "./types";
 import type { LLMProvider, TextRequest, TextResult } from "./types";
 
 /** GPT, called straight from the browser with the player's own key (Responses API, structured output from a Zod schema). */
-export function createOpenAIProvider(apiKey: string): LLMProvider {
-  const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 });
+export function createOpenAIProvider(apiKey: string, options: { fetch?: typeof fetch } = {}): LLMProvider {
+  const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, ...(options.fetch ? { fetch: options.fetch } : {}) });
   return {
     id: "openai",
     async text<T>(request: TextRequest<T>): Promise<TextResult<T>> {
       let response;
       try {
-        response = await client.responses.parse({
+        // `create`, not `parse`: usage is recorded before the reply is validated (see the Anthropic provider).
+        response = await client.responses.create({
           model: request.model,
           instructions: request.system,
           input: request.prompt,
@@ -24,8 +25,8 @@ export function createOpenAIProvider(apiKey: string): LLMProvider {
       const refused = response.output.some(item => item.type === "message" && item.content.some(part => part.type === "refusal"));
       if (refused) throw new AiError("refused", "The model declined to answer this one. Try again, or try another model.", usage);
       if (response.status === "incomplete") throw new AiError("invalid_output", "The reply was cut off before it finished.", usage);
-      if (response.output_parsed == null) throw new AiError("invalid_output", "The reply wasn't in the expected format.", usage);
-      return { data: response.output_parsed as T, ...usage };
+      const text = response.output.flatMap(item => item.type === "message" ? item.content.flatMap(part => part.type === "output_text" ? [part.text] : []) : []).join("");
+      return { data: parseReply(text, request.schema, usage), ...usage };
     },
     async test() {
       try {

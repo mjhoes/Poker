@@ -16,53 +16,76 @@ async function readSettings() {
   return aiSettingsSchema.parse(await db.records("aiSettings").get("local") ?? { id: "local", updatedAt: Date.now() });
 }
 
+/**
+ * Key and settings operations run one at a time, in the order they were asked for. Without this, a load that read the
+ * stored keys before a "Forget key" finished could write the forgotten key back into memory.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+function serial<T>(operation: () => Promise<T>): Promise<T> {
+  const run = queue.then(operation, operation);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
+async function applyRemember(rememberKeys: boolean) {
+  await db.transaction("rw", [db.records("aiSettings"), db.records("aiKeys")], async () => {
+    const settings = await readSettings();
+    await db.records("aiSettings").put({ ...settings, rememberKeys, updatedAt: Date.now() });
+    await db.records("aiKeys").clear();
+    if (rememberKeys) {
+      for (const [provider, key] of Object.entries(current().keys)) {
+        if (key) await db.records("aiKeys").put(aiKeySchema.parse({ provider, key, updatedAt: Date.now(), deletedAt: null }));
+      }
+    }
+  });
+  useAiStore.setState({ settings: await readSettings() });
+}
+
 export const aiService = {
   /** Loads settings, and remembered keys when that option is on. Keys already entered this session are kept. */
-  async load() {
-    const settings = await readSettings();
-    const stored = settings.rememberKeys ? await db.records("aiKeys").toArray() : [];
-    useAiStore.setState({ settings, keys: { ...Object.fromEntries(stored.map(row => [row.provider, row.key])), ...current().keys } });
+  load() {
+    return serial(async () => {
+      const settings = await readSettings();
+      const stored = settings.rememberKeys ? await db.records("aiKeys").toArray() : [];
+      useAiStore.setState({ settings, keys: { ...Object.fromEntries(stored.map(row => [row.provider, row.key])), ...current().keys } });
+    });
   },
   keyFor(provider: AiProvider) { return current().keys[provider] ?? null; },
-  async setKey(provider: AiProvider, value: string) {
+  setKey(provider: AiProvider, value: string) {
     const key = value.trim();
-    if (!key) throw new Error("Enter a key.");
-    if (/\s/.test(key)) throw new Error("A key has no spaces. Check that you pasted only the key.");
-    useAiStore.setState({ keys: { ...current().keys, [provider]: key } });
-    if ((await readSettings()).rememberKeys) await db.records("aiKeys").put(aiKeySchema.parse({ provider, key, updatedAt: Date.now(), deletedAt: null }));
+    if (!key) return Promise.reject(new Error("Enter a key."));
+    if (/\s/.test(key)) return Promise.reject(new Error("A key has no spaces. Check that you pasted only the key."));
+    return serial(async () => {
+      useAiStore.setState({ keys: { ...current().keys, [provider]: key } });
+      if ((await readSettings()).rememberKeys) await db.records("aiKeys").put(aiKeySchema.parse({ provider, key, updatedAt: Date.now(), deletedAt: null }));
+    });
   },
-  async forgetKey(provider: AiProvider) {
-    const keys = { ...current().keys };
-    delete keys[provider];
-    useAiStore.setState({ keys });
-    await db.records("aiKeys").delete(provider);
+  forgetKey(provider: AiProvider) {
+    return serial(async () => {
+      const keys = { ...current().keys };
+      delete keys[provider];
+      useAiStore.setState({ keys });
+      await db.records("aiKeys").delete(provider);
+    });
   },
   /** Turning remembering on stores the keys entered this session; turning it off deletes every stored key. */
-  async setRemember(rememberKeys: boolean) {
-    await db.transaction("rw", [db.records("aiSettings"), db.records("aiKeys")], async () => {
-      const settings = await readSettings();
-      await db.records("aiSettings").put({ ...settings, rememberKeys, updatedAt: Date.now() });
-      await db.records("aiKeys").clear();
-      if (rememberKeys) {
-        for (const [provider, key] of Object.entries(current().keys)) {
-          if (key) await db.records("aiKeys").put(aiKeySchema.parse({ provider, key, updatedAt: Date.now(), deletedAt: null }));
-        }
-      }
-    });
-    useAiStore.setState({ settings: await readSettings() });
+  setRemember(rememberKeys: boolean) {
+    return serial(() => applyRemember(rememberKeys));
   },
-  async updateSettings(changes: Partial<Pick<AiSettings, "coachProvider" | "coachTier" | "fallbackEnabled">>) {
-    const settings = { ...await readSettings(), ...changes, updatedAt: Date.now() };
-    await db.records("aiSettings").put(aiSettingsSchema.parse(settings));
-    useAiStore.setState({ settings: aiSettingsSchema.parse(settings) });
+  updateSettings(changes: Partial<Pick<AiSettings, "coachProvider" | "coachTier" | "fallbackEnabled">>) {
+    return serial(async () => {
+      const settings = { ...await readSettings(), ...changes, updatedAt: Date.now() };
+      await db.records("aiSettings").put(aiSettingsSchema.parse(settings));
+      useAiStore.setState({ settings: aiSettingsSchema.parse(settings) });
+    });
   },
 };
 
 /** One row per provider call that used tokens, so the usage summary shows what testing has cost. */
 export const usageService = {
-  async log(entry: { provider: AiProvider; model: string; task: string; inputTokens: number; outputTokens: number }) {
+  async log(entry: { provider: AiProvider; model: string; task: string; inputTokens: number; outputTokens: number }, requestedModel?: string) {
     const now = Date.now();
-    const row = aiUsageSchema.parse({ id: newId(), ...entry, estCost: costFor(entry.model, entry.inputTokens, entry.outputTokens), createdAt: now, updatedAt: now, deletedAt: null });
+    const row = aiUsageSchema.parse({ id: newId(), ...entry, estCost: costFor(entry.model, entry.inputTokens, entry.outputTokens, requestedModel), createdAt: now, updatedAt: now, deletedAt: null });
     await db.records("aiUsage").add(row);
     return row;
   },

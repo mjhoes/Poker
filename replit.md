@@ -365,3 +365,14 @@ R3 — why one hold beats another:
 - Production builds add a Content-Security-Policy meta tag (`vite.config.ts`): scripts from the site only; network to
   the site, `api.anthropic.com` and `api.openai.com`. Add a host there if a new provider is ever added.
 - Tests never call real APIs: unit tests use fake providers; `e2e/ai.spec.ts` intercepts both APIs with `page.route`.
+- Review rules (PR #4):
+  - `aiService` key/settings operations run one at a time (`serial`), so a slow load can't restore a forgotten key.
+  - Providers call `create` (not `parse`), record usage, then validate with `parseReply`: a paid malformed reply keeps
+    its usage row and gets the router's retry. Both take an optional `fetch` for tests.
+  - `costFor(returned, …, requested)`: dated IDs match their base model; an unknown returned model is priced as the
+    requested one, never $0.
+  - `checkNumbers` also checks number words ("ninety-nine percent"; counts 0–5 allowed as words unless a percentage)
+    and rejects ratio claims ("twice", "half", "three times as"). Facts give pays as `paysAtThisBet`.
+  - Saved explanations are keyed by the model that actually answered (`v1|provider|model|comparison`).
+  - `ExplainPanel` tags lookups and replies with the comparison+model they were for and shows them only while that is
+    still on screen.

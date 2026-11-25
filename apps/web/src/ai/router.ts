@@ -49,14 +49,14 @@ export async function runTask<T>(options: {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         const result = await client.text({ system: options.system, prompt, schema: options.schema, model });
-        await record(provider, options.task, result, totals);
+        await record(provider, options.task, result, totals, model);
         const problem = options.check?.(result.data) ?? null;
         if (!problem) return { data: result.data, provider, model: result.model, ...totals };
         lastError = new AiError("invalid_output", problem);
         prompt = `${options.prompt}\n\n${options.retryNote ? options.retryNote(problem) : `Your previous reply had a problem: ${problem} Please fix it.`}`;
       } catch (error) {
         const failure = asAiError(error);
-        if (failure.usage) await record(provider, options.task, failure.usage, totals);
+        if (failure.usage) await record(provider, options.task, failure.usage, totals, model);
         lastError = failure;
         if (failure.kind === "invalid_output" && attempt === 1) continue; // one more try with the same provider
         break;
@@ -67,12 +67,12 @@ export async function runTask<T>(options: {
   throw lastError ?? new AiError("provider", "The AI request failed.");
 }
 
-async function record(provider: AiProvider, task: string, usage: { model: string; inputTokens: number; outputTokens: number }, totals: { inputTokens: number; outputTokens: number; cost: number; calls: number }) {
+async function record(provider: AiProvider, task: string, usage: { model: string; inputTokens: number; outputTokens: number }, totals: { inputTokens: number; outputTokens: number; cost: number; calls: number }, requestedModel: string) {
   totals.calls++;
   totals.inputTokens += usage.inputTokens;
   totals.outputTokens += usage.outputTokens;
-  totals.cost += costFor(usage.model, usage.inputTokens, usage.outputTokens);
-  await usageService.log({ provider, model: usage.model, task, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }).catch(() => undefined);
+  totals.cost += costFor(usage.model, usage.inputTokens, usage.outputTokens, requestedModel);
+  await usageService.log({ provider, model: usage.model, task, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }, requestedModel).catch(() => undefined);
 }
 
 function asAiError(error: unknown) {

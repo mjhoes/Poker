@@ -32,14 +32,14 @@ export function explainFacts(input: ExplainInput) {
     comparedHold: { who: input.other.role, keep: holdCards(input.hand, input.other.mask), name: input.other.name, expectedValue: c.b.ev.toFixed(3), possibleDraws: c.b.drawCount, winsOn: `${(c.b.winProbability * 100).toFixed(1)}% of draws` },
     bestHoldIsWorthMoreBy: c.delta.toFixed(3),
     finalHands: c.rows.map(row => ({
-      hand: row.name, paysPerCoinBet: row.a.pay,
+      hand: row.name, paysAtThisBet: row.a.pay,
       bestHold: { chance: oneIn(row.a.count, c.a.drawCount), value: value(row.a.ev) },
       comparedHold: { chance: oneIn(row.b.count, c.b.drawCount), value: value(row.b.ev) },
       difference: `${row.delta >= 0 ? "+" : "-"}${value(Math.abs(row.delta))}`,
       deciding: c.decisive.includes(row.rank),
     })),
     engineSummary: input.summary,
-    units: "Expected value and value are in credits per line at this bet; value = chance × pay.",
+    units: `Pays, expected value and value are in credits per line at this bet (${input.coins} coin${input.coins === 1 ? "" : "s"} per line); value = chance × pay.`,
   };
 }
 export type ExplainFacts = ReturnType<typeof explainFacts>;
@@ -59,18 +59,47 @@ export function factNumbers(facts: unknown): number[] {
   return [...found];
 }
 
+const UNITS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+  "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+const SCALES: Record<string, number> = { hundred: 100, thousand: 1000, million: 1_000_000 };
+const NUMBER_WORD = `(?:${[...UNITS, ...TENS.filter(Boolean), ...Object.keys(SCALES)].join("|")})`;
+const NUMBER_WORDS = new RegExp(`\\b${NUMBER_WORD}(?:(?:[\\s-]+|[\\s-]+and[\\s-]+)${NUMBER_WORD})*\\b`, "gi");
+/** Claims of proportion the model would have to calculate: "twice", "half", "three times as likely". */
+const RATIOS = /\b(?:twice|thrice|triple|half|halves|quarter|(?:\d+|[a-z]+)\s+times\s+(?:as|more|less|the))\b/gi;
+
+function wordsValue(phrase: string) {
+  let total = 0, current = 0;
+  for (const word of phrase.toLowerCase().split(/[\s-]+/).filter(item => item && item !== "and")) {
+    if (UNITS.includes(word)) current += UNITS.indexOf(word);
+    else if (TENS.includes(word)) current += TENS.indexOf(word) * 10;
+    else if (word === "hundred") current = (current || 1) * 100;
+    else { total += (current || 1) * SCALES[word]; current = 0; }
+  }
+  return total + current;
+}
+
 /**
  * The numbers in `text` that the facts don't contain. Accepted: the same number however it is formatted ("1,081",
  * "100.0" vs "100"), or a fact shown with fewer decimals ("3.8" for 3.83, never a whole number rounded from a decimal).
+ * Numbers written as words count too ("ninety-nine percent"), except small counts of cards ("keep two cards", zero to
+ * five) that are not percentages. Ratio words ("twice", "three times as likely") are always rejected: the facts state
+ * no ratios, so any such claim was calculated by the model.
  */
 export function checkNumbers(text: string, allowed: readonly number[]): string[] {
   const bad: string[] = [];
+  const isFact = (n: number, decimals = 0) => allowed.some(fact => Math.abs(fact - n) < 1e-9 || (decimals > 0 && Math.abs(Number(fact.toFixed(decimals)) - n) < 1e-9));
+  const flag = (raw: string) => { if (!bad.includes(raw)) bad.push(raw); };
   for (const raw of text.match(NUMBER) ?? []) {
-    const n = Number(raw.replace(/,/g, ""));
     const decimals = raw.includes(".") ? raw.split(".")[1].length : 0;
-    const ok = allowed.some(fact => Math.abs(fact - n) < 1e-9 || (decimals > 0 && Math.abs(Number(fact.toFixed(decimals)) - n) < 1e-9));
-    if (!ok && !bad.includes(raw)) bad.push(raw);
+    if (!isFact(Number(raw.replace(/,/g, "")), decimals)) flag(raw);
   }
+  for (const match of text.matchAll(NUMBER_WORDS)) {
+    const value = wordsValue(match[0]);
+    const percent = /^\s*(?:percent|per cent|%)/i.test(text.slice((match.index ?? 0) + match[0].length));
+    if (!isFact(value) && (percent || value > 5)) flag(match[0]);
+  }
+  for (const match of text.matchAll(RATIOS)) flag(match[0]);
   return bad;
 }
 

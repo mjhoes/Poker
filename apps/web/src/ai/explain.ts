@@ -4,7 +4,7 @@ import type { AiExplanation, AiProvider, AiTier } from "@perfect-draw/shared";
 import { db } from "../data/db";
 import { checkNumbers, EXPLAIN_PROMPT_VERSION, EXPLAIN_SYSTEM, explainPrompt, explainRetryNote, factNumbers } from "./explain-facts";
 import type { ExplainFacts } from "./explain-facts";
-import { estimateCallCost, modelFor } from "./models";
+import { estimateCallCost, modelFor, modelInfo } from "./models";
 import { runTask } from "./router";
 import { AiError } from "./types";
 
@@ -18,7 +18,8 @@ const TYPICAL_OUTPUT_TOKENS = 1200;
 
 /** Prefix of the number-check failure, so it can be told apart from other malformed replies. */
 const STRAY_NUMBERS = "Numbers not in the DATA: ";
-const savedId = (key: string, provider: AiProvider, tier: AiTier) => `v${EXPLAIN_PROMPT_VERSION}|${provider}|${tier}|${key}`;
+/** Saved under the model that actually wrote it (a fallback may answer for the one asked), so lookups never mix models. */
+const savedId = (key: string, provider: AiProvider, model: string) => `v${EXPLAIN_PROMPT_VERSION}|${provider}|${model}|${key}`;
 const textOf = (explanation: Explanation) => [explanation.summary, explanation.why, explanation.howToRemember, explanation.commonMistake ?? ""].join(" ");
 
 export const explainService = {
@@ -27,7 +28,7 @@ export const explainService = {
     return estimateCallCost(modelFor(provider, tier).id, EXPLAIN_SYSTEM + explainPrompt(facts), TYPICAL_OUTPUT_TOKENS);
   },
   async saved(key: string, provider: AiProvider, tier: AiTier): Promise<AiExplanation | null> {
-    return (await db.records("aiExplanations").get(savedId(key, provider, tier))) ?? null;
+    return (await db.records("aiExplanations").get(savedId(key, provider, modelFor(provider, tier).id))) ?? null;
   },
   /** The newest saved explanation of this comparison from any model (viewing it is free, even without a key). */
   async latest(key: string): Promise<AiExplanation | null> {
@@ -49,9 +50,10 @@ export const explainService = {
         retryNote: explainRetryNote,
       });
       const now = Date.now();
+      const actual = modelInfo(result.model);
       const record = aiExplanationSchema.parse({
-        id: savedId(options.key, options.provider, options.tier), createdAt: now, updatedAt: now, deletedAt: null,
-        provider: result.provider, model: result.model, tier: options.tier, promptVersion: EXPLAIN_PROMPT_VERSION,
+        id: savedId(options.key, result.provider, actual?.id ?? result.model), createdAt: now, updatedAt: now, deletedAt: null,
+        provider: result.provider, model: result.model, tier: actual?.tier ?? options.tier, promptVersion: EXPLAIN_PROMPT_VERSION,
         explanation: { ...result.data, commonMistake: result.data.commonMistake?.trim() ? result.data.commonMistake : null },
         inputTokens: result.inputTokens, outputTokens: result.outputTokens, estCost: result.cost,
       });

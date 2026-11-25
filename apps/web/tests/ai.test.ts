@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as z from "zod/v4";
 import type { AiProvider } from "@perfect-draw/shared";
 import { db, initializeDatabase } from "../src/data/db";
@@ -140,5 +140,70 @@ describe("running a task", () => {
     fakeProviders({ anthropic: [new AiError("refused", "declined", { model: "claude-opus-5-5", inputTokens: 500, outputTokens: 10 })] });
     await expect(task()).rejects.toMatchObject({ kind: "refused" });
     expect(await usageService.summary()).toMatchObject({ calls: 1, models: [{ inputTokens: 500, outputTokens: 10 }] });
+  });
+});
+
+describe("review fixes", () => {
+  it("never brings back a key forgotten while an earlier load was still reading", async () => {
+    await aiService.setRemember(true);
+    await aiService.setKey("anthropic", "sk-ant-old");
+    useAiStore.setState({ keys: {} }); // a fresh session: the key is only on disk
+    // Hold the load just after it has read the stored key, so the forget happens in between (a slow device).
+    const table = db.records("aiKeys");
+    const original = table.toArray.bind(table);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    let reading!: () => void;
+    const readDone = new Promise<void>(resolve => { reading = resolve; });
+    const spy = vi.spyOn(table, "toArray").mockImplementation((async () => { const rows = await original(); reading(); await gate; return rows; }) as never);
+    const load = aiService.load();
+    await Promise.race([readDone, new Promise(resolve => setTimeout(resolve, 200))]);
+    const forget = aiService.forgetKey("anthropic");
+    release();
+    await Promise.all([load, forget]);
+    spy.mockRestore();
+    expect(aiService.keyFor("anthropic")).toBeNull();
+    expect(await db.records("aiKeys").get("anthropic")).toBeUndefined();
+  });
+
+  it("prices a dated or unknown returned model, never as free", () => {
+    expect(costFor("gpt-6.2-astra-2026-05-18", 1000, 0)).toBeCloseTo(costFor("gpt-6.2-astra", 1000, 0), 12);
+    expect(costFor("claude-opus-4-8", 1000, 0, "claude-opus-5-5")).toBeCloseTo(costFor("claude-opus-5-5", 1000, 0), 12);
+    expect(costFor("gpt-6.2-astra-law", 1000, 0)).toBe(0); // a different model, not a dated version
+  });
+
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  const anthropicReply = (text: string) => json({
+    id: "msg", type: "message", role: "assistant", model: "claude-opus-5-5", content: [{ type: "text", text }],
+    stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1500, output_tokens: 300, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+  });
+  const openAIReply = (text: string) => json({
+    id: "resp", object: "response", created_at: 1, status: "completed", model: "gpt-6.2-astra",
+    output: [{ type: "message", id: "m", status: "completed", role: "assistant", content: [{ type: "output_text", text, annotations: [] }] }],
+    usage: { input_tokens: 1500, output_tokens: 300, total_tokens: 1800, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
+  });
+
+  it.each([
+    ["anthropic", anthropicReply],
+    ["openai", openAIReply],
+  ] as const)("keeps the usage of a paid but malformed %s reply and retries it", async (provider, reply) => {
+    const { createAnthropicProvider } = await import("../src/ai/anthropic");
+    const { createOpenAIProvider } = await import("../src/ai/openai");
+    const bodies = [reply("{\"answer\": \"trunc"), reply(JSON.stringify({ answer: "ok" }))];
+    const fakeFetch = (async () => bodies.shift()!) as unknown as typeof fetch;
+    setProviderFactory(async (id, key) => id === "anthropic" ? createAnthropicProvider(key, { fetch: fakeFetch }) : createOpenAIProvider(key, { fetch: fakeFetch }));
+    await aiService.setKey(provider, "sk-test");
+    const result = await runTask({ task: "test", provider, tier: "heavy", system: "s", prompt: "p", schema });
+    expect(result).toMatchObject({ data: { answer: "ok" }, calls: 2, inputTokens: 3000, outputTokens: 600 });
+    expect((await usageService.summary()).calls).toBe(2);
+  });
+
+  it("reports a malformed reply's usage even when it is the last try", async () => {
+    const { createAnthropicProvider } = await import("../src/ai/anthropic");
+    const fakeFetch = (async () => anthropicReply("not json")) as unknown as typeof fetch;
+    setProviderFactory(async (_id, key) => createAnthropicProvider(key, { fetch: fakeFetch }));
+    await aiService.setKey("anthropic", "sk-test");
+    await expect(runTask({ task: "test", provider: "anthropic", tier: "heavy", system: "s", prompt: "p", schema })).rejects.toMatchObject({ kind: "invalid_output" });
+    expect(await usageService.summary()).toMatchObject({ calls: 2, models: [{ inputTokens: 3000, outputTokens: 600 }] });
   });
 });

@@ -24,3 +24,12 @@ export class AiError extends Error {
   /** Failures tied to one provider or moment, where the other provider may succeed. */
   get canFallBack() { return this.kind === "rate_limit" || this.kind === "network" || this.kind === "provider" || this.kind === "refused" || this.kind === "credit"; }
 }
+
+/** Reads a structured reply: JSON text checked against the schema. A failure keeps the call's usage (it was paid for). */
+export function parseReply<T>(text: string, schema: z.ZodType<T>, usage: { model: string; inputTokens: number; outputTokens: number }): T {
+  let json: unknown;
+  try { json = JSON.parse(text); } catch { throw new AiError("invalid_output", "The reply wasn't in the expected format.", usage); }
+  const result = schema.safeParse(json);
+  if (!result.success) throw new AiError("invalid_output", "The reply wasn't in the expected format.", usage);
+  return result.data;
+}

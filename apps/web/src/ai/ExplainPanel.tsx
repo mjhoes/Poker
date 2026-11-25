@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AiExplanation, AiProvider, AiTier } from "@perfect-draw/shared";
 import { Button, ChoiceChips } from "../components/ui";
 import { errorMessage } from "../hooks/useActionRunner";
@@ -25,22 +25,31 @@ export function ExplainPanel({ input, paytableId }: { input: ExplainInput; payta
 
   const facts = useMemo(() => explainFacts(input), [input]);
   const key = comparisonKey({ hand: input.hand, paytableId, coins: input.coins, bestMask: input.best.mask, otherMask: input.other.mask });
-  const [saved, setSaved] = useState<AiExplanation | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [error, setError] = useState("");
-  const [freshCalls, setFreshCalls] = useState<number | null>(null);
+  /*
+   * What is on screen: this comparison with this model. Results are tagged with the view they were asked for and shown
+   * only while it is still the one on screen: a reply that arrives after the player picked another hold or model is
+   * saved (and appears when they come back) but never shown under a different comparison.
+   */
+  const view = `${key}|${chosenProvider ?? ""}|${chosenTier}`;
+  const currentView = useRef(view);
+  currentView.current = view;
+  const [found, setFound] = useState<{ view: string; record: AiExplanation | null; freshCalls: number | null } | null>(null);
+  const [failure, setFailure] = useState<{ view: string; message: string } | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+  const saved = found?.view === view ? found.record : null;
+  const freshCalls = found?.view === view ? found.freshCalls : null;
+  const error = failure?.view === view ? failure.message : "";
 
   // Show the saved explanation for the chosen model, else the newest saved one from any model.
   useEffect(() => {
     let cancelled = false;
-    setStatus("idle"); setError(""); setFreshCalls(null);
     void (async () => {
       const exact = chosenProvider ? await explainService.saved(key, chosenProvider, chosenTier) : null;
       const record = exact ?? await explainService.latest(key);
-      if (!cancelled) setSaved(record);
+      if (!cancelled) setFound(previous => previous?.view === view && previous.freshCalls !== null ? previous : { view, record, freshCalls: null });
     })();
     return () => { cancelled = true; };
-  }, [key, chosenProvider, chosenTier]);
+  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps -- view covers key, provider and tier
 
   if (!settings) return null;
   const result = saved && <div className="explain-result" aria-live="polite">
@@ -58,12 +67,18 @@ export function ExplainPanel({ input, paytableId }: { input: ExplainInput; payta
   </div>;
 
   const explain = async () => {
-    setStatus("loading"); setError("");
+    const asked = view;
+    setPending(asked); setFailure(null);
     try {
       const { record, calls } = await explainService.explain({ key, facts, provider: chosenProvider, tier: chosenTier });
-      setSaved(record); setFreshCalls(calls); setStatus("idle");
-    } catch (failure) { setError(errorMessage(failure)); setStatus("error"); }
+      if (currentView.current === asked) setFound({ view: asked, record, freshCalls: calls });
+    } catch (reason) {
+      if (currentView.current === asked) setFailure({ view: asked, message: errorMessage(reason) });
+    } finally {
+      setPending(current => current === asked ? null : current);
+    }
   };
+  const loading = pending === view;
   const model = modelFor(chosenProvider, chosenTier);
   return <div className="explain" aria-label="Explain in plain English" role="group">
     <div className="explain-head">
@@ -78,9 +93,9 @@ export function ExplainPanel({ input, paytableId }: { input: ExplainInput; payta
       })} />
 
     {result}
-    <Button variant="secondary" size={saved ? "sm" : "md"} loading={status === "loading"} loadingLabel={`Explaining with ${model.name}…`} onClick={() => void explain()}>
-      {saved?.model === model.id ? "Regenerate" : `Explain with ${model.name}`} · about {formatCost(explainService.estimate(facts, chosenProvider, chosenTier))}</Button>
-    {status === "error" && <p className="explain-error" role="alert">{error}</p>}
+    <Button variant="secondary" size={saved ? "sm" : "md"} loading={loading} loadingLabel={`Explaining with ${model.name}…`} onClick={() => void explain()}>
+      {saved && modelInfo(saved.model)?.id === model.id ? "Regenerate" : `Explain with ${model.name}`} · about {formatCost(explainService.estimate(facts, chosenProvider, chosenTier))}</Button>
+    {error && <p className="explain-error" role="alert">{error}</p>}
     <p className="ai-note">Sent to {providerName(chosenProvider)} with your key only when you press the button. Estimates assume a typical reply.</p>
   </div>;
 }

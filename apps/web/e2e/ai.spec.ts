@@ -15,7 +15,7 @@ const goodText = {
 
 interface Calls { anthropic: { model: string; headers: Record<string, string> }[]; openai: { model: string; headers: Record<string, string> }[] }
 
-async function mockProviders(page: Page, replies: { anthropic?: object[]; openai?: object[] } = {}) {
+async function mockProviders(page: Page, replies: { anthropic?: object[]; openai?: object[]; hold?: Promise<void> } = {}) {
   const calls: Calls = { anthropic: [], openai: [] };
   await page.route("https://api.anthropic.com/**", async (route: Route) => {
     const request = route.request();
@@ -26,6 +26,7 @@ async function mockProviders(page: Page, replies: { anthropic?: object[]; openai
     if (request.url().includes("/v1/models")) return route.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ data: [], has_more: false, first_id: null, last_id: null }) });
     const body = request.postDataJSON() as { model: string };
     calls.anthropic.push({ model: body.model, headers });
+    if (replies.hold) await replies.hold;
     const reply = replies.anthropic?.shift() ?? goodText;
     return route.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({
       id: `msg_${calls.anthropic.length}`, type: "message", role: "assistant", model: body.model,
@@ -171,4 +172,26 @@ test("after a mistake at the table, the drawer offers the explanation", async ({
   await page.getByText("Why is the best hold better?").click();
   const explain = page.getByRole("group", { name: "Explain in plain English" });
   await expect(explain.getByRole("button", { name: /^Explain with Claude Opus 5\.5 · about \$0\.0\d\d$/ })).toBeVisible();
+});
+
+test("a reply that arrives after the player picked another hold is not shown under it", async ({ page }) => {
+  let release!: () => void;
+  const calls = await mockProviders(page, { hold: new Promise<void>(resolve => { release = resolve; }) });
+  await page.goto("/#/settings?section=ai");
+  await addKey(page, "Anthropic (Claude)", "sk-ant-test-key");
+  await page.goto("/#/analyze?hand=AsAc8d8h3c");
+  const holds = page.getByRole("list", { name: "All holds, best first" }).getByRole("button");
+  const explain = page.getByRole("group", { name: "Explain in plain English" });
+  await explain.getByRole("button", { name: /^Explain with Claude Opus 5\.5/ }).click(); // explains the runner-up (hold 2)
+  await expect.poll(() => calls.anthropic.length).toBe(1);
+  await holds.nth(3).click(); // the player moves on before the reply arrives
+  await expect(page.getByRole("region", { name: "Holds ranked" }).getByRole("heading", { level: 3 })).toHaveText(/^Why the best hold beats A♠ A♣/);
+  release();
+  await page.waitForTimeout(800);
+  await expect(explain.locator(".explain-summary")).toHaveCount(0);
+  await expect(explain.getByRole("button", { name: /^Explain with Claude Opus 5\.5/ })).toBeEnabled();
+  // Back on the hold it was asked for, the (saved) reply is there.
+  await holds.nth(1).click();
+  await expect(explain.locator(".explain-summary")).toHaveText(goodText.summary);
+  await expect(explain.locator(".explain-meta")).toContainText("saved on this device");
 });

@@ -23,12 +23,13 @@ const facts = explainFacts({
 
 describe("the facts the model is given", () => {
   it("are the engine's comparison, formatted as the app shows it", () => {
+    expect(facts.units).toContain("credits per line at this bet (5 coins per line)");
     expect(facts.hand).toEqual(["A♥", "K♥", "Q♥", "7♥", "7♣"]);
     expect(facts.bestHold).toMatchObject({ keep: "A♥ K♥ Q♥", name: "3 to a Royal Flush", possibleDraws: 1081 });
     expect(facts.comparedHold).toMatchObject({ who: "Your hold", keep: "7♥ 7♣" });
     expect(facts.bestHoldIsWorthMoreBy).toBe(comparison.delta.toFixed(3));
     const royal = facts.finalHands.find(row => row.hand === "Royal Flush")!;
-    expect(royal).toMatchObject({ paysPerCoinBet: 4000, bestHold: { chance: "1 in 1,081", value: "3.70" }, comparedHold: { chance: "—", value: "0.00" }, deciding: true });
+    expect(royal).toMatchObject({ paysAtThisBet: 4000, bestHold: { chance: "1 in 1,081", value: "3.70" }, comparedHold: { chance: "—", value: "0.00" }, deciding: true });
   });
   it("list every number they contain, including card ranks and counts inside names", () => {
     const numbers = factNumbers(facts);
@@ -44,6 +45,15 @@ describe("the number check", () => {
   it("accepts the data's numbers however they are formatted", () => {
     expect(checkNumbers("The royal comes 1 in 1,081 draws (or 1 in 1081) and is worth 3.70, about 3.7 credits.", allowed)).toEqual([]);
     expect(checkNumbers("Keep A♥ K♥ Q♥ rather than the pair of 7s; a royal pays 4,000 at 5 coins.", allowed)).toEqual([]);
+  });
+  it("checks numbers written as words, and rejects ratios the model would have to calculate", () => {
+    expect(checkNumbers("The best hold wins ninety-nine percent of the time.", allowed)).toEqual(["ninety-nine"]);
+    expect(checkNumbers("It wins two percent more often.", allowed)).toEqual(["two"]);
+    expect(checkNumbers("A royal comes about once in a thousand draws.", allowed)).toEqual(["thousand"]);
+    expect(checkNumbers("Keep three cards and draw two; Three of a Kind and Two Pair still pay.", allowed)).toEqual([]);
+    expect(checkNumbers("The pair is twice as likely to win, and three times as likely to improve.", allowed)).toEqual(["twice", "three times as"]);
+    expect(checkNumbers("Half the value comes from the royal.", allowed)).toEqual(["Half"]);
+    expect(checkNumbers("Seven draws in fourteen improve.", allowed.filter(n => n !== 14))).toEqual(["fourteen"]);
   });
   it("rejects a number the data doesn't have, or a whole number rounded from a decimal", () => {
     expect(checkNumbers("The royal comes once in 1,000 draws.", allowed)).toEqual(["1,000"]);
@@ -90,6 +100,24 @@ describe("explaining a comparison", () => {
     expect(prompts[0]).toContain("\"chance\": \"1 in 1,081\"");
     expect(await explainService.saved(key, "anthropic", "heavy")).toEqual(record);
     expect(await explainService.saved(key, "anthropic", "light")).toBeNull();
+  });
+  it("saves an explanation under the model that actually wrote it, after a fallback", async () => {
+    const { AiError } = await import("../src/ai/types");
+    await aiService.setKey("openai", "sk-oai");
+    await aiService.updateSettings({ fallbackEnabled: true });
+    setProviderFactory(async (provider): Promise<LLMProvider> => ({
+      id: provider,
+      async text<T>(request: TextRequest<T>) {
+        if (provider === "anthropic") throw new AiError("rate_limit", "busy");
+        return { data: good as T, model: request.model, inputTokens: 2500, outputTokens: 900 };
+      },
+      async test() { return { ok: true as const }; },
+    }));
+    const { record } = await explainService.explain({ key, facts, provider: "anthropic", tier: "heavy" });
+    expect(record).toMatchObject({ provider: "openai", model: "gpt-6.2-astra", tier: "heavy" });
+    expect(await explainService.saved(key, "anthropic", "heavy")).toBeNull();
+    expect(await explainService.saved(key, "openai", "heavy")).toEqual(record);
+    expect(await explainService.latest(key)).toEqual(record);
   });
   it("retries when the reply invents a number, then shows nothing if it does again", async () => {
     replies.push({ ...good, why: "A royal comes 1 in 1,000 draws." }, good);

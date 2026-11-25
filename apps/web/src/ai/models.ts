@@ -32,12 +32,18 @@ export const PROVIDERS: readonly { id: AiProvider; name: string; keyHint: string
 export function modelFor(provider: AiProvider, tier: AiTier): ModelInfo {
   return MODELS.find(model => model.provider === provider && model.tier === tier)!;
 }
-export function modelInfo(id: string): ModelInfo | undefined { return MODELS.find(model => model.id === id); }
+/** The model, also when a provider reports a dated version of it ("gpt-6.2-astra-2026-05-18"). */
+export function modelInfo(id: string): ModelInfo | undefined {
+  return MODELS.find(model => model.id === id) ?? MODELS.find(model => id.startsWith(`${model.id}-`) && /^\d/.test(id.slice(model.id.length + 1)));
+}
 export const providerName = (provider: AiProvider) => PROVIDERS.find(item => item.id === provider)!.name;
 
-/** Dollars for a call; a model not in the table (a custom override) is costed at 0 and `modelInfo` is undefined. */
-export function costFor(modelId: string, inputTokens: number, outputTokens: number) {
-  const model = modelInfo(modelId);
+/**
+ * Dollars for a call. A reply can come from a model not in the table (a provider-side fallback, say); it is then priced
+ * as the model that was asked for, never as free. Only a model unknown on both counts prices at zero.
+ */
+export function costFor(modelId: string, inputTokens: number, outputTokens: number, requestedModelId?: string) {
+  const model = modelInfo(modelId) ?? (requestedModelId ? modelInfo(requestedModelId) : undefined);
   return model ? (inputTokens * model.inputPerM + outputTokens * model.outputPerM) / 1_000_000 : 0;
 }
 

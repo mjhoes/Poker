@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { AiError } from "./types";
+import { AiError, parseReply } from "./types";
 import type { LLMProvider, TextRequest, TextResult } from "./types";
 
 /*
@@ -8,8 +8,8 @@ import type { LLMProvider, TextRequest, TextResult } from "./types";
  * lets the API accept a browser request; the flag warns against shipping your own key to browsers, and here the key
  * belongs to the person using the browser (Tech Spec §7.1).
  */
-export function createAnthropicProvider(apiKey: string): LLMProvider {
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 });
+export function createAnthropicProvider(apiKey: string, options: { fetch?: typeof fetch } = {}): LLMProvider {
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, ...(options.fetch ? { fetch: options.fetch } : {}) });
   return {
     id: "anthropic",
     async text<T>(request: TextRequest<T>): Promise<TextResult<T>> {
@@ -18,7 +18,9 @@ export function createAnthropicProvider(apiKey: string): LLMProvider {
       const fallback = request.model === "claude-haiku-5-5" ? {} : { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const };
       let response;
       try {
-        response = await client.beta.messages.parse({
+        // `create`, not `parse`: the reply is validated below, after its token usage is recorded, so a paid but
+        // malformed reply still counts in the usage log and gets the router's retry.
+        response = await client.beta.messages.create({
           model: request.model,
           max_tokens: request.maxTokens ?? 16000,
           system: request.system,
@@ -30,8 +32,8 @@ export function createAnthropicProvider(apiKey: string): LLMProvider {
       const usage = { model: response.model, inputTokens: inputTokens(response.usage), outputTokens: response.usage.output_tokens };
       if (response.stop_reason === "refusal") throw new AiError("refused", "The model declined to answer this one. Try again, or try another model.", usage);
       if (response.stop_reason === "max_tokens") throw new AiError("invalid_output", "The reply was cut off before it finished.", usage);
-      if (response.parsed_output == null) throw new AiError("invalid_output", "The reply wasn't in the expected format.", usage);
-      return { data: response.parsed_output as T, ...usage };
+      const text = response.content.flatMap(block => block.type === "text" ? [block.text] : []).join("");
+      return { data: parseReply(text, request.schema, usage), ...usage };
     },
     async test() {
       try {
