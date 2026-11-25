@@ -403,6 +403,8 @@ R3 — why one hold beats another:
   - `PhotoReader` owns the preview images it prepares (blob URLs are revoked when replaced or when it closes) until it
     hands one over in `onRead`; a caller returns `false` to decline a reading and leave the image with the reader.
     `initialImage` stays the caller's. A read that completes after the reader closed or its photo changed is dropped.
+  - Choosing or pasting a photo invalidates any read in flight immediately; each preparation has its own ticket and only
+    the newest is shown (an older one that finishes later is revoked). Read photo is disabled while preparing.
   - Label normalization also drops "any" ("Four Aces with any 2, 3, 4" → the kicker hand).
   - Strategy comparison (`worker/strategy-difference.ts`) counts a deal as changed only when no hold is optimal under
     both tables; deals with a tie on either side are re-solved exactly (stored analyses keep only two holds).

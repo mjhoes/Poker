@@ -216,3 +216,80 @@ test("photos are released from memory when replaced, declined or closed", async 
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await isLive(page, second)).toBe(false); // closed
 });
+
+/** Lets a test hold each photo's preparation and see which preview URLs were created and released. */
+async function controlPreparation(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __hold: boolean; __gates: (() => void)[]; __created: string[]; __revoked: string[] };
+    w.__hold = false; w.__gates = []; w.__created = []; w.__revoked = [];
+    const original = window.createImageBitmap.bind(window) as (...args: unknown[]) => Promise<ImageBitmap>;
+    (window as unknown as { createImageBitmap: unknown }).createImageBitmap = (...args: unknown[]) => new Promise((resolve, reject) => {
+      const go = () => { original(...args).then(resolve, reject); };
+      if (w.__hold) w.__gates.push(go); else go();
+    });
+    const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (object: Blob | MediaSource) => { const url = create(object); w.__created.push(url); return url; };
+    URL.revokeObjectURL = (url: string) => { w.__revoked.push(url); revoke(url); };
+  });
+  return {
+    hold: (on: boolean) => page.evaluate(value => { (window as unknown as { __hold: boolean }).__hold = value; }, on),
+    pending: () => page.evaluate(() => (window as unknown as { __gates: unknown[] }).__gates.length),
+    finish: (index: number) => page.evaluate(i => { (window as unknown as { __gates: (() => void)[] }).__gates[i](); }, index),
+    /** Preview URLs created and not released, other than the ones still in use. */
+    leaked: (inUse: string[]) => page.evaluate(keep => {
+      const w = window as unknown as { __created: string[]; __revoked: string[] };
+      return w.__created.filter(url => url.startsWith("blob:") && !keep.includes(url) && !w.__revoked.includes(url));
+    }, inUse),
+  };
+}
+const paste = (page: Page, photo: { buffer: Buffer; mimeType: string }) => page.evaluate(({ data, type }) => {
+  const bytes = Uint8Array.from(atob(data), char => char.charCodeAt(0));
+  const transfer = new DataTransfer();
+  transfer.items.add(new File([bytes], "pasted.png", { type }));
+  window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer }));
+}, { data: photo.buffer.toString("base64"), type: photo.mimeType });
+
+test("a read of photo A that finishes while photo B is still being prepared is dropped", async ({ page, browser }) => {
+  let release!: () => void;
+  const hand = { readable: true, payTableVisible: false, held: null, cards: [["A", "spades"], ["A", "clubs"], ["8", "diamonds"], ["8", "hearts"], ["3", "clubs"]].map(([rank, suit]) => ({ rank, suit, confidence: 0.97 })) };
+  const calls = await mockVision(page, { hand: [hand], hold: new Promise<void>(resolve => { release = resolve; }) });
+  const prep = await controlPreparation(page);
+  await addKey(page);
+  await page.goto("/#/analyze");
+  await page.getByRole("button", { name: "From a photo", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Hand from a photo" });
+  await dialog.getByLabel("Photo of the hand").setInputFiles(await renderPhoto(browser, "photo A"));
+  await dialog.getByRole("button", { name: /^Read photo with/ }).click();
+  await expect.poll(() => calls.length).toBe(1);             // A's read is in flight
+  await prep.hold(true);
+  await dialog.getByLabel("Photo of the hand").setInputFiles(await renderPhoto(browser, "photo B"));
+  await expect.poll(prep.pending).toBe(1);                   // B is still being prepared
+  release();                                                  // A's reply arrives now
+  await page.waitForTimeout(800);
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Type a hand" })).toHaveValue("");
+  await expect(dialog.getByRole("button", { name: /^Read photo with/ })).toBeDisabled(); // nothing to read until B is ready
+  await prep.finish(0);
+  await expect(dialog.getByRole("button", { name: /^Read photo with/ })).toBeEnabled();
+});
+
+test("photos chosen in quick succession show the newest, whichever finishes preparing first", async ({ page, browser }) => {
+  const prep = await controlPreparation(page);
+  await addKey(page);
+  await page.getByRole("button", { name: "From a photo", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Pay table from a photo" });
+  const preview = dialog.getByRole("img", { name: "Your photo of the pay table" });
+  await prep.hold(true);
+  await dialog.getByLabel("Photo of the pay table").setInputFiles(await renderPhoto(browser, "photo A"));
+  await paste(page, await renderPhoto(browser, "photo B"));   // B pasted while A is preparing
+  await expect.poll(prep.pending).toBe(2);
+  await prep.finish(1);                                       // B finishes first
+  await expect(preview).toBeVisible();
+  const newest = (await preview.getAttribute("src"))!;
+  await prep.finish(0);                                       // then A
+  await page.waitForTimeout(500);
+  await expect(preview).toHaveAttribute("src", newest);       // still B
+  expect(await prep.leaked([newest])).toEqual([]);            // A's preview was released, not kept
+  await dialog.getByRole("button", { name: "Close dialog" }).click();
+  expect(await prep.leaked([])).toEqual([]);                  // and B's on closing
+});

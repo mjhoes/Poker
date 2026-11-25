@@ -49,20 +49,22 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
     return () => { live.current = false; request.current++; for (const url of urls) URL.revokeObjectURL(url); urls.clear(); };
   }, []);
 
+  // Each chosen or pasted photo gets a number: only the newest one's preparation is used, whatever order they finish in.
+  const preparation = useRef(0);
   const accept = async (file: Blob | null | undefined) => {
     if (!file) return;
-    setPreparing(true); setError("");
+    const ticket = ++preparation.current;
+    request.current++; // a read of the photo on screen no longer applies, from this moment
+    setReading(false); setPreparing(true); setError("");
     try {
       const prepared = await prepareImage(file);
-      if (!live.current) { URL.revokeObjectURL(prepared.previewUrl); return; }
+      if (!live.current || preparation.current !== ticket) { URL.revokeObjectURL(prepared.previewUrl); return; } // superseded
       owned.current.add(prepared.previewUrl);
       if (current.current) release(current.current.previewUrl);
-      request.current++; // a read of the previous photo no longer applies
-      setReading(false);
       setImage(prepared);
     }
-    catch (reason) { if (live.current) setError(errorMessage(reason)); }
-    finally { if (live.current) setPreparing(false); }
+    catch (reason) { if (live.current && preparation.current === ticket) setError(errorMessage(reason)); }
+    finally { if (live.current && preparation.current === ticket) setPreparing(false); }
   };
   // Pasting a screenshot or copied photo works anywhere while this is open.
   useEffect(() => {
@@ -113,7 +115,7 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
             const option = modelFor(chosenProvider, item.id);
             return { value: item.id, label: item.label, name: `${item.label}: ${option.name}`, hint: `${option.name} · about ${formatCost(photoService.estimate(kind, image, chosenProvider, item.id))}` };
           })} />
-        <Button variant="gold" loading={reading} loadingLabel={`Reading with ${modelFor(chosenProvider, chosenTier).name}…`} onClick={() => void read()}>
+        <Button variant="gold" disabled={preparing} loading={reading} loadingLabel={`Reading with ${modelFor(chosenProvider, chosenTier).name}…`} onClick={() => void read()}>
           Read photo with {modelFor(chosenProvider, chosenTier).name} · about {formatCost(photoService.estimate(kind, image, chosenProvider, chosenTier))}</Button>
         <p className="ai-note">Sent to the provider with your key only when you press Read photo. The AI only reads the picture; the app checks every number, and nothing is saved until you confirm.</p>
       </>}
