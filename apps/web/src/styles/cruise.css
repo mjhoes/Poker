@@ -1,0 +1,106 @@
+/* Cruise rewards: live session timer, trip dashboard, planner, lifetime totals and rewards. */
+.muted { color: var(--muted); }
+.cruise-empty .panel-actions { justify-content: center; }
+.cruise-empty .muted { font-size: var(--text-sm); }
+
+/* Live casino session: big enough to read one-handed in a dim casino. */
+.live-panel { margin-bottom: 20px; padding: 20px 23px; border-left: 4px solid var(--success); }
+.live-panel.paused { border-left-color: var(--signal); }
+.live-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.live-head h2 { margin: 0 0 4px; font-size: var(--text-xl); letter-spacing: -.03em; }
+.live-head h2 .muted { font: 500 var(--text-md) var(--font-ui); letter-spacing: 0; }
+.live-body { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 36px; margin: 14px 0 16px; }
+.live-timer { font: 650 clamp(44px, 9vw, 68px) / 1 var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: -.04em; color: var(--ink); }
+.live-panel.paused .live-timer { color: var(--muted); }
+.live-facts { display: grid; grid-template-columns: repeat(2, minmax(140px, auto)); gap: 8px 28px; margin: 0; }
+.live-facts dt { color: var(--muted-2); font: 600 10px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.live-facts dd { margin: 2px 0 0; font: 600 var(--text-md) var(--font-ui); font-variant-numeric: tabular-nums; }
+.live-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.live-actions .btn { min-height: 46px; }
+
+/* Trip bar and dashboard */
+.trip-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; margin-bottom: 16px; }
+.trip-picker { flex: 1 1 280px; max-width: 460px; }
+.trip-bar .badge { margin-bottom: 11px; }
+.trip-bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.trip-dashboard { display: flex; align-items: center; gap: 26px; margin-bottom: 20px; }
+.trip-summary h2 { margin: 0 0 6px; font-family: var(--display); font-size: var(--text-2xl); letter-spacing: -.03em; }
+.trip-summary p { margin: 0; font-size: var(--text-sm); line-height: 1.6; }
+.tier-note { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px !important; }
+.tier-note span { padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--muted); font: 600 var(--text-xs) var(--font-ui); }
+.tier-note .tier-done { border-color: var(--success); background: #e1ecdf; color: #2f6a41; }
+.progress-ring { position: relative; flex: 0 0 132px; width: 132px; height: 132px; }
+.progress-ring svg { width: 100%; height: 100%; }
+.ring-track, .ring-value { fill: none; stroke-width: 11; }
+.ring-track { stroke: var(--soft); }
+.ring-value { stroke: var(--felt); stroke-linecap: round; transition: stroke-dasharray var(--dur-slow) var(--ease-out); }
+.ring-label { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.ring-label strong { font: 650 24px var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.ring-label span { color: var(--muted); font-size: var(--text-xs); }
+
+/* Totals */
+.cruise-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--line); }
+.cruise-stat { display: flex; flex-direction: column; gap: 4px; padding: 14px 15px; background: var(--surface); }
+.cruise-stat span { color: var(--muted-2); font: 600 10px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.cruise-stat strong { font: 650 var(--text-xl) var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.cruise-stat small { color: var(--muted); font-size: var(--text-xs); line-height: 1.4; }
+section.panel + section.panel { margin-top: 20px; }
+.trip-dashboard + .panel { margin-top: 0; }
+
+/* Planner */
+.planner-inputs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.planner-inputs .wide { grid-column: span 2; }
+.field-note { color: var(--muted); font-size: 10px; }
+.planner-return { margin: 0 0 14px; color: var(--ink-2); font-size: var(--text-md); line-height: 1.6; }
+.planner-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 24px; align-items: start; }
+.planner-list { margin: 0; }
+.planner-list dd { margin: 0; }
+.planner-verdict > p { margin: 0 0 14px; font-size: var(--text-md); line-height: 1.6; }
+.luck-band { padding: 14px 16px; border-radius: var(--radius-md); background: var(--surface-2); border: 1px solid var(--line); }
+.band-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+.band-row span { display: flex; flex-direction: column; gap: 3px; }
+.band-row small { color: var(--muted); font-size: var(--text-xs); }
+.band-row strong { font: 650 var(--text-lg) var(--font-ui); font-variant-numeric: tabular-nums; }
+
+/* Sessions table */
+.cruise-table { min-width: 680px; }
+.cruise-table td { vertical-align: top; }
+.cell-note { display: block; color: var(--muted); font-size: 10px; }
+
+/* Rewards */
+.rewards-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin: 22px 0 10px; }
+.rewards-head h3 { margin: 0; font-size: var(--text-lg); }
+.reward-list { display: grid; gap: 0; margin: 0 0 14px; padding: 0; list-style: none; }
+.reward-list li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.reward-list li > span:first-child { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.reward-list small { color: var(--muted); font-size: var(--text-xs); }
+.reward-value { font: 650 var(--text-md) var(--font-ui); font-variant-numeric: tabular-nums; }
+
+/* Dialogs */
+.trip-days { display: grid; gap: 6px; margin: 16px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.trip-days legend, .tier-list legend { padding: 0 4px; color: #59675d; font-size: 11px; font-weight: 700; }
+.trip-day { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(110px, 1fr) 70px auto; align-items: center; gap: 8px; font-size: var(--text-sm); }
+.trip-day select, .trip-day input, .tier-row input { min-height: 34px; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fffef9; font-size: var(--text-sm); }
+.tier-list { display: grid; gap: 8px; margin: 14px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.tier-list > .btn { justify-self: start; }
+.tier-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; }
+.check-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: var(--text-md); }
+.cashout-preview { margin: 14px 0 0; }
+.cashout-preview dd { margin: 0; }
+.cashout-preview .muted { font-weight: 400; font-size: var(--text-xs); }
+
+@media (max-width: 860px) {
+  .cruise-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .planner-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .planner-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .trip-dashboard { flex-direction: column; align-items: flex-start; }
+  .live-facts { grid-template-columns: 1fr; }
+  .live-actions .btn { flex: 1 1 calc(50% - 8px); }
+  .trip-bar-actions { margin-left: 0; }
+  .planner-inputs .wide { grid-column: 1 / -1; }
+  .trip-day { grid-template-columns: 1fr 1fr 60px auto; }
+  .band-row { grid-template-columns: 1fr; gap: 6px; }
+  .band-row span { flex-direction: row; justify-content: space-between; align-items: baseline; }
+}

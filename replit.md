@@ -73,7 +73,7 @@ hold masks must be remapped to the user's original card order before use.
   Browser tests use system Chromium when available (provided by Nix here).
 - Cached library analyses work offline after first use. Unopened tables need
   one online load. Persistence permission is best-effort, not a backup.
-- AI settings/key entry remain Prompt 8; cruise workflows remain Prompt 7b.
+- AI settings/key entry were built in Prompt 8; cruise workflows (Prompt 7b) are in "Cruise rewards tracker" below.
 
 ## Free Play and Rapid Drill (Prompt 6)
 
@@ -411,6 +411,36 @@ R3 — why one hold beats another:
 - `pnpm --filter @perfect-draw/web vision-eval <folder> [--provider anthropic|openai] [--tier …]`: scores real photos
   against `<name>.json` answers (`{ "slug": … }` or `{ "familyId", "pays" }`); needs a real key in the environment and
   spends real money. Tests never call real APIs (`e2e/photo.spec.ts` renders images and intercepts the API).
+
+## Cruise rewards tracker (docs/13-CRUISE-TRACKER-PLAN.md)
+
+- Route `#/cruise` (`pages/CruisePage.tsx`). Code in `apps/web/src/cruise/`: `economics.ts` (all arithmetic, pure and
+  unit-tested), `useCruise.ts` (live query, expected returns, practice pace), `CruiseDialogs.tsx`, `Planner.tsx`.
+  Services in `services/cruise.ts`; luck band simulation in `worker/risk.ts` (`EngineAPI.riskBand`).
+- **Only readings are stored** (cash in/out, points before/after, hands, free play, timestamped time segments);
+  coin-in, points earned and costs are derived on every read, so editing a program's rules recalculates history.
+  `casinoSessions.coinInCents` holds only an estimate (source "estimate"), fixed at cash-out.
+- Owner's rules (Club Royale, seeded once by `initializeDatabase`, editable): $15 of coin-in per point; rounding
+  `carryover` = a running coin-in total across all of the program's sessions in time order, a point at each full $15;
+  free play earns nothing. Coin-in source priority: points Δ × $/point ("within $15"), else hands × bet − free play,
+  else active hours × pace × bet. Net = cash out − cash in (free play wins are in the cash out).
+- Theoretical cost = coin-in × (1 − effective return); effective return = the table's return at the session's coins
+  minus measured mistakes (`expectedReturn`: Statistics' real-play-weighted return when ≥ 200 practice decisions on that
+  table and bet, else optimal and labelled). Coin-in on games without a pay table adds no theoretical cost and is left
+  out of the theoretical cost per point. Per-hour rates need 10 minutes of play.
+- Timer: one live session at a time; segments `{ start, end?, pauseReason? }` (pause reasons drink, break, hand pay
+  with amount → `jackpots`, machine fault, other). It survives reloads because nothing ticks in storage.
+- Planner = the spec's formulas exactly (`plan`); hours left = planned hours of later days + what's left of today.
+  Pace: casino sessions with points/hands (≥ 30 min), else Free Play (`practicePace`, gaps > 60 s are breaks, ≥ 20
+  intervals), else 600. Luck band: rare big pays (pay ≥ 20× and < 50 expected) drawn as Poisson counts, the rest
+  normal; ≤ 2,000 hands simulated hand by hand; 4,000 trials, seeded. Distribution = `rankProbs` from the manifest
+  (library at 5 coins) or computed once and saved in `paytables.summaries[coins].rankProbs`.
+- Dexie v6: `casinoSessions` indexed by `startedAt`; the placeholder rounding `trip_floor` becomes `carryover`.
+  Backups already included the four tables; Settings notes that a backup now holds financial history.
+- Tests: `tests/cruise-economics.test.ts` (incl. the §4 worked example), `tests/risk.test.ts` (matches the spec's
+  ±$950 / ±$1,900 example), `tests/cruise-services.test.ts`, `e2e/cruise.spec.ts` (clock-driven timer through a pause
+  and a reload, cash-out from point readings, planner example, rewards, CSV, program change). Casino-Pace Mode (F4.8) is
+  next.
 
 ## Test acknowledgments instead of sleeps
 

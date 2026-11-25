@@ -38,6 +38,7 @@ export function engineClient() {
       analyzeGame: (...args) => call(() => remote.analyzeGame(...args)),
       loadAnalysis: (...args) => call(() => remote.loadAnalysis(...args)),
       previewGame: (...args) => call(() => remote.previewGame(...args)),
+      riskBand: (...args) => call(() => remote.riskBand(...args)),
       tableSummary: (...args) => call(() => remote.tableSummary(...args)),
       warmOffline: (...args) => call(() => remote.warmOffline(...args)),
       hasStrategyCharts: (...args) => call(() => remote.hasStrategyCharts(...args)),

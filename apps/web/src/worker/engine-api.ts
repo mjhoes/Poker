@@ -4,6 +4,7 @@ import type { HandAnalysis, DrillHand } from "@perfect-draw/engine";
 import type { StrategyList, StrategyTier } from "@perfect-draw/engine";
 import type { RoundOutcome } from "@perfect-draw/engine";
 import type { StatsQuery, StatsReportView, Session } from "@perfect-draw/shared";
+import type { RiskBand } from "./risk";
 
 export type GamePreview = { returnPct: number; hitFreq: number; variance: number; engineVersion: string };
 /** Whole-game figures for one table and bet, and where they came from. */
@@ -37,6 +38,11 @@ export interface EngineAPI {
   previewGame(familyId: GameFamilyId, vector: ValueVector): Promise<GamePreview>;
   /** Return, variance and hit frequency for a table at a bet, without loading the full hand-by-hand analysis. */
   tableSummary(paytableId: string, coins: number): Promise<TableSummary>;
+  /**
+   * The luck band for a stretch of play: 10th/50th/90th percentile result and the chance to finish ahead, from the
+   * table's real hand distribution (computed once for a custom table or a bet below max, then saved).
+   */
+  riskBand(input: { paytableId: string; coins: number; betCents: number; hands: number; mistakePct: number }): Promise<RiskBand>;
   /** Downloads a built-in table's analysis file (without loading it) so it is available offline. */
   warmOffline(paytableId: string): Promise<boolean>;
   generateDrill(options: Omit<DrillOptions, "random">): Promise<DrillHand>;

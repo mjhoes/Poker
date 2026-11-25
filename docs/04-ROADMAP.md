@@ -27,7 +27,7 @@ Build the engine first and prove it correct; everything else (training, mistake 
 - AI hand explanations (grounded) ✅ — Explain in every Why? panel, numbers checked against the engine. Explain in plain English *why* one hold beats another and give a way to remember it,
   built on the engine's per-hold breakdown (final-hand chances × pays = EV; see `09-UI-ROUND-2-PLAN.md`, R3). The AI
   writes words only; every number comes from the engine.
-- 🛳️ **Cruise Rewards Tracker** (`07-CRUISE-REWARDS.md`): programs (Club Royale default), trips, live casino session timer, coin-in/points/cost per point, rewards ledger, target planner.
+- 🛳️ **Cruise Rewards Tracker** (`07-CRUISE-REWARDS.md`): programs (Club Royale default), trips, live casino session timer, coin-in/points/cost per point, rewards ledger, target planner. ✅ — `13-CRUISE-TRACKER-PLAN.md`.
 - Casino-Pace Mode + practice session pace/virtual points.
 
 ## Phase 3 — Adaptive Training & Heuristics (weeks 6–9)

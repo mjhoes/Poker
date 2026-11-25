@@ -1,6 +1,6 @@
 import Dexie from "dexie";
 import type { Table } from "dexie";
-import { aiSettingsSchema, paytableSchema, profileSchema, recordSchemas } from "@perfect-draw/shared";
+import { aiSettingsSchema, newId, paytableSchema, profileSchema, recordSchemas, rewardsProgramSchema } from "@perfect-draw/shared";
 import type { Records, TableName } from "@perfect-draw/shared";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { creditState } from "../services/money";
@@ -41,12 +41,24 @@ export class LocalDatabase extends Dexie {
     this.version(5).stores({}).upgrade(async tx => {
       await tx.table("aiSettings").toCollection().modify(settings => { settings.visionTier = "medium"; });
     });
+    // Cruise tracker: casino sessions in time order. The early placeholder rounding "trip_floor" becomes "carryover".
+    this.version(6).stores({ casinoSessions: "id, tripId, startedAt" }).upgrade(async tx => {
+      await tx.table("rewardsPrograms").toCollection().modify(program => { if (program.rounding === "trip_floor") program.rounding = "carryover"; });
+    });
   }
   records<K extends TableName>(name: K): Table<Records[K], string> { return this.table(name); }
 }
 export const db = new LocalDatabase();
 export const live = <T extends { deletedAt?: number | null }>(row: T) => row.deletedAt == null;
 export function stamp() { return { updatedAt: Date.now(), deletedAt: null }; }
+
+/** The built-in rewards program. Every rule is editable; tier thresholds are as commonly published (check current terms). */
+export const CLUB_ROYALE = {
+  name: "Royal Caribbean Club Royale", casinoName: "Casino Royale", dollarsPerPoint: 15, rounding: "carryover",
+  freePlayEarnsPoints: false, isBuiltIn: true,
+  tiers: [{ name: "Prime", points: 2500 }, { name: "Signature", points: 25000 }, { name: "Masters", points: 100000 }],
+  notes: "1 point per $15 of coin-in; free play earns no points. Tier thresholds: check the current Club Royale terms.",
+} as const;
 
 export async function initializeDatabase(database = db) {
   await database.transaction("rw", database.tables, async () => {
@@ -56,6 +68,9 @@ export async function initializeDatabase(database = db) {
     }
     if (!await database.records("aiSettings").get("local")) {
       await database.records("aiSettings").add(aiSettingsSchema.parse({ id: "local", updatedAt: now }));
+    }
+    if (!(await database.records("rewardsPrograms").toArray()).some(program => program.isBuiltIn)) {
+      await database.records("rewardsPrograms").add(rewardsProgramSchema.parse({ id: newId(), createdAt: now, ...stamp(), ...CLUB_ROYALE }));
     }
     for (const table of PAY_TABLE_LIBRARY) {
       if (!await database.records("paytables").get(table.id)) {
