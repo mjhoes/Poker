@@ -321,8 +321,10 @@ R3 — why one hold beats another:
   Defaults: the address's table, else the open session's machine, else the most recent one, else 9/6 Jacks.
   `resolveTarget()` reports `missing` when a link or recent hand names a table this device doesn't have; the page then
   shows a notice naming the table it shows instead (never a silent switch). Choosing a table clears it.
-- Only valid input is analyzed: `complete` requires five cards and no parser error, so six cards or a typo never
-  produce results, an address or a recent hand.
+- Only valid input is analyzed: `complete` requires five cards, the parser's own `complete` flag (an unfinished
+  sixth card such as `… 3c K` is not complete) and no parser error, so extra cards or a typo never produce results,
+  an address or a recent hand. The analysis effect is keyed on `analysisKey` and the address effect depends on
+  `complete`, so both follow validity changes even when the first five cards stay the same.
 - Changing what was held (`changeHeld`) clears a hold picked from the list, so the Why? panel compares the new hold.
 - Ranked holds: `rankHolds()` (ties = "best", close call when the runner-up is within 0.01 credits per coin bet).
   Selecting a hold opens the shared `HoldComparisonPanel` (the session drawer uses the same panel via `HoldComparison`).

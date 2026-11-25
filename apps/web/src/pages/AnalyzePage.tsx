@@ -40,6 +40,8 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
   const [cards, setCards] = useState<number[]>(initial.hand ?? []);
   const [text, setText] = useState(initial.hand ? handText(initial.hand) : "");
   const [textError, setTextError] = useState<string | null>(null);
+  /** The parser's own verdict: exactly five valid cards and nothing left over (an unfinished sixth card is not complete). */
+  const [textComplete, setTextComplete] = useState(!!initial.hand);
   const [targetKey, setTargetKey] = useState(start?.key ?? "");
   const [coins, setCoins] = useState(initial.coins ?? start?.coins ?? 5);
   const [held, setHeld] = useState<number | null>(initial.held);
@@ -54,7 +56,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
 
   const target = targets.find(item => item.key === targetKey) ?? start;
   // Five cards from valid input only: text with an error (six cards, a typo) is never analyzed, saved or put in the address.
-  const complete = cards.length === 5 && !textError;
+  const complete = cards.length === 5 && textComplete && !textError;
   const handKey = cards.join(",");
   const denomination = target?.denominationCents ?? null;
   // Only an analysis of exactly these cards, table and bet is shown (never a stale one for a moment).
@@ -68,7 +70,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
     const next = decodeAnalyzerQuery(search);
     if (!next.hand) return;
     const { target: nextTarget, missing } = resolveTarget(targets, { requested: next.tableRequested, paytableId: next.paytableId, coins: next.coins });
-    setCards(next.hand); setText(handText(next.hand)); setTextError(null); setHeld(next.held); setMarking(false); setSelected(null);
+    setCards(next.hand); setText(handText(next.hand)); setTextError(null); setTextComplete(true); setHeld(next.held); setMarking(false); setSelected(null);
     showTarget(nextTarget, next.coins, missing);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -78,7 +80,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
     if (next === written.current) return;
     written.current = next;
     replaceSearch(next);
-  }, [handKey, target?.paytableId, coins, held]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [complete, handKey, target?.paytableId, coins, held]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setError("");
@@ -88,7 +90,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
       .then(value => { if (!cancelled) setComputed({ key: analysisKey, value }); })
       .catch(reason => { if (!cancelled) setError(errorMessage(reason)); });
     return () => { cancelled = true; };
-  }, [handKey, target?.paytableId, coins]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [analysisKey]); // eslint-disable-line react-hooks/exhaustive-deps -- the key covers validity, cards, table and bet
 
   // A hand that stays on screen for a moment goes into Recent hands.
   useEffect(() => {
@@ -98,12 +100,12 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
   }, [analysis]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeCards = (next: number[]) => {
-    setCards(next); setText(handText(next)); setTextError(null); setHeld(null); setMarking(false); setSelected(null); setShowAll(false);
+    setCards(next); setText(handText(next)); setTextError(null); setTextComplete(next.length === 5); setHeld(null); setMarking(false); setSelected(null); setShowAll(false);
   };
   const onType = (value: string) => {
     setText(value);
     const read = readHandText(value);
-    setTextError(read.error);
+    setTextError(read.error); setTextComplete(read.complete);
     if (read.cards.join(",") !== handKey) { setCards(read.cards); setHeld(null); setMarking(false); setSelected(null); setShowAll(false); }
   };
   const toggleCard = (card: number) => changeCards(cards.includes(card) ? cards.filter(item => item !== card) : [...cards, card].slice(0, 5));
@@ -206,6 +208,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
         {error && <div className="error-banner" role="alert">{error}</div>}
         {!complete && <section className="panel panel-pad analyzer-empty">{textError
           ? <><p className="eyebrow">CHECK THE HAND</p><h2>Fix the hand above to see every hold ranked.</h2></>
+          : cards.length === 5 ? <><p className="eyebrow">MORE THAN FIVE CARDS</p><h2>A hand has five cards. Remove the extra one to see every hold ranked.</h2></>
           : <><p className="eyebrow">{5 - cards.length} CARD{5 - cards.length === 1 ? "" : "S"} TO GO</p><h2>Pick five cards to see every hold ranked.</h2></>}</section>}
 
         {ranked && best && analysis && <section className="panel panel-pad analyzer-results" aria-label="Holds ranked">

@@ -176,3 +176,44 @@ test("unavailable tables are named, invalid input is never analyzed, and changin
   await expect(results.locator(".hold-row.is-selected .hold-badge.is-mine")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("results and the address follow the input's validity, even when the first five cards stay the same", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await page.goto("/#/analyze");
+  const text = page.getByRole("textbox", { name: "Type a hand" });
+  const results = page.getByRole("region", { name: "Holds ranked" });
+  const recent = page.getByRole("region", { name: "Recent hands" }).getByRole("listitem");
+  const hasResults = async () => { await expect(results.getByRole("heading", { level: 2 })).toBeVisible(); };
+  const noResults = async () => { await expect(results).toHaveCount(0); await expect(page).toHaveURL(/#\/analyze$/); };
+
+  // From empty, six cards, then the sixth removed: results appear (the first five never changed).
+  await text.fill("2c 3d 4h 5s 6c 7d");
+  await expect(page.getByRole("alert").filter({ hasText: "That's 6 cards; a hand has five." })).toBeVisible();
+  await noResults();
+  await text.fill("2c 3d 4h 5s 6c");
+  await hasResults();
+  await expect(page).toHaveURL(/hand=2c3d4h5s6c&/);
+
+  // Valid, then a sixth card added: the results and the address go away.
+  await text.fill("2c 3d 4h 5s 6c 7d");
+  await noResults();
+  await text.fill("2c 3d 4h 5s 6c");
+  await hasResults();
+
+  // An unfinished sixth card (a rank with no suit yet) is not a five-card hand either, in both directions.
+  await text.fill("As Ac 8d 8h 3c");
+  await hasResults();
+  await expect(page).toHaveURL(/hand=AsAc8d8h3c&/);
+  await text.fill("As Ac 8d 8h 3c K");
+  await noResults();
+  await expect(page.getByRole("heading", { name: "A hand has five cards. Remove the extra one to see every hold ranked." })).toBeVisible();
+  await page.waitForTimeout(1200); // longer than the recent-hands delay
+  const saved = await recent.count();
+  await text.fill("As Ac 8d 8h 3c K");
+  await page.waitForTimeout(1200);
+  await expect(recent).toHaveCount(saved);
+  await text.fill("As Ac 8d 8h 3c");
+  await hasResults();
+  await expect(page).toHaveURL(/hand=AsAc8d8h3c&/);
+  expect(errors).toEqual([]);
+});
