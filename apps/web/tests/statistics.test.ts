@@ -228,7 +228,7 @@ describe("statistics worker and local service", () => {
     const upgraded = new LocalDatabase(name);
     try {
       await upgraded.open();
-      expect(upgraded.verno).toBe(4);
+      expect(upgraded.verno).toBe(5);
       expect(await upgraded.records("decisions").get(row.id)).toEqual(row);
       expect(await upgraded.records("decisions").where("paytableId").equals(table.id).count()).toBe(1);
     } finally { upgraded.close(); await upgraded.delete(); }

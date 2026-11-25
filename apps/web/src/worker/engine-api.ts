@@ -18,6 +18,12 @@ export type StrategyCitation = {
 };
 /** The same five cards on another table: its best hold and the value of every hold there (by mask). */
 export type AcrossAnalysis = { paytableId: string; coins: number; familyId: GameFamilyId; bestMask: number; bestLabel: string; bestEv: number; evByMask: number[] };
+/** How a table's perfect strategy differs from a built-in table of the same game, over every possible deal. */
+export type StrategyDifference = {
+  baseId: string; differPct: number;
+  /** The most common deals where the best hold changes (the hand as dealt, and each table's best hold). */
+  examples: { hand: number[]; best: string; baseBest: string; dealsPct: number }[];
+};
 export interface EngineAPI {
   rollupDecisions(timeZone: string): Promise<number>;
   prepareRound(paytableId: string, coins: number, lines: number, focus?: Session["trainingFocus"]): Promise<{ analysis: HandAnalysis; drawDecks: number[][] }>;
@@ -38,6 +44,8 @@ export interface EngineAPI {
   hasStrategyCharts(paytableId: string): Promise<boolean>;
   /** Cites the chart line that picks this hand's hold at max bet. May download or compute the table's analysis. */
   strategyCitation(cards: Hand, paytableId: string, tier: StrategyTier): Promise<StrategyCitation>;
+  /** Compares perfect strategy with a built-in table (computes this table's full analysis first if needed, ~20 s). */
+  strategyDifference(paytableId: string, baseId: string, progress?: (value: AnalysisProgress) => void): Promise<StrategyDifference>;
   /** The same hand on several tables (each at its own bet); deleted or unknown tables are skipped. */
   analyzeAcross(cards: Hand, targets: readonly { paytableId: string; coins: number }[]): Promise<AcrossAnalysis[]>;
 }

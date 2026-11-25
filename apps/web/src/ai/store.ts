@@ -72,7 +72,7 @@ export const aiService = {
   setRemember(rememberKeys: boolean) {
     return serial(() => applyRemember(rememberKeys));
   },
-  updateSettings(changes: Partial<Pick<AiSettings, "coachProvider" | "coachTier" | "fallbackEnabled">>) {
+  updateSettings(changes: Partial<Pick<AiSettings, "coachProvider" | "coachTier" | "visionProvider" | "visionTier" | "fallbackEnabled">>) {
     return serial(async () => {
       const settings = { ...await readSettings(), ...changes, updatedAt: Date.now() };
       await db.records("aiSettings").put(aiSettingsSchema.parse(settings));

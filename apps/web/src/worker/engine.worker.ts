@@ -1,4 +1,5 @@
 import { rollupDecisions } from "../services/retention";
+import { getCanonicalHands } from "@perfect-draw/engine";
 import { expose } from "comlink";
 import {
   analyzeGame, analyzeHand, analyzeHandFast, clearSubsetCache, clearTrainingCache, dealRound, ENGINE_VERSION, generateHand, generateStrategyList, registerTrainingAnalysis, resolveRound, standardVariant, STRATEGY_TIERS, strategyChoice,
@@ -10,6 +11,7 @@ import { analysisSchema } from "@perfect-draw/shared";
 import { db, stamp } from "../data/db";
 import type { AcrossAnalysis, AnalysisSummary, EngineAPI } from "./engine-api";
 import { StatsEngine } from "./stats-engine";
+import { compareStrategies } from "./strategy-difference";
 import { paytableService } from "../services/paytables";
 
 const loaded = new Map<string, PrecomputedGameAnalysis>();
@@ -200,6 +202,21 @@ const api: EngineAPI = {
       line: choice.line, lineCount: list.lines.length, lineLabel: choice.line === null ? null : list.lines[choice.line].label,
       exception: choice.exception !== null, chartReturnPct: list.returnPct, optimalReturnPct: value.returnPct, familyId: analysis.familyId,
     };
+  },
+  async strategyDifference(paytableId, baseId, progress) {
+    const row = await db.records("paytables").get(paytableId);
+    if (!row || row.deletedAt != null) throw new Error("This pay table is no longer available.");
+    const key = analysisKey(row.familyId, standardVariant.valueVector(row, 5, {}), 5);
+    // This table's analysis: from memory or the device cache, else computed here with progress (then cached).
+    if (!loaded.has(key) && (await db.records("analyses").get(key))?.engineVersion !== ENGINE_VERSION) {
+      await api.analyzeGame(row.familyId, standardVariant.valueVector(row, 5, {}), 5, progress);
+    }
+    const mine = loaded.get((await api.loadAnalysis(paytableId)).key);
+    const base = loaded.get((await api.loadAnalysis(baseId)).key);
+    if (!mine || !base) throw new Error("The analyses were unloaded. Try again.");
+    prepareSolver(mine.familyId); // tied deals are re-solved exactly
+    const hands = new Map(getCanonicalHands().map(hand => [hand.id, hand.hand]));
+    return { baseId, ...compareStrategies(mine, base, hands) };
   },
   async analyzeAcross(cards, targets) {
     const results: AcrossAnalysis[] = [];

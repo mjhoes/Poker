@@ -24,6 +24,8 @@ async function settle(page: Page) {
   // Toasts are transient; close them so they never land in a baseline.
   for (const close of await page.getByRole("button", { name: "Dismiss notification" }).all()) await close.click().catch(() => {});
   await page.evaluate(() => document.fonts.ready);
+  // Full-page shots are stitched from the top: start there, or the sticky header lands mid-page and the shot flakes.
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.mouse.move(0, 0);
 }
 async function shot(page: Page, name: string, fullPage = true) {

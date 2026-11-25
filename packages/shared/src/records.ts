@@ -38,7 +38,7 @@ export const aiSettingsSchema = z.object({
   fallbackEnabled: z.boolean().default(false), rememberKeys: z.boolean().default(false),
   /** Light / medium / heavy model for coaching text; a non-empty *Model field overrides it. */
   coachTier: z.enum(["light", "medium", "heavy"]).default("heavy"),
-  visionTier: z.enum(["light", "medium", "heavy"]).default("heavy"),
+  visionTier: z.enum(["light", "medium", "heavy"]).default("medium"),
 });
 export const aiTierSchema = z.enum(["light", "medium", "heavy"]);
 /** A saved AI explanation of one hold comparison, so the same question is never paid for twice. Not in backups. */

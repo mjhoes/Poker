@@ -23,7 +23,7 @@ Build the engine first and prove it correct; everything else (training, mistake 
 - Pay table manual editor + library + analysis view.
 - Stats: accuracy, EV lost/1000, effective return, confusion matrix, weakness ranking.
 - AI settings (bring-your-own OpenAI/Anthropic keys, direct client calls) + provider abstraction ✅ — `11-AI-COACH-PLAN.md`.
-- 📸 Pay table photo extraction + confirm grid. 📸 Hand photo extraction.
+- 📸 Pay table photo extraction + confirm grid. 📸 Hand photo extraction. ✅ — `12-PHOTO-CAPTURE-PLAN.md` (accuracy target to be measured with `vision-eval` on real photos).
 - AI hand explanations (grounded) ✅ — Explain in every Why? panel, numbers checked against the engine. Explain in plain English *why* one hold beats another and give a way to remember it,
   built on the engine's per-hold breakdown (final-hand chances × pays = EV; see `09-UI-ROUND-2-PLAN.md`, R3). The AI
   writes words only; every number comes from the engine.

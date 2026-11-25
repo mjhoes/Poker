@@ -24,7 +24,9 @@ export function createAnthropicProvider(apiKey: string, options: { fetch?: typeo
           model: request.model,
           max_tokens: request.maxTokens ?? 16000,
           system: request.system,
-          messages: [{ role: "user", content: request.prompt }],
+          messages: [{ role: "user", content: request.image
+            ? [{ type: "image", source: { type: "base64", media_type: request.image.mediaType, data: request.image.base64 } }, { type: "text", text: request.prompt }]
+            : request.prompt }],
           output_config: { effort: "medium", format: betaZodOutputFormat(request.schema) },
           ...fallback,
         });

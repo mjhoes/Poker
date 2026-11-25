@@ -87,11 +87,13 @@ export function quickFill(draft: DraftTable, text: string): { draft: DraftTable;
 
 // ── Pasted text ──
 
-const normalize = (text: string) => text.toLowerCase()
+// "or", "and" and "any" are dropped ("Four 2s, 3s or 4s" = "four 2 3 4"; "with any 2, 3, 4" = "with 2 3 4");
+// en and em dashes count as hyphens ("2s–4s").
+const normalize = (text: string) => text.toLowerCase().replace(/[\u2013\u2014]/g, "-")
   .replace(/&|\+/g, " with ").replace(/\bw\//g, "with ")
   .replace(/(\d)\s*-\s*([\dakqj])\b/g, "$1 $2").replace(/\b([akqj])\s*-\s*([\dakqj])\b/g, "$1 $2")
   .replace(/[^a-z0-9]+/g, " ").replace(/\b(\d+|[akqj])s\b/g, "$1").replace(/\bthru\b|\bthrough\b|\bto\b/g, " ")
-  .replace(/\s+/g, " ").trim();
+  .replace(/\b(?:or|and|any)\b/g, " ").replace(/\s+/g, " ").trim();
 
 const SYNONYMS: Record<string, string[]> = {
   ROYAL_FLUSH: ["royal flush", "royal"],
@@ -102,7 +104,7 @@ const SYNONYMS: Record<string, string[]> = {
   STRAIGHT_FLUSH: ["straight flush", "str flush", "sf"],
   FOUR_KIND: ["four of a kind", "4 of a kind", "four kind", "quads", "4oak"],
   FOUR_ACES_W_234: ["four aces with 2 3 4", "four aces with 2 4", "4 aces with 2 3 4", "4 aces with 2 4", "four aces 2 4 kicker", "4 aces 2 4 kicker", "four aces with kicker", "4 aces with kicker"],
-  FOUR_234_W_A234: ["four 2 3 4 with a 2 3 4", "four 2 4 with a 4", "4 2 4 with a 4", "four 2 3 4 with a 4", "4 2 3 4 with a 4", "four 2 4 with kicker", "4 2 4 with kicker"],
+  FOUR_234_W_A234: ["four 2 4 with a 2 3 4", "4 2 4 with a 2 3 4", "four 2 3 4 with a 2 3 4", "four 2 4 with a 4", "4 2 4 with a 4", "four 2 3 4 with a 4", "4 2 3 4 with a 4", "four 2 4 with kicker", "4 2 4 with kicker"],
   FOUR_ACES: ["four aces", "4 aces", "four ace", "4 ace"],
   FOUR_234: ["four 2 3 4", "four 2 4", "4 2 3 4", "4 2 4", "four twos threes fours"],
   FOUR_5K: ["four 5 k", "4 5 k", "four fives kings", "four 5 kings"],
@@ -120,6 +122,19 @@ export function matchRank(label: string, familyId: GameFamilyId): string | null 
   let best: { rank: string; length: number } | null = null;
   for (const rank of payingRanks(familyId)) {
     for (const phrase of SYNONYMS[rank] ?? []) {
+      const needle = ` ${normalize(phrase)} `;
+      if (text.includes(needle) && (!best || needle.length > best.length)) best = { rank, length: needle.length };
+    }
+  }
+  return best?.rank ?? null;
+}
+
+/** A label matched against every game's hands (to tell the game from a photo's rows); the longest phrase wins. */
+export function matchAnyRank(label: string): string | null {
+  const text = ` ${normalize(label)} `;
+  let best: { rank: string; length: number } | null = null;
+  for (const [rank, phrases] of Object.entries(SYNONYMS)) {
+    for (const phrase of phrases) {
       const needle = ` ${normalize(phrase)} `;
       if (text.includes(needle) && (!best || needle.length > best.length)) best = { rank, length: needle.length };
     }

@@ -7,6 +7,7 @@ import { errorMessage } from "../hooks/useActionRunner";
 import { formatCost, MODELS, modelFor, PRICES_CHECKED, PROVIDERS, TIERS } from "./models";
 import { getProvider } from "./router";
 import { aiService, usageService, useAiStore } from "./store";
+import { photoService } from "../photo/photo-service";
 
 const maskKey = (key: string) => key.length <= 10 ? "••••" : `${key.slice(0, 6)}…${key.slice(-4)}`;
 const monthStart = () => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1).getTime(); };
@@ -99,7 +100,16 @@ export function AiSettingsPanel() {
           const model = modelFor(settings.coachProvider, tier.id);
           return { value: tier.id, label: tier.label, hint: `${model.name} · $${model.inputPerM} / $${model.outputPerM} per 1M tokens` };
         })} />
-      <p className="ai-note">You can also pick the model each time you press Explain.</p>
+      <p className="field-label">Photos use</p>
+      <ChoiceChips label="Default provider for photos" value={settings.visionProvider}
+        onChange={(value: AiProvider) => void aiService.updateSettings({ visionProvider: value })}
+        choices={PROVIDERS.map(item => ({ value: item.id, label: item.name, hint: keys[item.id] ? "Key added" : "No key yet" }))} />
+      <ChoiceChips label="Model size for photos" value={settings.visionTier} onChange={(value: AiTier) => void aiService.updateSettings({ visionTier: value })}
+        choices={TIERS.map(tier => {
+          const model = modelFor(settings.visionProvider, tier.id);
+          return { value: tier.id, label: tier.label, hint: `${model.name} · about ${formatCost(photoService.estimate("paytable", { width: 1600, height: 1200 }, settings.visionProvider, tier.id))} a photo` };
+        })} />
+      <p className="ai-note">You can also pick the model each time you press Explain or Read photo.</p>
     </div>
 
     <label className="ai-check">

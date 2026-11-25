@@ -15,11 +15,12 @@ const hand = parseHand("Ah Kh Qh 7h 7c");
 const analysis = analyzeHandFast(hand, standardVariant.valueVector(table, 5, {}), table.familyId);
 const royalDraw = 0b00111, sevens = 0b11000;
 const comparison = compareHolds(analysis, royalDraw, sevens);
-const facts = explainFacts({
+const baseInput = {
   hand, gameName: "Jacks or Better", payTableName: table.name, coins: 5,
-  best: { mask: royalDraw, name: "3 to a Royal Flush" }, other: { mask: sevens, name: "Low pair", role: "Your hold" },
+  best: { mask: royalDraw, name: "3 to a Royal Flush" }, other: { mask: sevens, name: "Low pair", role: "Your hold" as const },
   comparison, summary: comparisonSummary(comparison, { a: "The best hold", b: "Your hold" }),
-});
+};
+const facts = explainFacts(baseInput);
 
 describe("the facts the model is given", () => {
   it("are the engine's comparison, formatted as the app shows it", () => {
@@ -30,6 +31,12 @@ describe("the facts the model is given", () => {
     expect(facts.bestHoldIsWorthMoreBy).toBe(comparison.delta.toFixed(3));
     const royal = facts.finalHands.find(row => row.hand === "Royal Flush")!;
     expect(royal).toMatchObject({ paysAtThisBet: 4000, bestHold: { chance: "1 in 1,081", value: "3.70" }, comparedHold: { chance: "—", value: "0.00" }, deciding: true });
+  });
+  it("include the strategy chart's line when it is known, and its numbers become allowed", () => {
+    const withChart = explainFacts({ ...baseInput, chart: { chart: "Expert", line: 9, of: 47, rule: "3 to a Royal Flush", agreesWithBestHold: true } });
+    expect(withChart.strategyChart).toEqual({ chart: "Expert", line: 9, of: 47, rule: "3 to a Royal Flush", agreesWithBestHold: true });
+    expect(checkNumbers("On the Expert chart, line 9 of 47 picks it.", factNumbers(withChart))).toEqual([]);
+    expect("strategyChart" in facts).toBe(false);
   });
   it("list every number they contain, including card ranks and counts inside names", () => {
     const numbers = factNumbers(facts);
