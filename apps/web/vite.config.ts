@@ -1,16 +1,44 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import type { Plugin } from "vite";
+
+/*
+ * Content-Security-Policy for the deployed app (Tech Spec §7.1): only this site's own scripts, and network calls only to
+ * this site and the two AI providers, to limit the damage any injected script could do to a stored API key. Build only:
+ * the dev server needs Vite's websocket and inline client.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'", // React style attributes
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self' https://api.anthropic.com https://api.openai.com",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+const contentSecurityPolicy: Plugin = {
+  name: "content-security-policy",
+  apply: "build",
+  transformIndexHtml: () => [{ tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content: CSP }, injectTo: "head-prepend" }],
+};
 
 export default defineConfig({
   plugins: [
     react(),
+    contentSecurityPolicy,
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg", "apple-touch-icon.png"],
       workbox: {
         // Fonts are part of the app shell: precache them so the interface looks the same offline.
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        // The AI SDKs load on first use and need the network anyway; don't make every install download them.
+        globIgnores: ["**/assets/anthropic-*.js", "**/assets/openai-*.js"],
         runtimeCaching: [
           {
             urlPattern: /\/analyses\/manifest\.json$/,

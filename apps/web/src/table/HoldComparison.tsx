@@ -7,6 +7,9 @@ import { gradeLabel } from "./Feedback";
 import { compareHolds, comparisonSummary, oneIn } from "./hold-breakdown";
 import type { HandAnalysis } from "./hold-breakdown";
 import type { HoldComparison as Comparison } from "./hold-breakdown";
+import { ExplainPanel } from "../ai/ExplainPanel";
+import { familyName } from "../components/UiHelpers";
+import { findPaytable } from "../paytables/catalog";
 
 type Grade = NonNullable<Session["state"]["feedback"]>;
 
@@ -38,7 +41,8 @@ export function HoldComparison({ session, grade }: { session: Session; grade: Gr
   const [other, setOther] = useState(grade.correct ? runnerUp ?? grade.chosenMask : grade.chosenMask);
   if (!analysis || analysis.hand.length !== 5) return null;
   return <HoldComparisonPanel analysis={analysis} bestMask={grade.bestMask} other={other} onOther={setOther}
-    mine={grade.correct ? null : grade.chosenMask} denominationCents={session.machineSnapshot.denominationCents} />;
+    mine={grade.correct ? null : grade.chosenMask} denominationCents={session.machineSnapshot.denominationCents}
+    context={{ paytableId: session.machineSnapshot.paytableId, coins: session.state.handCoins ?? session.machineSnapshot.coins }} />;
 }
 
 /** The strongest hold worth strictly less than the best. */
@@ -52,11 +56,12 @@ export function runnerUpMask(results: readonly { mask: number; ev: number }[], b
  * Side-by-side breakdown of two holds: for each final hand, how likely it is and what it contributes to expected value
  * (chance × pay). `other` is controlled, so the analyzer's ranked list and the "Compare another hold" controls agree.
  */
-export function HoldComparisonPanel({ analysis, bestMask, other, onOther, mine, denominationCents, explore = true }: {
+export function HoldComparisonPanel({ analysis, bestMask, other, onOther, mine, denominationCents, explore = true, context }: {
   analysis: HandAnalysis & { hand: readonly number[] }; bestMask: number; other: number; onOther: (mask: number) => void;
   /** The player's own hold, named "Your hold" when compared. */ mine: number | null;
   /** Dollars are shown beside credits when known. */ denominationCents: number | null;
   /** Card toggles and top-five shortcuts; the analyzer has its own ranked list instead. */ explore?: boolean;
+  /** The table and bet, which the AI explanation names; without it there is no Explain. */ context?: { paytableId: string; coins: number };
 }) {
   const ranked = [...analysis.results].sort((x, y) => y.ev - x.ev);
   const runnerUp = runnerUpMask(analysis.results, bestMask);
@@ -101,6 +106,12 @@ export function HoldComparisonPanel({ analysis, bestMask, other, onOther, mine, 
       </table>
     </div>
     <p className="why-note">Value = chance × pay, in credits per line at this bet. {comparison.a.drawCount.toLocaleString("en-US")} possible draws for the best hold; {comparison.b.drawCount.toLocaleString("en-US")} for {otherName.toLowerCase().replace(/^the /, "the ")}.</p>
+    {context && <ExplainPanel paytableId={context.paytableId} input={{
+      hand: analysis.hand, gameName: familyName(familyId), payTableName: findPaytable(context.paytableId)?.name ?? "this pay table", coins: context.coins,
+      best: { mask: bestMask, name: gradeLabel(comparison.a.label, familyId) },
+      other: { mask: other, name: gradeLabel(comparison.b.label, familyId), role: otherName === "Your hold" ? "Your hold" : otherName === "The runner-up" ? "The runner-up" : "This hold" },
+      comparison, summary: comparisonSummary(comparison, { a: "The best hold", b: otherName }),
+    }} />}
 
     {explore && <div className="why-explore">
       <p className="field-label">Compare another hold</p>

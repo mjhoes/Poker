@@ -251,7 +251,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
           {compared !== null && <div className="analyzer-why">
             <h3>{compared === best.mask ? "Best hold" : `Why the best hold beats ${held === compared ? "what you held" : heldText(compared)}`}</h3>
             <HoldComparisonPanel analysis={{ ...analysis, hand: cards }} bestMask={best.mask} other={compared} onOther={setSelected}
-              mine={held} denominationCents={denomination} explore={false} />
+              mine={held} denominationCents={denomination} explore={false} context={target ? { paytableId: target.paytableId, coins } : undefined} />
           </div>}
         </section>}
       </div>

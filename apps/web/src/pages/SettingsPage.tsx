@@ -4,6 +4,7 @@ import { Button, ChoiceChips, MenuButton } from "../components/ui";
 import { CardFace } from "../table/CardFace";
 import { Icon } from "../components/Icons";
 import { dateTime, familyName, plural } from "../components/UiHelpers";
+import { AiSettingsPanel } from "../ai/AiSettingsPanel";
 
 // A♠ K♥ Q♦ J♣: one card per suit, so the choice previews itself.
 const PREVIEW_CARDS = [51, 46, 41, 36];
@@ -66,6 +67,7 @@ export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBack
         <section className="note-card"><p className="eyebrow">GOOD TO KNOW</p><h3>Clearing browser data erases your history.</h3><p>Export a backup before clearing site data or switching devices.</p></section>
       </aside>
     </div>
+    <AiSettingsPanel />
     <PayTablesPanel paytables={paytables} machines={machines} onNew={onNewPaytable} onCopy={onCopyPaytable} onRename={onRenamePaytable} onDelete={onDeletePaytable} />
   </>;
 }

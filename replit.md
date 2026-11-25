@@ -338,3 +338,30 @@ R3 — why one hold beats another:
 - Recent hands: `profile.prefs.recentHands` (last 20, newest first, the same cards/table/bet listed once), via
   `preferencesService.addRecentHand` / `clearRecentHands`. Included in backups.
 - "Open in analyzer" link in the details drawer after any hand (passes the hand, table, hand's bet and what was held).
+
+## AI coach (docs/11-AI-COACH-PLAN.md)
+
+- Bring-your-own-key, browser-only. Code in `apps/web/src/ai/`. Both official SDKs (`@anthropic-ai/sdk` 1.14.0,
+  `openai` 7.64.0) are called from the browser with `dangerouslyAllowBrowser: true` and load lazily (separate chunks,
+  excluded from the PWA precache via `globIgnores`). Anthropic SDK 1.x sends the key as `Authorization: Bearer` with
+  API version 2026-10-21; e2e mocks accept that.
+- Models and prices: `ai/models.ts`. Tiers Light / Medium / Heavy = `claude-haiku-5-5` / `claude-sonnet-5-5` /
+  `claude-opus-5-5` and `gpt-6-luna` / `gpt-6.2-sol` / `gpt-6.2-astra`. Prices are list prices (checked 2026-11-25)
+  used only for estimates; update them there.
+- Structured output uses Zod 4 schemas (`import * as z from "zod/v4"`; Zod 3.25 ships it) — the SDK helpers
+  (`betaZodOutputFormat`, `zodTextFormat`) need v4 types. Anthropic calls use `client.beta.messages.parse` with
+  `output_config.effort: "medium"` and server-side refusal fallback (`fallbacks: "default"`), except Haiku (no fallback).
+- `ai/store.ts`: keys in memory by default; `rememberKeys` writes them to the `aiKeys` table (never in backups).
+  `usageService` logs every call that used tokens to `aiUsage` with an estimated cost.
+- `ai/router.ts` `runTask`: provider + tier → model, Zod-checked reply, one retry on a malformed reply or a failed
+  `check` (with the problem in the prompt), fallback to the other provider only when enabled, its key exists and the
+  failure is provider-specific (never on a bad key). `setProviderFactory` swaps in fakes for tests.
+- Explain: `ai/explain-facts.ts` builds the facts from the engine's comparison and checks every number in the reply
+  against them (`checkNumbers`); `ai/explain.ts` runs it, saves to `aiExplanations` (Dexie v4; not in backups) keyed by
+  prompt version, provider, tier and comparison. `ExplainPanel` sits in every Why? panel (`HoldComparisonPanel` with a
+  `context` prop): tier chips with estimated cost, the actual cost after, saved explanations shown free (even with no key).
+- Settings → AI (`ai/AiSettingsPanel.tsx`, link `#/settings?section=ai`): keys, free Test connection (model list),
+  remember toggle with the unencrypted warning, default provider and tier, fallback, and this month's usage by model.
+- Production builds add a Content-Security-Policy meta tag (`vite.config.ts`): scripts from the site only; network to
+  the site, `api.anthropic.com` and `api.openai.com`. Add a host there if a new provider is ever added.
+- Tests never call real APIs: unit tests use fake providers; `e2e/ai.spec.ts` intercepts both APIs with `page.route`.

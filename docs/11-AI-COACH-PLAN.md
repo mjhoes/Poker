@@ -3,7 +3,7 @@
 Spec: F8 (AI provider settings) and the `explain_hand` part of F3.3 in `02-PRODUCT-SPEC.md`; Tech Spec §7.1–7.3;
 Prompt 8 and the explanation half of Prompt 10 in `05-REPLIT-AGENT-PROMPTS.md`; the roadmap note on grounded
 explanations ("the AI writes words only; every number comes from the engine").
-Status: **draft, awaiting approval**.
+Status: **built** (see replit.md "AI coach").
 
 Goal: press **Explain** on any hold comparison (after a hand, or in the Analyzer) and get a short plain-English
 explanation of why the best hold wins and a way to remember it — written by the AI, but every number in it checked
@@ -77,6 +77,25 @@ against the engine's numbers before it is shown.
 ## B6 — Not in this round
 - Photo capture of pay tables and hands (next round; it reuses this layer's `vision` and settings).
 - `heuristic_generate` and `coach_report` (adaptive-training round).
+
+## Decisions (confirmed)
+1. **Both providers now:** Anthropic and OpenAI, each on its official SDK.
+2. **Model selector with three tiers**, beside the Explain button and as the default in Settings → AI:
+
+   | Tier | Anthropic | OpenAI | $ per 1M tokens (input / output) |
+   |---|---|---|---|
+   | Light | `claude-haiku-5-5` | `gpt-6-luna` | $0.10 / $0.50 (both) |
+   | Medium | `claude-sonnet-5-5` | `gpt-6.2-sol` | $2 / $10 (both) |
+   | Heavy (default) | `claude-opus-5-5` | `gpt-6.2-astra` | $4 / $20 · $8 / $40 |
+
+   OpenAI's tiers follow its own guidance (Astra flagship, Sol balanced, Luna cost-sensitive); IDs and standard prices
+   were read from developers.openai.com on 2026-11-25. Anthropic's from Anthropic's current model table. Prices live in
+   `ai/models.ts` and are labelled as estimates.
+3. **Explain only when asked** — no automatic calls. **Cost estimates for testing:** each tier shows an estimated cost
+   before you press Explain (from the size of the request and a typical reply), and each explanation shows its actual
+   cost afterwards (from the provider's token counts). Settings → AI shows the running usage log. Test connection uses
+   the providers' free model-list endpoints, so it costs nothing.
+4. **Explanations are saved on the device** and reopened for free.
 
 ## Rough cost per explanation (estimate)
 About 2–4K tokens in and a few hundred out. Claude Opus 5.5 ($4 / $20 per million tokens): roughly 2–4¢. Claude

@@ -22,9 +22,9 @@ Build the engine first and prove it correct; everything else (training, mistake 
 - Hand Analyzer (manual entry) ✅ — `10-HAND-ANALYZER-PLAN.md`.
 - Pay table manual editor + library + analysis view.
 - Stats: accuracy, EV lost/1000, effective return, confusion matrix, weakness ranking.
-- AI settings (bring-your-own OpenAI/Anthropic keys, direct client calls) + provider abstraction.
+- AI settings (bring-your-own OpenAI/Anthropic keys, direct client calls) + provider abstraction ✅ — `11-AI-COACH-PLAN.md`.
 - 📸 Pay table photo extraction + confirm grid. 📸 Hand photo extraction.
-- AI hand explanations (grounded). Explain in plain English *why* one hold beats another and give a way to remember it,
+- AI hand explanations (grounded) ✅ — Explain in every Why? panel, numbers checked against the engine. Explain in plain English *why* one hold beats another and give a way to remember it,
   built on the engine's per-hold breakdown (final-hand chances × pays = EV; see `09-UI-ROUND-2-PLAN.md`, R3). The AI
   writes words only; every number comes from the engine.
 - 🛳️ **Cruise Rewards Tracker** (`07-CRUISE-REWARDS.md`): programs (Club Royale default), trips, live casino session timer, coin-in/points/cost per point, rewards ledger, target planner.

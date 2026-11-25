@@ -1,0 +1,42 @@
+/* AI: Settings → AI and the Explain section of the Why? panel */
+.ai-settings { margin-top: 20px; }
+.ai-providers { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.ai-provider { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
+.ai-provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ai-provider-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ai-key { padding: 6px 9px; border-radius: var(--radius-sm); background: var(--surface); font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ai-key-input { flex: 1 1 180px; min-width: 0; min-height: 36px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fffef9; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ai-get-key { color: var(--felt); font-size: var(--text-xs); font-weight: 700; }
+.ai-result { margin: 0; font-size: var(--text-xs); font-weight: 650; }
+.ai-result.is-ok { color: var(--success); }
+.ai-result.is-error, .explain-error { color: var(--danger); }
+.ai-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.ai-check { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: var(--text-sm); cursor: pointer; }
+.ai-check input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--felt); }
+.ai-check span strong { display: block; }
+.ai-check span { color: var(--muted); }
+.ai-check strong { color: var(--ink); }
+.ai-defaults { display: grid; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.ai-usage { display: grid; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.ai-usage-head { display: flex; justify-content: space-between; gap: 10px; font-size: var(--text-sm); }
+.ai-usage-head span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ai-usage-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.ai-usage-table th, .ai-usage-table td { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+.ai-usage-table th:first-child { text-align: left; }
+.ai-usage-table thead th { color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+
+.explain { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--felt) 30%, var(--line)); border-radius: var(--radius-md); background: color-mix(in srgb, var(--felt) 4%, var(--surface)); }
+.explain.is-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.explain.is-empty p { flex: 1 1 260px; margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
+.explain.is-empty strong { color: var(--ink); }
+.explain-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.explain-head h4 { margin: 0; font-size: 14px; }
+.explain-tiers .choice { min-height: 0; padding: 6px 10px; }
+.explain-tiers .choice-hint { font-size: 10.5px; }
+.explain-result { display: grid; gap: 8px; justify-items: start; }
+.explain-result p { margin: 0; font-size: var(--text-sm); line-height: 1.55; }
+.explain-summary { font-weight: 700; }
+.explain-meta { color: var(--muted); font-size: 11px !important; }
+.explain.is-empty .explain-invite { flex: 1 1 260px; }
+.explain-invite { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
+.explain-invite strong { color: var(--ink); }
