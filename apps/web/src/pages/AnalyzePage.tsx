@@ -11,6 +11,7 @@ import { readHand } from "../photo/hand-photo";
 import type { HandReply } from "../photo/hand-photo";
 import type { PreparedImage } from "../photo/image";
 import { announceSave } from "../dialogs/PayTableDialogs";
+import { signal } from "../diagnostics";
 import { dollarsFor } from "../components/ui";
 import { errorMessage } from "../hooks/useActionRunner";
 import { useAllPaytables } from "../paytables/catalog";
@@ -104,7 +105,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
   // A hand that stays on screen for a moment goes into Recent hands.
   useEffect(() => {
     if (!analysis || !target) return;
-    const timer = setTimeout(() => { void preferencesService.addRecentHand({ hand: cards, paytableId: target.paytableId, coins }).catch(() => undefined); }, 800);
+    const timer = setTimeout(() => { signal("analyzer:recent-saved"); void preferencesService.addRecentHand({ hand: cards, paytableId: target.paytableId, coins }).catch(() => undefined); }, 800);
     return () => clearTimeout(timer);
   }, [analysis]); // eslint-disable-line react-hooks/exhaustive-deps
 

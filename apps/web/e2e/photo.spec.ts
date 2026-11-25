@@ -34,6 +34,9 @@ async function renderPhoto(browser: Browser, body: string) {
 const tableImage = (rows: readonly (readonly [string, readonly number[]])[]) =>
   `<table>${rows.map(([label, pays]) => `<tr><td style="padding-right:40px">${label}</td>${pays.map(pay => `<td style="padding:0 14px">${pay}</td>`).join("")}</tr>`).join("")}</table>`;
 
+/** How many times the app signalled an outcome that leaves nothing on screen (see src/diagnostics.ts; clock-independent). */
+const signals = (page: Page, name: string) => page.evaluate(mark => (window as unknown as { __perfectDrawSignals?: Record<string, number> }).__perfectDrawSignals?.[mark] ?? 0, name);
+
 async function mockVision(page: Page, replies: { paytable?: object[]; hand?: object[]; hold?: Promise<void> }) {
   const calls: { kind: "paytable" | "hand"; model: string; hasImage: boolean }[] = [];
   await page.route("https://api.anthropic.com/**", async (route: Route) => {
@@ -190,7 +193,7 @@ test("a reading that arrives after the dialog closed never replaces the hand", a
   await dialog.getByRole("button", { name: "Close dialog" }).click(); // give up on the photo
   await page.getByRole("textbox", { name: "Type a hand" }).fill("2c 3d 4h 5s 9c");
   release();
-  await page.waitForTimeout(1000);
+  await expect.poll(() => signals(page, "photo:read-dropped")).toBe(1); // the late reading arrived and was dropped
   await expect(page.getByRole("textbox", { name: "Type a hand" })).toHaveValue("2c 3d 4h 5s 9c");
   await expect(page.locator(".analyzer-slot.is-doubtful")).toHaveCount(0);
   await expect(page.locator(".analyzer-photo-note")).toHaveCount(0);
@@ -265,7 +268,7 @@ test("a read of photo A that finishes while photo B is still being prepared is d
   await dialog.getByLabel("Photo of the hand").setInputFiles(await renderPhoto(browser, "photo B"));
   await expect.poll(prep.pending).toBe(1);                   // B is still being prepared
   release();                                                  // A's reply arrives now
-  await page.waitForTimeout(800);
+  await expect.poll(() => signals(page, "photo:read-dropped")).toBe(1); // ...and is dropped
   await expect(dialog).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Type a hand" })).toHaveValue("");
   await expect(dialog.getByRole("button", { name: /^Read photo with/ })).toBeDisabled(); // nothing to read until B is ready
@@ -287,7 +290,7 @@ test("photos chosen in quick succession show the newest, whichever finishes prep
   await expect(preview).toBeVisible();
   const newest = (await preview.getAttribute("src"))!;
   await prep.finish(0);                                       // then A
-  await page.waitForTimeout(500);
+  await expect.poll(() => signals(page, "photo:prepare-dropped")).toBe(1); // A, superseded, is discarded
   await expect(preview).toHaveAttribute("src", newest);       // still B
   expect(await prep.leaked([newest])).toEqual([]);            // A's preview was released, not kept
   await dialog.getByRole("button", { name: "Close dialog" }).click();

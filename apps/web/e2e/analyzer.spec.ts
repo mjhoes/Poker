@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { chooseMask, createPlayTable, readPlayState } from "./play-helpers";
+
+/** How many times the app signalled an outcome that leaves nothing on screen (see src/diagnostics.ts; clock-independent). */
+const signals = (page: Page, name: string) => page.evaluate(mark => (window as unknown as { __perfectDrawSignals?: Record<string, number> }).__perfectDrawSignals?.[mark] ?? 0, name);
 
 test("analyze a typed hand: ranked holds, why, chart line, other tables, what I held, address and recent hands", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
@@ -125,6 +129,7 @@ test("a played hand opens in the analyzer with what was held", async ({ page }) 
 });
 
 test("unavailable tables are named, invalid input is never analyzed, and changing what I held updates the comparison", async ({ page }) => {
+  await page.clock.install(); // time runs normally; the test jumps past the recent-hands delay instead of sleeping
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   const missing = "f".repeat(64);
   const results = page.getByRole("region", { name: "Holds ranked" });
@@ -150,12 +155,16 @@ test("unavailable tables are named, invalid input is never analyzed, and changin
   const recent = page.getByRole("region", { name: "Recent hands" }).getByRole("listitem");
   await expect(recent.first()).toContainText("5 coins"); // K K 5 5 9 on 9/6 Jacks has been saved
   const before = await recent.count();
+  // Baseline before the input changes; then jump past the recent-hands delay, where a save scheduled for this input
+  // would fire (and signal).
+  const savesBefore = await signals(page, "analyzer:recent-saved");
   await page.getByRole("textbox", { name: "Type a hand" }).fill("2c 3d 4h 5s 6c 7d");
   await expect(page.getByRole("alert").filter({ hasText: "That's 6 cards; a hand has five." })).toBeVisible();
   await expect(results).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Fix the hand above to see every hold ranked." })).toBeVisible();
   await expect(page).toHaveURL(/#\/analyze$/);
-  await page.waitForTimeout(1200); // longer than the recent-hands delay
+  await page.clock.runFor(1200);
+  expect(await signals(page, "analyzer:recent-saved")).toBe(savesBefore);
   await expect(recent).toHaveCount(before);
   await expect(recent.first().getByRole("button")).toHaveAccessibleName(/^Open K♠ K♦ 5♣ 5♥ 9♠, 9\/6 Jacks or Better, 5 coins$/);
 
@@ -178,6 +187,7 @@ test("unavailable tables are named, invalid input is never analyzed, and changin
 });
 
 test("results and the address follow the input's validity, even when the first five cards stay the same", async ({ page }) => {
+  await page.clock.install(); // time runs normally; the test jumps past the recent-hands delay instead of sleeping
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("/#/analyze");
   const text = page.getByRole("textbox", { name: "Type a hand" });
@@ -204,13 +214,16 @@ test("results and the address follow the input's validity, even when the first f
   await text.fill("As Ac 8d 8h 3c");
   await hasResults();
   await expect(page).toHaveURL(/hand=AsAc8d8h3c&/);
+  // Let the valid hand's own save land, take the baseline, then add the unfinished card and jump past the delay again:
+  // a save scheduled for the six-card input would fire (and signal) inside that jump.
+  await page.clock.runFor(1200);
+  await expect(recent.first().getByRole("button")).toHaveAccessibleName(/^Open A♠ A♣ 8♦ 8♥ 3♣,/);
+  const saved = await recent.count(), savesBefore = await signals(page, "analyzer:recent-saved");
   await text.fill("As Ac 8d 8h 3c K");
   await noResults();
   await expect(page.getByRole("heading", { name: "A hand has five cards. Remove the extra one to see every hold ranked." })).toBeVisible();
-  await page.waitForTimeout(1200); // longer than the recent-hands delay
-  const saved = await recent.count();
-  await text.fill("As Ac 8d 8h 3c K");
-  await page.waitForTimeout(1200);
+  await page.clock.runFor(1200);
+  expect(await signals(page, "analyzer:recent-saved")).toBe(savesBefore);
   await expect(recent).toHaveCount(saved);
   await text.fill("As Ac 8d 8h 3c");
   await hasResults();

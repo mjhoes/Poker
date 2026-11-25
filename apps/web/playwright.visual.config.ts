@@ -8,6 +8,7 @@ import config from "./playwright.config";
 export default defineConfig({
   ...config,
   testMatch: "visual.spec.ts",
+  projects: [{ name: "visual" }],
   snapshotPathTemplate: "{testDir}/__screenshots__/{arg}{ext}",
   expect: {
     ...config.expect,

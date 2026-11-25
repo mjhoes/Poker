@@ -10,6 +10,7 @@ import { aiService, useAiStore } from "./store";
 import type { Hand } from "@perfect-draw/engine";
 import { gradeLabel } from "../table/Feedback";
 import { engineClient } from "../worker/client";
+import { signal } from "../diagnostics";
 
 /**
  * "Explain in plain English" for one hold comparison. Nothing is sent until the player presses Explain; each model size
@@ -85,6 +86,7 @@ export function ExplainPanel({ input, paytableId }: { input: ExplainInput; payta
     try {
       const { record, calls } = await explainService.explain({ key, facts: await withChartLine(), provider: chosenProvider, tier: chosenTier });
       if (currentView.current === asked) setFound({ view: asked, record, freshCalls: calls });
+      else signal("explain:reply-dropped"); // saved, but the player has moved on
     } catch (reason) {
       if (currentView.current === asked) setFailure({ view: asked, message: errorMessage(reason) });
     } finally {

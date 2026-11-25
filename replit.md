@@ -411,3 +411,19 @@ R3 — why one hold beats another:
 - `pnpm --filter @perfect-draw/web vision-eval <folder> [--provider anthropic|openai] [--tier …]`: scores real photos
   against `<name>.json` answers (`{ "slug": … }` or `{ "familyId", "pays" }`); needs a real key in the environment and
   spends real money. Tests never call real APIs (`e2e/photo.spec.ts` renders images and intercepts the API).
+
+## Test acknowledgments instead of sleeps
+
+- `apps/web/src/diagnostics.ts` `signal(name)` counts outcomes that leave nothing on screen in
+  `window.__perfectDrawSignals` (`photo:read-dropped`, `photo:prepare-dropped`, `explain:reply-dropped`,
+  `analyzer:recent-saved`). Tests poll that count instead of `waitForTimeout`. It is a plain counter on purpose:
+  Playwright's clock (`page.clock.install()`) stubs the performance timeline, so performance marks read as zero under it
+  (the mark is still made, for the browser's performance tools).
+- Checks that something did *not* happen after a delay (the recent-hands save) install Playwright's clock, take the
+  signal count *before* the input changes, then jump past the delay with `page.clock.runFor(…)` and compare, so a save
+  scheduled by the change can't land before the baseline.
+- The responsiveness check (mobile Rapid Drill feedback under 50 ms, tagged `@timing` in `e2e/play.spec.ts`) runs as
+  its own Playwright project `timing`, in a fresh worker after the `e2e` project, so ~30 earlier tests in the same
+  browser don't skew its measurement. If an `e2e` test fails, it is reported as "did not run"; run it alone with
+  `pnpm --filter @perfect-draw/web exec playwright test --project=timing --no-deps` (without `--no-deps`, Playwright
+  runs the whole `e2e` project first). The visual and offline configs declare their own single project.
