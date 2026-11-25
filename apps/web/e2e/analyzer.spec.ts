@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { chooseMask, createPlayTable, readPlayState } from "./play-helpers";
+
+/** How many times the app signalled an outcome that leaves nothing on screen (see src/diagnostics.ts). */
+const signals = (page: Page, name: string) => page.evaluate(mark => performance.getEntriesByName(mark).length, name);
 
 test("analyze a typed hand: ranked holds, why, chart line, other tables, what I held, address and recent hands", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
@@ -125,6 +129,7 @@ test("a played hand opens in the analyzer with what was held", async ({ page }) 
 });
 
 test("unavailable tables are named, invalid input is never analyzed, and changing what I held updates the comparison", async ({ page }) => {
+  await page.clock.install(); // time runs normally; the test jumps past the recent-hands delay instead of sleeping
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   const missing = "f".repeat(64);
   const results = page.getByRole("region", { name: "Holds ranked" });
@@ -155,7 +160,10 @@ test("unavailable tables are named, invalid input is never analyzed, and changin
   await expect(results).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Fix the hand above to see every hold ranked." })).toBeVisible();
   await expect(page).toHaveURL(/#\/analyze$/);
-  await page.waitForTimeout(1200); // longer than the recent-hands delay
+  // Jump past the recent-hands delay: a save scheduled for this input would fire (and signal) right here.
+  const savesBefore = await signals(page, "analyzer:recent-saved");
+  await page.clock.runFor(1200);
+  expect(await signals(page, "analyzer:recent-saved")).toBe(savesBefore);
   await expect(recent).toHaveCount(before);
   await expect(recent.first().getByRole("button")).toHaveAccessibleName(/^Open K♠ K♦ 5♣ 5♥ 9♠, 9\/6 Jacks or Better, 5 coins$/);
 
@@ -178,6 +186,7 @@ test("unavailable tables are named, invalid input is never analyzed, and changin
 });
 
 test("results and the address follow the input's validity, even when the first five cards stay the same", async ({ page }) => {
+  await page.clock.install(); // time runs normally; the test jumps past the recent-hands delay instead of sleeping
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("/#/analyze");
   const text = page.getByRole("textbox", { name: "Type a hand" });
@@ -207,10 +216,11 @@ test("results and the address follow the input's validity, even when the first f
   await text.fill("As Ac 8d 8h 3c K");
   await noResults();
   await expect(page.getByRole("heading", { name: "A hand has five cards. Remove the extra one to see every hold ranked." })).toBeVisible();
-  await page.waitForTimeout(1200); // longer than the recent-hands delay
-  const saved = await recent.count();
+  await page.clock.runFor(1200); // past the recent-hands delay
+  const saved = await recent.count(), savesBefore = await signals(page, "analyzer:recent-saved");
   await text.fill("As Ac 8d 8h 3c K");
-  await page.waitForTimeout(1200);
+  await page.clock.runFor(1200);
+  expect(await signals(page, "analyzer:recent-saved")).toBe(savesBefore);
   await expect(recent).toHaveCount(saved);
   await text.fill("As Ac 8d 8h 3c");
   await hasResults();

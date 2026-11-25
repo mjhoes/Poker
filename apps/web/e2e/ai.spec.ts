@@ -15,6 +15,9 @@ const goodText = {
 
 interface Calls { anthropic: { model: string; headers: Record<string, string> }[]; openai: { model: string; headers: Record<string, string> }[] }
 
+/** How many times the app signalled an outcome that leaves nothing on screen (see src/diagnostics.ts). */
+const signals = (page: Page, name: string) => page.evaluate(mark => performance.getEntriesByName(mark).length, name);
+
 async function mockProviders(page: Page, replies: { anthropic?: object[]; openai?: object[]; hold?: Promise<void> } = {}) {
   const calls: Calls = { anthropic: [], openai: [] };
   await page.route("https://api.anthropic.com/**", async (route: Route) => {
@@ -187,7 +190,7 @@ test("a reply that arrives after the player picked another hold is not shown und
   await holds.nth(3).click(); // the player moves on before the reply arrives
   await expect(page.getByRole("region", { name: "Holds ranked" }).getByRole("heading", { level: 3 })).toHaveText(/^Why the best hold beats A♠ A♣/);
   release();
-  await page.waitForTimeout(800);
+  await expect.poll(() => signals(page, "explain:reply-dropped")).toBe(1); // the late reply arrived and was set aside
   await expect(explain.locator(".explain-summary")).toHaveCount(0);
   await expect(explain.getByRole("button", { name: /^Explain with Claude Opus 5\.5/ })).toBeEnabled();
   // Back on the hold it was asked for, the (saved) reply is there.

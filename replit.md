@@ -411,3 +411,11 @@ R3 — why one hold beats another:
 - `pnpm --filter @perfect-draw/web vision-eval <folder> [--provider anthropic|openai] [--tier …]`: scores real photos
   against `<name>.json` answers (`{ "slug": … }` or `{ "familyId", "pays" }`); needs a real key in the environment and
   spends real money. Tests never call real APIs (`e2e/photo.spec.ts` renders images and intercepts the API).
+
+## Test acknowledgments instead of sleeps
+
+- `apps/web/src/diagnostics.ts` `signal(name)` puts a named mark in the browser's performance timeline for outcomes
+  that leave nothing on screen: `photo:read-dropped`, `photo:prepare-dropped`, `explain:reply-dropped`,
+  `analyzer:recent-saved`. Tests poll `performance.getEntriesByName(name)` instead of `waitForTimeout`.
+- Checks that something did *not* happen after a delay (the recent-hands save) install Playwright's clock
+  (`page.clock.install()`) and jump past the delay with `page.clock.runFor(…)`, then compare the signal count.

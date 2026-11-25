@@ -8,6 +8,7 @@ import { aiService, useAiStore } from "../ai/store";
 import { prepareImage } from "./image";
 import type { PreparedImage } from "./image";
 import { photoService } from "./photo-service";
+import { signal } from "../diagnostics";
 import type { PhotoKind } from "./photo-service";
 
 export type PhotoResult<K extends PhotoKind> = Awaited<ReturnType<typeof photoService.read<K>>> & { image: PreparedImage };
@@ -58,7 +59,7 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
     setReading(false); setPreparing(true); setError("");
     try {
       const prepared = await prepareImage(file);
-      if (!live.current || preparation.current !== ticket) { URL.revokeObjectURL(prepared.previewUrl); return; } // superseded
+      if (!live.current || preparation.current !== ticket) { URL.revokeObjectURL(prepared.previewUrl); signal("photo:prepare-dropped"); return; } // superseded
       owned.current.add(prepared.previewUrl);
       if (current.current) release(current.current.previewUrl);
       setImage(prepared);
@@ -88,7 +89,7 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
     setReading(true); setError("");
     try {
       const result = await photoService.read(kind, photo, chosenProvider, chosenTier);
-      if (!live.current || request.current !== asked || current.current !== photo) return; // closed or replaced meanwhile
+      if (!live.current || request.current !== asked || current.current !== photo) { signal("photo:read-dropped"); return; } // closed or replaced meanwhile
       if (onRead({ ...result, image: photo } as PhotoResult<K>) !== false) owned.current.delete(photo.previewUrl); // handed over
     }
     catch (reason) { if (live.current && request.current === asked) setError(errorMessage(reason)); }
