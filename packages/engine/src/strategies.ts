@@ -353,14 +353,28 @@ export function generateStrategyList(analysisKey: string, tier: StrategyTier): S
   return { ...list, sections: chartSections(list.familyId, list.lines), meetsTarget: strategyMeetsTarget(list) };
 }
 
+/** What a strategy chart picks for a hand, and which line of the chart picks it (for citing the chart). */
+export interface StrategyChoice {
+  readonly mask: number;
+  /** Index into `list.lines`; null when no line applies (discard all five) or for the Perfect tier. */
+  readonly line: number | null;
+  /** The line's exception that changed the pick, if one applied. */
+  readonly exception: StrategyException | null;
+}
+
 export function selectStrategyHold(analysis: HandAnalysis, list: StrategyList): number {
+  return strategyChoice(analysis, list).mask;
+}
+
+export function strategyChoice(analysis: HandAnalysis, list: StrategyList): StrategyChoice {
   const context = getTrainingContext(list.analysisKey);
   if (analysis.familyId !== context.analysis.familyId) throw new Error("Strategy and hand use different families.");
   if (JSON.stringify(analysis.valueVector) !== JSON.stringify(context.analysis.valueVector)) {
     throw new Error("Strategy and hand use different payout vectors.");
   }
-  if (list.tier === "Perfect") return analysis.best.mask;
-  const priority = new Map(list.lines.flatMap(line => line.alternatives ?? [line.label]).map((label, rank) => [label, rank]));
+  if (list.tier === "Perfect") return { mask: analysis.best.mask, line: null, exception: null };
+  const flat = list.lines.flatMap((line, index) => (line.alternatives ?? [line.label]).map(label => ({ label, index })));
+  const priority = new Map(flat.map(({ label }, rank) => [label, rank]));
   let chosen = -1, bestPriority = Infinity, bestPreference = -Infinity;
   const maskOrder = canonicalMaskOrder(analysis.hand);
   for (const hold of analysis.results) {
@@ -376,7 +390,8 @@ export function selectStrategyHold(analysis: HandAnalysis, list: StrategyList): 
       chosen = hold.mask; bestPriority = rank; bestPreference = preference;
     }
   }
-  if (chosen < 0) return 0; // No named rule: always discard five, never an unnamed EV winner.
+  if (chosen < 0) return { mask: 0, line: null, exception: null }; // No named rule: discard five, never an unnamed EV winner.
+  const lineIndex = flat[bestPriority]?.index ?? null;
   const selectedPattern = describeHoldUnchecked(analysis.hand, chosen, analysis.familyId);
   const selectedLine = list.lines.find(line => line.label === refinementKey(selectedPattern, list.refinement));
   for (const rule of selectedLine?.exceptions ?? []) {
@@ -388,7 +403,10 @@ export function selectStrategyHold(analysis: HandAnalysis, list: StrategyList): 
         pattern.straightPenalty === rule.straightPenalty &&
         (rule.suitPattern === undefined || holdSuitPattern(analysis.hand, hold.mask) === rule.suitPattern);
     });
-    if (matches.length) return matches.reduce((best, hold) => preferHold(analysis.hand, hold.mask, best, analysis.familyId) ? hold.mask : best, -1);
+    if (matches.length) {
+      const mask = matches.reduce((best, hold) => preferHold(analysis.hand, hold.mask, best, analysis.familyId) ? hold.mask : best, -1);
+      return { mask, line: lineIndex, exception: rule };
+    }
   }
-  return chosen;
+  return { mask: chosen, line: lineIndex, exception: null };
 }

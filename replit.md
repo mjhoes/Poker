@@ -308,3 +308,33 @@ R3 — why one hold beats another:
   ("Why is the best hold better?"): summary, value bars, a per-hand table (stacked cards on phones),
   and "Compare another hold" (toggle cards or pick from the top five).
 - The future AI coach (roadmap) should explain these same rows in words, never compute its own numbers.
+
+## Hand Analyzer (docs/10-HAND-ANALYZER-PLAN.md)
+
+- Route `#/analyze` (`pages/AnalyzePage.tsx`, pieces in `src/analyzer/`). The address carries the state:
+  `#/analyze?hand=AsAc8d8h3c&table=<paytableId>&bet=5&held=15` (`encodeAnalyzerQuery`/`decodeAnalyzerQuery`).
+  `useRoute()` now returns `search` and `replaceSearch` (updates the address without a history entry).
+- Typed hands: `readHandText()` accepts `As Ks Qd 7c 2h`, `AsKs…`, `T`/`10`, suit symbols, commas; partial input is
+  fine; errors name the problem. The deck picker is a 4 × 13 grid (arrow keys) on larger screens and rank-then-suit
+  on phones (`analyzer/CardPicker.tsx`). Card names come from `cardName()` ("A of spades").
+- Targets (`analyzer/targets.ts`): your machines (their bet and denomination, so dollars show) and every pay table.
+  Defaults: the address's table, else the open session's machine, else the most recent one, else 9/6 Jacks.
+  `resolveTarget()` reports `missing` when a link or recent hand names a table this device doesn't have; the page then
+  shows a notice naming the table it shows instead (never a silent switch). Choosing a table clears it.
+- Only valid input is analyzed: `complete` requires five cards, the parser's own `complete` flag (an unfinished
+  sixth card such as `… 3c K` is not complete) and no parser error, so extra cards or a typo never produce results,
+  an address or a recent hand. The analysis effect is keyed on `analysisKey` and the address effect depends on
+  `complete`, so both follow validity changes even when the first five cards stay the same.
+- Changing what was held (`changeHeld`) clears a hold picked from the list, so the Why? panel compares the new hold.
+- Ranked holds: `rankHolds()` (ties = "best", close call when the runner-up is within 0.01 credits per coin bet).
+  Selecting a hold opens the shared `HoldComparisonPanel` (the session drawer uses the same panel via `HoldComparison`).
+  An analysis is shown only for exactly the current cards, table and bet (`computed.key`), never a stale one.
+- Strategy chart: worker `strategyCitation(cards, paytableId, tier)` uses the engine's `strategyChoice()` (which line of
+  the chart picks the hold; `selectStrategyHold` is now a wrapper). Expert by default; Beginner/Intermediate switch.
+  Charts are max-bet only. Custom tables: `hasStrategyCharts()` is false until built (button, ~20 s once).
+- Other tables: worker `analyzeAcross(cards, targets)` (your machines + the seven popular tables, deduplicated by table
+  and bet, excluding the selected one). It uses the direct solver (`analyzeHand`, ~10 ms per table) rather than the
+  fast solver, whose per-family subset tables cost ~0.5 s each and are cleared on family switches.
+- Recent hands: `profile.prefs.recentHands` (last 20, newest first, the same cards/table/bet listed once), via
+  `preferencesService.addRecentHand` / `clearRecentHands`. Included in backups.
+- "Open in analyzer" link in the details drawer after any hand (passes the hand, table, hand's bet and what was held).

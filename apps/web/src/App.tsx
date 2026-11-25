@@ -29,6 +29,7 @@ import { WalletsPage } from "./pages/WalletsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SessionPage } from "./pages/SessionPage";
 import { StatsPage } from "./pages/StatsPage";
+import { AnalyzePage } from "./pages/AnalyzePage";
 
 type Dialog =
   | { kind: "machine"; machine?: Machine }
@@ -41,7 +42,7 @@ type Dialog =
 
 function App() {
   const { ready, error: storeError, retentionError, machines, wallets, paytables, deckColors, sessions, activeSessionId, storageStatus, decisionCount, backupDue, lastBackupAt } = useAppStore();
-  const { route, navigate } = useRoute();
+  const { route, search, navigate, replaceSearch } = useRoute();
   const runner = useActionRunner();
   const { busy, run } = runner;
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -146,6 +147,8 @@ function App() {
         paytables={paytables} machines={machines} onNewPaytable={() => setDialog({ kind: "paytable" })} onCopyPaytable={table => setDialog({ kind: "paytable", startFromId: table.id })}
         onRenamePaytable={table => setDialog({ kind: "rename-paytable", table })} onDeletePaytable={table => void deletePaytable(table)}
         deckColors={deckColors} onDeckColors={value => void run(() => preferencesService.setDeckColors(value))} />}
+      {route === "/analyze" && <AnalyzePage search={search} replaceSearch={replaceSearch} machines={machines}
+        sessions={Object.values(sessions)} activeSession={activeSession} />}
       {route === "/stats" && <StatsPage machines={machines} decisionCount={decisionCount} onTrainStarted={() => { setSessionViewId(null); openRoom(); }} onGoMachines={() => navigate("/")} />}
       {route === "/session" && <SessionPage session={shownSession} felt={roomFelt ?? "felt"} sessions={historySessions}
         analysis={tableAnalysis.analysis} analysisError={tableAnalysis.error} analysisLoading={tableAnalysis.loading} onRetry={tableAnalysis.request}

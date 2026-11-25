@@ -1,7 +1,7 @@
 import { liveQuery } from "dexie";
 import { create } from "zustand";
 import { profileSchema } from "@perfect-draw/shared";
-import type { Machine, Paytable, Session, Wallet } from "@perfect-draw/shared";
+import type { Machine, Paytable, RecentHand, Session, Wallet } from "@perfect-draw/shared";
 import { db, initializeDatabase } from "../data/db";
 import { machineService } from "../services/machines";
 import { walletService } from "../services/wallets";
@@ -21,11 +21,12 @@ export interface AppState {
   storageStatus: StorageStatus; decisionCount: number; backupDue: boolean; lastBackupAt: number | null;
   deckColors: "two" | "four";
   dealSpeed: "relaxed" | "normal" | "fast";
+  recentHands: RecentHand[];
 }
 export const useAppStore = create<AppState>(() => ({
   ready: false, error: null, machines: [], wallets: [], paytables: [], sessions: {}, activeSessionId: null,
   retentionError: null,
-  storageStatus: "checking", decisionCount: 0, backupDue: false, lastBackupAt: null, deckColors: "two", dealSpeed: "normal",
+  storageStatus: "checking", decisionCount: 0, backupDue: false, lastBackupAt: null, deckColors: "two", dealSpeed: "normal", recentHands: [],
 }));
 let started = false;
 export async function startAppStore() {
@@ -48,7 +49,7 @@ export async function startAppStore() {
       return {
         machines, wallets, paytables, sessions, activeSessionId: active && sessions[active] && sessions[active].status !== "closed" ? active : null,
         decisionCount, backupDue: decisionCount - profile.prefs.lastBackupDecisionCount >= 500,
-        lastBackupAt: profile.prefs.lastBackupAt, deckColors: profile.prefs.deckColors, dealSpeed: profile.prefs.dealSpeed, ready: true, error: null,
+        lastBackupAt: profile.prefs.lastBackupAt, deckColors: profile.prefs.deckColors, dealSpeed: profile.prefs.dealSpeed, recentHands: profile.prefs.recentHands, ready: true, error: null,
       };
     }).subscribe({
       next: state => useAppStore.setState(state),
