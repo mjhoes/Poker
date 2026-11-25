@@ -20,6 +20,7 @@ Web first (Replit), then iOS (Capacitor). **Local-first:** guest mode, all data 
 | [09 — Interface Round 2 Plan](docs/09-UI-ROUND-2-PLAN.md) | Popular machines, bet changes at the table, why-this-hold breakdown, table analysis fix |
 | [10 — Hand Analyzer Plan](docs/10-HAND-ANALYZER-PLAN.md) | Enter any hand, every hold ranked with why, strategy-line citation, across pay tables |
 | [11 — AI Coach Plan](docs/11-AI-COACH-PLAN.md) | Bring-your-own-key AI layer, AI settings, grounded "Explain" with a number check |
+| [12 — Photo Capture Plan](docs/12-PHOTO-CAPTURE-PLAN.md) | Pay table and hand photos read by AI, mapped and checked by the app, confirmed by you |
 
 ## Core principle
 **Math is deterministic; AI only reads images and writes words.** Every EV, strategy line and statistic comes from the engine. LLM output is schema-validated, checked against engine data, and confirmed by the user when it comes from a photo.
