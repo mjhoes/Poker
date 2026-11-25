@@ -92,9 +92,9 @@ export function PayTablePhotoFlow({ busy, run, onCancel, onSaved, onDone, initia
   return <div className="photo-flow">
     <PhotoReader kind="paytable" initialImage={initialImage} error={problem} onRead={result => {
       const reply = result.reply as PaytableReply;
-      if (!reply.readable || !reply.rows.length) { setProblem("No pay table was found in that photo. Try a straight-on shot of the whole pay table."); return; }
+      if (!reply.readable || !reply.rows.length) { setProblem("No pay table was found in that photo. Try a straight-on shot of the whole pay table."); return false; }
       const reading = readPaytable(reply);
-      if (reading.unknown.length === reply.rows.length) { setProblem("The rows in that photo didn't look like a video poker pay table. Try a clearer shot."); return; }
+      if (reading.unknown.length === reply.rows.length) { setProblem("The rows in that photo didn't look like a video poker pay table. Try a clearer shot."); return false; }
       setProblem(""); setRead(result);
     }} />
     <div className="form-actions"><Button variant="secondary" onClick={onCancel}>Cancel</Button></div>

@@ -87,12 +87,13 @@ export function quickFill(draft: DraftTable, text: string): { draft: DraftTable;
 
 // ── Pasted text ──
 
-// "or"/"and" are dropped ("Four 2s, 3s or 4s" = "four 2 3 4"); en and em dashes count as hyphens ("2s–4s").
+// "or", "and" and "any" are dropped ("Four 2s, 3s or 4s" = "four 2 3 4"; "with any 2, 3, 4" = "with 2 3 4");
+// en and em dashes count as hyphens ("2s–4s").
 const normalize = (text: string) => text.toLowerCase().replace(/[\u2013\u2014]/g, "-")
   .replace(/&|\+/g, " with ").replace(/\bw\//g, "with ")
   .replace(/(\d)\s*-\s*([\dakqj])\b/g, "$1 $2").replace(/\b([akqj])\s*-\s*([\dakqj])\b/g, "$1 $2")
   .replace(/[^a-z0-9]+/g, " ").replace(/\b(\d+|[akqj])s\b/g, "$1").replace(/\bthru\b|\bthrough\b|\bto\b/g, " ")
-  .replace(/\b(?:or|and)\b/g, " ").replace(/\s+/g, " ").trim();
+  .replace(/\b(?:or|and|any)\b/g, " ").replace(/\s+/g, " ").trim();
 
 const SYNONYMS: Record<string, string[]> = {
   ROYAL_FLUSH: ["royal flush", "royal"],

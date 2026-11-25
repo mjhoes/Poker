@@ -11,6 +11,7 @@ import { analysisSchema } from "@perfect-draw/shared";
 import { db, stamp } from "../data/db";
 import type { AcrossAnalysis, AnalysisSummary, EngineAPI } from "./engine-api";
 import { StatsEngine } from "./stats-engine";
+import { compareStrategies } from "./strategy-difference";
 import { paytableService } from "../services/paytables";
 
 const loaded = new Map<string, PrecomputedGameAnalysis>();
@@ -213,24 +214,9 @@ const api: EngineAPI = {
     const mine = loaded.get((await api.loadAnalysis(paytableId)).key);
     const base = loaded.get((await api.loadAnalysis(baseId)).key);
     if (!mine || !base) throw new Error("The analyses were unloaded. Try again.");
-    if (mine.familyId !== base.familyId) throw new Error("Compare with a table of the same game.");
-    const same = (a: number, b: { bestMask: number; secondMask: number; ev: number; secondEv: number }) =>
-      a === b.bestMask || (a === b.secondMask && Math.abs(b.ev - b.secondEv) < 1e-9); // an equal second best is not a change
-    let total = 0, differing = 0;
-    const changes: { id: number; weight: number; best: string; baseBest: string }[] = [];
-    for (const [id, result] of mine.perHand) {
-      total += result.weight;
-      const other = base.perHand.get(id);
-      if (!other || same(result.bestMask, other) || same(other.bestMask, result)) continue;
-      differing += result.weight;
-      changes.push({ id, weight: result.weight, best: result.bestLabel, baseBest: other.bestLabel });
-    }
+    prepareSolver(mine.familyId); // tied deals are re-solved exactly
     const hands = new Map(getCanonicalHands().map(hand => [hand.id, hand.hand]));
-    changes.sort((a, b) => b.weight - a.weight || a.id - b.id);
-    return {
-      baseId, differPct: total ? (differing / total) * 100 : 0,
-      examples: changes.slice(0, 4).map(change => ({ hand: [...(hands.get(change.id) ?? [])], best: change.best, baseBest: change.baseBest, dealsPct: (change.weight / total) * 100 })),
-    };
+    return { baseId, ...compareStrategies(mine, base, hands) };
   },
   async analyzeAcross(cards, targets) {
     const results: AcrossAnalysis[] = [];

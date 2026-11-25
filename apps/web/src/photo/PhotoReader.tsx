@@ -17,7 +17,9 @@ export type PhotoResult<K extends PhotoKind> = Awaited<ReturnType<typeof photoSe
  * before that. The photo is prepared on the device and kept only in memory while this is open.
  */
 export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, error: outerError }: {
-  kind: K; initialImage?: PreparedImage; onRead: (result: PhotoResult<K>) => void; error?: string;
+  kind: K; initialImage?: PreparedImage; error?: string;
+  /** Receives the reading and its image (now the caller's). Return false to decline it: the reader keeps the image. */
+  onRead: (result: PhotoResult<K>) => boolean | void;
 }) {
   const settings = useAiStore(state => state.settings);
   const keys = useAiStore(state => state.keys);
@@ -30,12 +32,37 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
   const [tier, setTier] = useState<AiTier | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
+  /*
+   * Ownership of preview images: an image this reader prepared is its own until it is handed over in `onRead`, and is
+   * released (its blob URL revoked) when replaced or when the reader closes. `initialImage` belongs to the caller.
+   * A read that finishes after the reader closed or the photo changed is dropped, never handed over.
+   */
+  const owned = useRef(new Set<string>());
+  const current = useRef<PreparedImage | null>(image);
+  current.current = image;
+  const live = useRef(true);
+  const request = useRef(0);
+  const release = (url: string) => { if (owned.current.delete(url)) URL.revokeObjectURL(url); };
+  useEffect(() => {
+    live.current = true;
+    const urls = owned.current;
+    return () => { live.current = false; request.current++; for (const url of urls) URL.revokeObjectURL(url); urls.clear(); };
+  }, []);
+
   const accept = async (file: Blob | null | undefined) => {
     if (!file) return;
     setPreparing(true); setError("");
-    try { setImage(await prepareImage(file)); }
-    catch (reason) { setError(errorMessage(reason)); }
-    finally { setPreparing(false); }
+    try {
+      const prepared = await prepareImage(file);
+      if (!live.current) { URL.revokeObjectURL(prepared.previewUrl); return; }
+      owned.current.add(prepared.previewUrl);
+      if (current.current) release(current.current.previewUrl);
+      request.current++; // a read of the previous photo no longer applies
+      setReading(false);
+      setImage(prepared);
+    }
+    catch (reason) { if (live.current) setError(errorMessage(reason)); }
+    finally { if (live.current) setPreparing(false); }
   };
   // Pasting a screenshot or copied photo works anywhere while this is open.
   useEffect(() => {
@@ -55,10 +82,15 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
 
   const read = async () => {
     if (!image || !chosenProvider) return;
+    const asked = ++request.current, photo = image;
     setReading(true); setError("");
-    try { onRead({ ...await photoService.read(kind, image, chosenProvider, chosenTier), image } as PhotoResult<K>); }
-    catch (reason) { setError(errorMessage(reason)); }
-    finally { setReading(false); }
+    try {
+      const result = await photoService.read(kind, photo, chosenProvider, chosenTier);
+      if (!live.current || request.current !== asked || current.current !== photo) return; // closed or replaced meanwhile
+      if (onRead({ ...result, image: photo } as PhotoResult<K>) !== false) owned.current.delete(photo.previewUrl); // handed over
+    }
+    catch (reason) { if (live.current && request.current === asked) setError(errorMessage(reason)); }
+    finally { if (live.current && request.current === asked) setReading(false); }
   };
 
   return <div className="photo-reader" role="group" aria-label={`Read a ${what} from a photo`}>

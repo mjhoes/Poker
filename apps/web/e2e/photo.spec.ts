@@ -34,7 +34,7 @@ async function renderPhoto(browser: Browser, body: string) {
 const tableImage = (rows: readonly (readonly [string, readonly number[]])[]) =>
   `<table>${rows.map(([label, pays]) => `<tr><td style="padding-right:40px">${label}</td>${pays.map(pay => `<td style="padding:0 14px">${pay}</td>`).join("")}</tr>`).join("")}</table>`;
 
-async function mockVision(page: Page, replies: { paytable?: object[]; hand?: object[] }) {
+async function mockVision(page: Page, replies: { paytable?: object[]; hand?: object[]; hold?: Promise<void> }) {
   const calls: { kind: "paytable" | "hand"; model: string; hasImage: boolean }[] = [];
   await page.route("https://api.anthropic.com/**", async (route: Route) => {
     const request = route.request();
@@ -44,6 +44,7 @@ async function mockVision(page: Page, replies: { paytable?: object[]; hand?: obj
     const kind = body.system.includes("pay tables") ? "paytable" : "hand";
     calls.push({ kind, model: body.model, hasImage: Array.isArray(body.messages[0].content) && body.messages[0].content[0].type === "image" });
     const reply = replies[kind]?.shift();
+    if (replies.hold) await replies.hold;
     return route.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({
       id: `msg_${calls.length}`, type: "message", role: "assistant", model: body.model, content: [{ type: "text", text: JSON.stringify(reply) }],
       stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 2600, output_tokens: 900, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
@@ -171,4 +172,47 @@ test("a new machine can start from a pay table photo", async ({ page }) => {
   await page.getByRole("button", { name: /^Photograph a pay table/ }).click();
   await expect(page.getByRole("dialog", { name: "Pay table from a photo" }).getByRole("button", { name: "Take or choose a photo" })).toBeVisible();
   await expect(page.getByText("Reading photos uses your own Anthropic or OpenAI API key.")).toBeVisible();
+});
+
+const isLive = (page: Page, url: string) => page.evaluate(async src => { try { await (await fetch(src)).blob(); return true; } catch { return false; } }, url);
+
+test("a reading that arrives after the dialog closed never replaces the hand", async ({ page, browser }) => {
+  let release!: () => void;
+  const hand = { readable: true, payTableVisible: false, held: null, cards: [["A", "spades"], ["A", "clubs"], ["8", "diamonds"], ["8", "hearts"], ["3", "clubs"]].map(([rank, suit]) => ({ rank, suit, confidence: 0.97 })) };
+  const calls = await mockVision(page, { hand: [hand], hold: new Promise<void>(resolve => { release = resolve; }) });
+  await addKey(page);
+  await page.goto("/#/analyze");
+  await page.getByRole("button", { name: "From a photo", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Hand from a photo" });
+  await dialog.getByLabel("Photo of the hand").setInputFiles(await renderPhoto(browser, "A♠ A♣ 8♦ 8♥ 3♣"));
+  await dialog.getByRole("button", { name: /^Read photo with/ }).click();
+  await expect.poll(() => calls.length).toBe(1);
+  await dialog.getByRole("button", { name: "Close dialog" }).click(); // give up on the photo
+  await page.getByRole("textbox", { name: "Type a hand" }).fill("2c 3d 4h 5s 9c");
+  release();
+  await page.waitForTimeout(1000);
+  await expect(page.getByRole("textbox", { name: "Type a hand" })).toHaveValue("2c 3d 4h 5s 9c");
+  await expect(page.locator(".analyzer-slot.is-doubtful")).toHaveCount(0);
+  await expect(page.locator(".analyzer-photo-note")).toHaveCount(0);
+});
+
+test("photos are released from memory when replaced, declined or closed", async ({ page, browser }) => {
+  await mockVision(page, { paytable: [{ readable: false, rows: [], gameGuess: null, multiplierGame: null, denominationCents: null, lines: null }] });
+  await addKey(page);
+  await page.getByRole("button", { name: "From a photo", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Pay table from a photo" });
+  const preview = dialog.getByRole("img", { name: "Your photo of the pay table" });
+  await dialog.getByLabel("Photo of the pay table").setInputFiles(await renderPhoto(browser, "first"));
+  const first = (await preview.getAttribute("src"))!;
+  await dialog.getByLabel("Photo of the pay table").setInputFiles(await renderPhoto(browser, "second"));
+  await expect(preview).not.toHaveAttribute("src", first);
+  const second = (await preview.getAttribute("src"))!;
+  expect(await isLive(page, first)).toBe(false); // replaced
+  // A reading the flow declines (no pay table) leaves the photo with the reader, still shown.
+  await dialog.getByRole("button", { name: /^Read photo with/ }).click();
+  await expect(dialog.getByRole("alert")).toContainText("No pay table was found");
+  expect(await isLive(page, second)).toBe(true);
+  await dialog.getByRole("button", { name: "Close dialog" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await isLive(page, second)).toBe(false); // closed
 });

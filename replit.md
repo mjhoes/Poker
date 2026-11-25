@@ -399,6 +399,13 @@ R3 — why one hold beats another:
   table, with examples). Entry points: Settings → Your pay tables → From a photo; machine editor (From a photo…, and
   the "Photograph a pay table" card); Analyzer → From a photo (hand), which offers a second read of a visible pay table.
 - Explanations now include the Expert chart line (`chart` in the facts) when charts are already available at max bet.
+- Review rules (PR #5):
+  - `PhotoReader` owns the preview images it prepares (blob URLs are revoked when replaced or when it closes) until it
+    hands one over in `onRead`; a caller returns `false` to decline a reading and leave the image with the reader.
+    `initialImage` stays the caller's. A read that completes after the reader closed or its photo changed is dropped.
+  - Label normalization also drops "any" ("Four Aces with any 2, 3, 4" → the kicker hand).
+  - Strategy comparison (`worker/strategy-difference.ts`) counts a deal as changed only when no hold is optimal under
+    both tables; deals with a tie on either side are re-solved exactly (stored analyses keep only two holds).
 - `pnpm --filter @perfect-draw/web vision-eval <folder> [--provider anthropic|openai] [--tier …]`: scores real photos
   against `<name>.json` answers (`{ "slug": … }` or `{ "familyId", "pays" }`); needs a real key in the environment and
   spends real money. Tests never call real APIs (`e2e/photo.spec.ts` renders images and intercepts the API).

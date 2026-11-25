@@ -4,7 +4,7 @@ import { parseHand } from "@perfect-draw/engine";
 import { getLibraryPayTable, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { handRankName } from "../src/components/UiHelpers";
 import { db, initializeDatabase } from "../src/data/db";
-import { payingRanks, libraryMatch } from "../src/paytables/model";
+import { matchAnyRank, payingRanks, libraryMatch } from "../src/paytables/model";
 import { closestLibraryTable, returnRank } from "../src/photo/closest-table";
 import { cardFromReply, handProblem, readHand } from "../src/photo/hand-photo";
 import type { HandReply } from "../src/photo/hand-photo";
@@ -48,6 +48,13 @@ describe("reading a pay table photo", () => {
     expect(libraryMatch(reading.draft)?.slug).toBe("double-double-bonus-9-6");
   });
 
+  it.each([
+    ["FOUR ACES WITH ANY 2,3,4", "FOUR_ACES_W_234"], ["4 ACES W/ANY 2-4", "FOUR_ACES_W_234"], ["FOUR ACES + 2, 3 OR 4", "FOUR_ACES_W_234"],
+    ["FOUR 2,3,4 WITH ANY A,2,3,4", "FOUR_234_W_A234"], ["4 2s-4s W/ANY A-4", "FOUR_234_W_A234"],
+    ["FOUR ACES", "FOUR_ACES"], ["4 2s, 3s, 4s", "FOUR_234"], ["FOUR DEUCES", "FOUR_DEUCES"],
+  ])("maps the kicker wording %s to the right hand", (label, rank) => {
+    expect(matchAnyRank(label)).toBe(rank);
+  });
   it("fills columns the photo doesn't show, and marks those hands to double-check", () => {
     const reply = replyFor("jacks-or-better-9-6");
     reply.rows = reply.rows.map(row => ({ ...row, pays: row.label.startsWith("ROYAL") ? [null, null, null, null, 4000] : [row.pays[0], null, null, null, null] }));

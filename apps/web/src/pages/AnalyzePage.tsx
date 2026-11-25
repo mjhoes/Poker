@@ -115,6 +115,10 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
   const [tablePhoto, setTablePhoto] = useState<PreparedImage | null>(null);
   const [tablePhotoOpen, setTablePhotoOpen] = useState(false);
   const dropTablePhoto = () => { setTablePhoto(current => { if (current) URL.revokeObjectURL(current.previewUrl); return null; }); setTablePhotoOpen(false); };
+  // A kept pay-table photo is released when the Analyzer closes too.
+  const keptPhoto = useRef<PreparedImage | null>(null);
+  keptPhoto.current = tablePhoto;
+  useEffect(() => () => { if (keptPhoto.current) URL.revokeObjectURL(keptPhoto.current.previewUrl); }, []);
   const changeCards = (next: number[]) => {
     setDoubtful([]); setPhotoNote("");
     setCards(next); setText(handText(next)); setTextError(null); setTextComplete(next.length === 5); setHeld(null); setMarking(false); setSelected(null); setShowAll(false);
@@ -291,7 +295,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
       <PhotoReader kind="hand" onRead={result => {
         let reading;
         try { reading = readHand(result.reply as HandReply); }
-        catch (reason) { setPhotoNote(errorMessage(reason)); setPhotoOpen(false); URL.revokeObjectURL(result.image.previewUrl); return; }
+        catch (reason) { setPhotoNote(errorMessage(reason)); setPhotoOpen(false); return false; } // the reader releases the photo
         changeCards(reading.cards);
         if (reading.heldMask !== null) setHeld(reading.heldMask);
         setDoubtful(reading.doubtful);
@@ -304,7 +308,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
     </Modal>}
     {tablePhotoOpen && tablePhoto && <Modal className="paytable-sheet" title="Pay table from the same photo" subtitle="A second, separate read. Confirm the pays before using them." onClose={() => setTablePhotoOpen(false)}>
       <PayTablePhotoFlow busy={busy} run={run} initialImage={tablePhoto} doneLabel="Analyze on this table" onCancel={() => setTablePhotoOpen(false)} onSaved={announceSave}
-        onDone={result => { setTargetKey(`table:${result.id}`); setCoins(5); setMissingTable(false); setTablePhoto(null); setTablePhotoOpen(false); }} />
+        onDone={result => { setTargetKey(`table:${result.id}`); setCoins(5); setMissingTable(false); dropTablePhoto(); }} />
     </Modal>}
   </div>;
 }
