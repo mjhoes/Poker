@@ -27,6 +27,9 @@ describe("coin-in", () => {
     expect(sessionCoinIn(session({ handsCount: 400, freePlayUsedCents: 2000 }), program())).toEqual({ cents: 48_000, source: "hands", withinCents: 0 });
     expect(sessionCoinIn(session({ handsCount: 400, freePlayUsedCents: 2000 }), program({ freePlayEarnsPoints: true })).cents).toBe(50_000);
     expect(sessionCoinIn(session({ coinInCents: 12_345 }), program())).toEqual({ cents: 12_345, source: "estimate", withinCents: 0 });
+    // An estimate is all play; free play comes off when it earns nothing, so the rule can change later.
+    expect(sessionCoinIn(session({ coinInCents: 75_000, freePlayUsedCents: 10_000 }), program()).cents).toBe(65_000);
+    expect(sessionCoinIn(session({ coinInCents: 75_000, freePlayUsedCents: 10_000 }), program({ freePlayEarnsPoints: true })).cents).toBe(75_000);
     // Still playing: only a points reading gives coin-in.
     expect(sessionCoinIn(session({ endedAt: null, handsCount: 10 }), program()).source).toBe("none");
     expect(sessionCoinIn(session({ endedAt: null, pointsBefore: 5, pointsAfter: 9 }), program()).cents).toBe(6000);
@@ -72,7 +75,7 @@ describe("rollup", () => {
       session({ pointsBefore: 100, pointsAfter: 200, cashInCents: 20_000, cashOutCents: 25_000 }), // +$50
     ];
     const prog = program();
-    const total = rollup(rows, prog, pointsEarned(rows, prog), () => ({ optimalPct: 99.54, effectivePct: 99.19, measured: true }));
+    const total = rollup(rows, prog, pointsEarned(rows, prog), () => ({ optimalPct: 99.54, effectivePct: 99.19, basis: "measured" as const }));
     expect(total.points).toBe(200);
     expect(total.coinInCents).toBe(300_000);
     expect(total.netCents).toBe(-15_000);
@@ -88,7 +91,7 @@ describe("rollup", () => {
     const known = session({ pointsBefore: 0, pointsAfter: 100, paytableId: "a".repeat(64) });
     const other = session({ pointsBefore: 100, pointsAfter: 200, gameName: "Ultimate X" });
     const total = rollup([known, other], program(), pointsEarned([known, other], program()),
-      row => row.paytableId ? { optimalPct: 99.54, effectivePct: 99.54, measured: true } : null);
+      row => row.paytableId ? { optimalPct: 99.54, effectivePct: 99.54, basis: "measured" as const } : null);
     expect(total.coinInWithoutReturnCents).toBe(150_000);
     expect(total.theoreticalCostPerPointCents).toBeCloseTo(15 * 100 * 0.0046, 6);
     expect(rollup([other], program(), pointsEarned([other], program()), () => null).theoreticalCostPerPointCents).toBeNull();
@@ -104,6 +107,10 @@ describe("rollup", () => {
     const summary = rewardsSummary([reward], { netCents: -15_000, points: 200 });
     expect(summary).toMatchObject({ valueCents: 10_000, netCostPerPointCents: 25, valuePerPointCents: 50 });
     expect(summary.roiPct).toBeCloseTo(-100 / 3, 9);
+    // Winnings count too (Replit's PR #7 case): +$100 net, $50 of rewards, 100 points → −$1.50 a point; no ROI on no loss.
+    const ahead = rewardsSummary([{ valueCents: 5000 } as Reward], { netCents: 10_000, points: 100 });
+    expect(ahead.netCostPerPointCents).toBe(-150);
+    expect(ahead.roiPct).toBeNull();
   });
 });
 

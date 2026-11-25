@@ -118,6 +118,19 @@ test("the planner reproduces the spec's worked example and shows the luck band",
   await expect(planner).toContainText("Expected cost$171.04");
   await expect(planner.getByText("On track")).toBeVisible();
   await expect.poll(band).toBeGreaterThan(quarterSpread * 1.5);
+
+  // Editing the trip updates the inputs left alone; the ones changed for "what if" stay (PR #7 review).
+  await page.getByRole("button", { name: "Trip actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit trip and days" }).click();
+  await page.getByLabel("Target points", { exact: true }).fill("5000");
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await expect(page.getByRole("heading", { name: "5,000 points to go." })).toBeVisible();
+  await expect(planner.getByLabel("Planner target points")).toHaveValue("5000");
+  await expect(planner.getByLabel("Hands per hour")).toHaveValue("700");
+  await expect(planner).toContainText("Coin-in needed$75,000.00");
+  await planner.getByRole("button", { name: "Back to the trip's figures" }).click();
+  await expect(planner.getByLabel("Hands per hour")).toHaveValue("600");
+  await expect(planner.getByLabel("Planner denomination")).toHaveValue("25");
 });
 
 test("rewards, program rules and CSV export", async ({ page }) => {

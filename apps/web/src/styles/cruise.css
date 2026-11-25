@@ -50,6 +50,7 @@
 .planner-inputs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 .planner-inputs .wide { grid-column: span 2; }
 .field-note { color: var(--muted); font-size: 10px; }
+.planner-reset { margin: -6px 0 12px; }
 .planner-return { margin: 0 0 14px; color: var(--ink-2); font-size: var(--text-md); line-height: 1.6; }
 .planner-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 24px; align-items: start; }
 .planner-list { margin: 0; }

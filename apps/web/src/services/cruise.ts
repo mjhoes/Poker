@@ -2,7 +2,7 @@ import { z } from "zod";
 import { casinoSessionSchema, newId, pauseReasons, rewardSchema, rewardsProgramSchema, tripDaySchema, tripSchema, uuid } from "@perfect-draw/shared";
 import type { Records } from "@perfect-draw/shared";
 import { db, live, requireRecord, stamp } from "../data/db";
-import { activeMs, betCents, DEFAULT_HANDS_PER_HOUR, HOUR_MS, practicePace, sessionStatus, tripDays } from "../cruise/economics";
+import { activeMs, DEFAULT_HANDS_PER_HOUR, estimatedPlayCents, estimateFor, practicePace, sessionStatus, tripDays } from "../cruise/economics";
 import type { CasinoSession, Program, Reward, Trip } from "../cruise/economics";
 
 /*
@@ -34,7 +34,7 @@ export const casinoCloseSchema = z.object({
   /** Pace for an estimate when there is neither a points reading nor a hand count. */
   estimateHandsPerHour: z.number().positive().max(5000).default(DEFAULT_HANDS_PER_HOUR),
 });
-export const casinoEditSchema = casinoCloseSchema.omit({ estimateHandsPerHour: true }).extend({
+export const casinoEditSchema = casinoCloseSchema.extend({
   cashInCents: money, pointsBefore: points.optional(), coinInCents: money.optional(),
 });
 export const rewardInputSchema = z.object({
@@ -170,8 +170,8 @@ export const casinoService = {
       }
       const played = activeMs(closed, now);
       const source = pointsAfter !== undefined && session.pointsBefore !== undefined ? "points" : values.handsCount !== undefined ? "hands" : "estimate";
-      // The estimate: active hours × pace × bet, less free play (which earns nothing).
-      const estimate = Math.max(0, Math.round(played / HOUR_MS * values.estimateHandsPerHour) * betCents(session) - values.freePlayUsedCents);
+      // The estimate: active hours × pace × bet, all play. Free play is taken off on read, per the program's rule.
+      const estimate = estimatedPlayCents(session, played, values.estimateHandsPerHour);
       return {
         timeSegments: segments, endedAt: now, activeMs: played, pointsAfter, cashOutCents: values.cashOutCents,
         freePlayUsedCents: values.freePlayUsedCents, handsCount: values.handsCount, notes: values.notes,
@@ -189,7 +189,11 @@ export const casinoService = {
         throw new Error("Enter both point readings, or the hands played.");
       }
       const source = values.pointsAfter !== undefined && values.pointsBefore !== undefined ? "points" : values.handsCount !== undefined ? "hands" : "estimate";
-      return { ...values, coinInSource: source, coinInCents: source === "estimate" ? values.coinInCents ?? session.coinInCents : 0 };
+      // Becoming an estimate (e.g. both point readings removed): work one out from the time played, never keep the
+      // zero a points- or hands-based session stores. An existing estimate is kept unless a new figure is given.
+      const { estimateHandsPerHour, coinInCents, ...readings } = values;
+      const estimate = coinInCents ?? estimateFor(session, session.activeMs, estimateHandsPerHour);
+      return { ...readings, coinInSource: source, coinInCents: source === "estimate" ? estimate : 0 };
     }, false);
   },
   async remove(id: string) {

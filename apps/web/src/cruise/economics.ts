@@ -41,7 +41,8 @@ export type CoinIn = {
 };
 /**
  * Coin-in for one session, from the best reading available: points before and after (Δ × $ per point), else hands
- * played × bet (less free play when free play earns nothing), else the estimate fixed when the session was closed.
+ * played × bet, else the estimate fixed when the session was closed (also total play, hands × bet). Free play is taken
+ * off hands and estimates here, on read, when the program says it earns nothing, so changing that rule recalculates.
  * A session still being played has coin-in only from a points reading.
  */
 export function sessionCoinIn(session: CasinoSession, program: Program): CoinIn {
@@ -49,11 +50,9 @@ export function sessionCoinIn(session: CasinoSession, program: Program): CoinIn 
     return { cents: Math.max(0, session.pointsAfter - session.pointsBefore) * pointCents(program), source: "points", withinCents: pointCents(program) };
   }
   if (session.endedAt === null) return { cents: 0, source: "none", withinCents: 0 };
-  if (session.handsCount !== undefined) {
-    const freePlay = program.freePlayEarnsPoints ? 0 : session.freePlayUsedCents;
-    return { cents: Math.max(0, session.handsCount * betCents(session) - freePlay), source: "hands", withinCents: 0 };
-  }
-  return { cents: session.coinInCents, source: "estimate", withinCents: 0 };
+  const freePlay = program.freePlayEarnsPoints ? 0 : session.freePlayUsedCents;
+  if (session.handsCount !== undefined) return { cents: Math.max(0, session.handsCount * betCents(session) - freePlay), source: "hands", withinCents: 0 };
+  return { cents: Math.max(0, session.coinInCents - freePlay), source: "estimate", withinCents: 0 };
 }
 
 /**
@@ -89,8 +88,28 @@ export function sessionHands(session: CasinoSession, coinIn: CoinIn, program: Pr
   return Math.round((coinIn.cents + (coinIn.source === "none" ? 0 : freePlay)) / betCents(session));
 }
 
-/** The return a session's play is expected to give: the table's optimal return and yours after measured mistakes. */
-export type ReturnInfo = { optimalPct: number; effectivePct: number; measured: boolean };
+/** Estimated total coin-in (before any free play is taken off) for time played at a pace: whole hands × bet. */
+export const estimatedPlayCents = (session: Pick<CasinoSession, "denominationCents" | "coins" | "lines">, playedMs: number, handsPerHour: number) =>
+  Math.round(playedMs / HOUR_MS * handsPerHour) * betCents(session);
+
+/**
+ * The estimate a session keeps (or would get) when it has neither a points reading nor a hand count: a closed session
+ * that already has one keeps it; otherwise time played × pace × bet. Used by cash-out, corrections and their preview.
+ */
+export function estimateFor(session: CasinoSession, playedMs: number, handsPerHour: number) {
+  return session.endedAt !== null && session.coinInSource === "estimate" ? session.coinInCents : estimatedPlayCents(session, playedMs, handsPerHour);
+}
+
+/**
+ * The return a session's play is expected to give: the table's optimal return, and yours after the mistakes measured in
+ * practice. `basis` says how far to trust it: "measured" (practice has covered every kind of deal), "estimated" (at
+ * least 99% covered; `imputedShare` of deals use your average mistake), or "optimal" (not enough practice yet:
+ * mistakes aren't counted, for `reason`).
+ */
+export type ReturnInfo = {
+  optimalPct: number; effectivePct: number; basis: "measured" | "estimated" | "optimal";
+  imputedShare?: number; coverage?: number; reason?: "few-decisions" | "low-coverage";
+};
 
 export type Rollup = {
   sessions: number; closedSessions: number;
@@ -104,6 +123,8 @@ export type Rollup = {
   coinInBySource: Record<CoinIn["source"], number>;
   /** Sessions whose cost used perfect play because there weren't enough practice decisions on the table. */
   unmeasuredSessions: number;
+  /** Sessions whose effective return is an estimate (some kinds of deal not yet practiced). */
+  estimatedSessions: number;
   /** Coin-in with no expected return (another game, or a return not worked out yet): no theoretical cost for it. */
   coinInWithoutReturnCents: number;
 };
@@ -118,7 +139,7 @@ export function rollup(sessions: readonly CasinoSession[], program: Program, poi
     sessions: sessions.length, closedSessions: 0, coinInCents: 0, points: 0, netCents: 0, activeMs: 0, hands: 0,
     theoreticalCostCents: 0, mistakeCostCents: 0, actualCostPerPointCents: null, theoreticalCostPerPointCents: null,
     pointsPerHour: null, handsPerHour: null, coinInPerHourCents: null,
-    coinInBySource: { points: 0, hands: 0, estimate: 0, none: 0 }, unmeasuredSessions: 0, coinInWithoutReturnCents: 0,
+    coinInBySource: { points: 0, hands: 0, estimate: 0, none: 0 }, unmeasuredSessions: 0, estimatedSessions: 0, coinInWithoutReturnCents: 0,
   };
   for (const session of sessions) {
     const coinIn = sessionCoinIn(session, program);
@@ -133,7 +154,8 @@ export function rollup(sessions: readonly CasinoSession[], program: Program, poi
     if (expected) {
       total.theoreticalCostCents += coinIn.cents * (1 - expected.effectivePct / 100);
       total.mistakeCostCents += coinIn.cents * Math.max(0, expected.optimalPct - expected.effectivePct) / 100;
-      if (!expected.measured && coinIn.cents > 0) total.unmeasuredSessions++;
+      if (expected.basis === "optimal" && coinIn.cents > 0) total.unmeasuredSessions++;
+      if (expected.basis === "estimated" && coinIn.cents > 0) total.estimatedSessions++;
     } else total.coinInWithoutReturnCents += coinIn.cents;
   }
   if (total.points > 0) {
@@ -155,10 +177,10 @@ export function rollup(sessions: readonly CasinoSession[], program: Program, poi
 /** What the rewards are worth against what the play cost. */
 export function rewardsSummary(rewards: readonly Reward[], rolled: Pick<Rollup, "netCents" | "points">) {
   const valueCents = rewards.reduce((sum, reward) => sum + reward.valueCents, 0);
-  const lossCents = Math.max(0, -rolled.netCents);
+  const lossCents = -rolled.netCents;
   return {
     valueCents,
-    /** (net loss − rewards) ÷ points: what a point cost once the rewards are counted. */
+    /** (net loss − rewards) ÷ points: what a point cost once the rewards are counted. Winnings count too (negative loss). */
     netCostPerPointCents: rolled.points > 0 ? (lossCents - valueCents) / rolled.points : null,
     valuePerPointCents: rolled.points > 0 ? valueCents / rolled.points : null,
     /** (rewards − net loss) ÷ net loss; null when there was no loss. */

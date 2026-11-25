@@ -124,7 +124,8 @@ function Totals({ rolled, title, eyebrow, extra, returnsState }: { rolled: Rollu
   const theoryNote = loadingReturns ? "Working out the games' returns…"
     : returnsState === "failed" ? "A game's return couldn't be worked out, so its play isn't counted. Reload to try again."
     : rolled.coinInWithoutReturnCents > 0 ? `${money(rolled.coinInWithoutReturnCents)} of coin-in on games without a pay table isn't counted`
-    : rolled.unmeasuredSessions ? "At perfect play where your mistakes aren't measured yet" : "What skill controls";
+    : rolled.unmeasuredSessions ? "At perfect play where practice doesn't yet measure your mistakes"
+    : rolled.estimatedSessions ? "Your mistakes estimated where practice doesn't cover every kind of deal" : "What skill controls";
   return <section className="panel panel-pad cruise-panel" aria-label={title}>
     <div className="panel-title"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div></div>
     {rolled.sessions > 0 && <div className="cruise-stats">
@@ -262,8 +263,8 @@ export function CruisePage({ machines, busy, run, confirm }: { machines: Machine
 
       {tripSessions.length > 0 && <Totals rolled={tripRolled} eyebrow="THIS TRIP" title="Cost of a point" returnsState={returnsState(tripSessions)} />}
 
-      {/* New points or rules restart the what-if from the trip's current figures. */}
-      <Planner key={`${trip.id}:${Math.floor(pointsSoFar)}:${tripSessions.length}:${program.updatedAt}`} program={program} tables={tables} machines={machines} defaults={{
+      {/* Inputs follow the trip until changed; switching trips starts afresh. */}
+      <Planner key={trip.id} program={program} tables={tables} machines={machines} defaults={{
         targetPoints: trip.targetPoints, pointsSoFar, hoursLeft: phase === "done" ? 0 : hoursLeft(trip, tripSessions, now),
         handsPerHour: pace, paceSource: casinoPace ? "casino" : practicePace ? "practice" : "default",
         paytableId: lastSession?.paytableId ?? machines[0]?.paytableId, denominationCents: lastSession?.denominationCents ?? 25, coins: lastSession?.coins ?? 5,

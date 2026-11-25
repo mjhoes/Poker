@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, initializeDatabase } from "../src/data/db";
 import { casinoService, programService, rewardService, tripService } from "../src/services/cruise";
 import { backupService } from "../src/services/backup";
-import { pointsEarned, rollup, sessionCoinIn } from "../src/cruise/economics";
+import { estimateFor, pointsEarned, rollup, sessionCoinIn } from "../src/cruise/economics";
 
 let clock = new Date("2026-12-01T20:00:00").getTime();
 beforeEach(async () => {
@@ -83,19 +83,36 @@ describe("live casino session", () => {
 
     const [program] = await programService.list();
     expect(sessionCoinIn(closed, program)).toEqual({ cents: 150_000, source: "points", withinCents: 1500 });
-    const total = rollup([closed], program, pointsEarned([closed], program), () => ({ optimalPct: 99.54, effectivePct: 99.54, measured: false }));
+    const total = rollup([closed], program, pointsEarned([closed], program), () => ({ optimalPct: 99.54, effectivePct: 99.54, basis: "optimal" as const }));
     expect(total).toMatchObject({ points: 100, netCents: 115_000, hands: 1216 }); // ($1,500 + $20 free play) ÷ $1.25
     expect(total.unmeasuredSessions).toBe(1);
   });
-  it("estimates coin-in from time × pace × bet when there's no reading or hand count, less free play", async () => {
-    const { trip: saved } = await trip();
-    const session = await casinoService.start({ tripId: saved.id, denominationCents: 100, coins: 5, cashInCents: 20_000 });
-    advance(30);
-    const closed = await casinoService.close(session.id, { cashOutCents: 15_000, freePlayUsedCents: 5000, estimateHandsPerHour: 500 });
+  it("estimates coin-in from time × pace × bet; free play comes off on read, per the program's rule", async () => {
+    const { program, trip: saved } = await trip();
+    // Replit's PR #7 case: an hour at 600 hands/hr, $1.25 a hand, $100 of free play.
+    const session = await casinoService.start({ tripId: saved.id, denominationCents: 25, coins: 5, cashInCents: 20_000 });
+    advance(60);
+    const closed = await casinoService.close(session.id, { cashOutCents: 15_000, freePlayUsedCents: 10_000, estimateHandsPerHour: 600 });
     expect(closed.coinInSource).toBe("estimate");
-    expect(closed.coinInCents).toBe(250 * 500 - 5000); // 250 hands × $5, less $50 of free play
+    expect(closed.coinInCents).toBe(75_000); // all play is stored
+    expect(sessionCoinIn(closed, program).cents).toBe(65_000); // free play earns nothing
+    expect(sessionCoinIn(closed, { ...program, freePlayEarnsPoints: true }).cents).toBe(75_000);
     const edited = await casinoService.edit(session.id, { cashInCents: 20_000, cashOutCents: 15_000, freePlayUsedCents: 0, handsCount: 300, notes: "" });
     expect(edited.coinInSource).toBe("hands");
+  });
+  it("works out an estimate when a correction removes a session's point readings, instead of keeping a zero", async () => {
+    const { program, trip: saved } = await trip();
+    const session = await casinoService.start({ tripId: saved.id, denominationCents: 25, coins: 5, cashInCents: 20_000, pointsBefore: 100 });
+    advance(12); // 12 minutes at 600 hands/hr = 120 hands × $1.25 = $150
+    const closed = await casinoService.close(session.id, { pointsAfter: 110, cashOutCents: 15_000 });
+    expect([closed.coinInSource, closed.coinInCents]).toEqual(["points", 0]);
+    const edited = await casinoService.edit(session.id, { cashInCents: 20_000, cashOutCents: 15_000, freePlayUsedCents: 0, notes: "", estimateHandsPerHour: 600 });
+    expect(edited.coinInSource).toBe("estimate");
+    expect(sessionCoinIn(edited, program).cents).toBe(15_000);
+    // The same preview figure the correction dialog shows, and an existing estimate is kept on later corrections.
+    expect(estimateFor(closed, closed.activeMs, 600)).toBe(15_000);
+    const again = await casinoService.edit(session.id, { cashInCents: 20_000, cashOutCents: 14_000, freePlayUsedCents: 0, notes: "", estimateHandsPerHour: 900 });
+    expect(again.coinInCents).toBe(15_000);
   });
 });
 

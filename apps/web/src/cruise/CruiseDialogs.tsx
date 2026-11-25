@@ -9,7 +9,7 @@ import { casinoService, programService, rewardService, tripService } from "../se
 import type { Run } from "../hooks/useActionRunner";
 import type { PaytableInfo } from "../paytables/catalog";
 import { denominationLabel } from "../machines/machine-info";
-import { activeMs, betCents, DEFAULT_HOURS, HOUR_MS, localDate, sessionCoinIn, tripDays } from "./economics";
+import { activeMs, DEFAULT_HOURS, estimateFor, localDate, sessionCoinIn, tripDays } from "./economics";
 import type { CasinoSession, Program, Reward, Trip } from "./economics";
 
 type DialogProps = { busy: boolean; run: Run; onClose: () => void };
@@ -274,7 +274,8 @@ export function CashOutDialog({ session, program, pace, busy, run, onClose }: Di
     const draft: CasinoSession = {
       ...session, endedAt: session.endedAt ?? now, cashInCents: values.cashIn!, cashOutCents: values.cashOut!, pointsBefore: values.before ?? undefined,
       pointsAfter: values.after ?? undefined, freePlayUsedCents: values.freePlay ?? 0, handsCount: values.hands ?? undefined,
-      coinInCents: editing && session.coinInSource === "estimate" ? session.coinInCents : Math.max(0, Math.round(played / HOUR_MS * pace) * betCents(session) - (values.freePlay ?? 0)),
+      // Same rule as the service: a closed estimate is kept, anything else is worked out from the time played.
+      coinInCents: estimateFor(session, played, pace),
     };
     const coinIn = sessionCoinIn(draft, program);
     const earned = coinIn.source === "points" ? draft.pointsAfter! - draft.pointsBefore! : coinIn.cents / (program.dollarsPerPoint * 100);
@@ -290,7 +291,7 @@ export function CashOutDialog({ session, program, pace, busy, run, onClose }: Di
       if (editing) {
         await casinoService.edit(session.id, {
           cashInCents: values.cashIn!, cashOutCents: values.cashOut!, pointsBefore: values.before ?? undefined, pointsAfter: values.after ?? undefined,
-          freePlayUsedCents: values.freePlay ?? 0, handsCount: values.hands ?? undefined, notes,
+          freePlayUsedCents: values.freePlay ?? 0, handsCount: values.hands ?? undefined, notes, estimateHandsPerHour: pace,
         });
       } else {
         if (values.cashIn !== session.cashInCents) await casinoService.addCash(session.id, values.cashIn! - session.cashInCents).catch(() => { throw new Error("Cash in can only go up while playing; correct it after cashing out."); });

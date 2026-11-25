@@ -419,15 +419,24 @@ R3 — why one hold beats another:
   Services in `services/cruise.ts`; luck band simulation in `worker/risk.ts` (`EngineAPI.riskBand`).
 - **Only readings are stored** (cash in/out, points before/after, hands, free play, timestamped time segments);
   coin-in, points earned and costs are derived on every read, so editing a program's rules recalculates history.
-  `casinoSessions.coinInCents` holds only an estimate (source "estimate"), fixed at cash-out.
+  `casinoSessions.coinInCents` holds only an estimate (source "estimate"): all play (hours × pace × bet), fixed at
+  cash-out; free play is taken off on read when the program says it earns nothing. A correction that leaves a session
+  without readings or hands works an estimate out (`estimateFor`, the same rule as the dialog's preview).
 - Owner's rules (Club Royale, seeded once by `initializeDatabase`, editable): $15 of coin-in per point; rounding
   `carryover` = a running coin-in total across all of the program's sessions in time order, a point at each full $15;
   free play earns nothing. Coin-in source priority: points Δ × $/point ("within $15"), else hands × bet − free play,
   else active hours × pace × bet. Net = cash out − cash in (free play wins are in the cash out).
-- Theoretical cost = coin-in × (1 − effective return); effective return = the table's return at the session's coins
-  minus measured mistakes (`expectedReturn`: Statistics' real-play-weighted return when ≥ 200 practice decisions on that
-  table and bet, else optimal and labelled). Coin-in on games without a pay table adds no theoretical cost and is left
-  out of the theoretical cost per point. Per-hour rates need 10 minutes of play.
+- Theoretical cost = coin-in × (1 − effective return). `expectedReturn` (in `useCruise.ts`) gives a `basis`:
+  "measured" = Statistics' real-play-weighted return (every kind of deal practiced); "estimated" = its 99%-coverage
+  estimate, shown with the imputed share; otherwise "optimal" with the reason (fewer than 200 decisions at that table
+  and bet, or too little coverage). The drill-weighted ("as drilled") figure is never used for real play. Results are
+  cached per practice version (`practiceOn`: counts, latest change, newest id), and `useExpectedReturns` follows those
+  versions with a live query, so new practice, archiving or deleted history is picked up without a reload.
+- Coin-in on games without a pay table adds no theoretical cost and is left out of the theoretical cost per point.
+  Per-hour rates need 10 minutes of play. Cost per point after rewards uses the signed net (winnings count); return
+  on losses is shown only when there was a loss.
+- Planner inputs show the trip's current figures (target, points so far, hours left, pace, game, bet) until changed;
+  changed inputs stay until "Back to the trip's figures" or switching trips.
 - Timer: one live session at a time; segments `{ start, end?, pauseReason? }` (pause reasons drink, break, hand pay
   with amount → `jackpots`, machine fault, other). It survives reloads because nothing ticks in storage.
 - Planner = the spec's formulas exactly (`plan`); hours left = planned hours of later days + what's left of today.
