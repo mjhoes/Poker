@@ -19,7 +19,7 @@ import { useWalletLedger } from "./hooks/useWalletLedger";
 import { MachineDialog } from "./dialogs/MachineDialog";
 import { StartSessionDialog } from "./dialogs/StartSessionDialog";
 import { NewWalletDialog, RenameWalletDialog, WalletAmountDialog } from "./dialogs/WalletDialogs";
-import { PayTableDialog, RenamePaytableDialog } from "./dialogs/PayTableDialogs";
+import { PayTableDialog, PayTablePhotoDialog, RenamePaytableDialog } from "./dialogs/PayTableDialogs";
 import { paytableService } from "./services/paytables";
 import { preferencesService } from "./services/preferences";
 import { findPaytable } from "./paytables/catalog";
@@ -38,6 +38,7 @@ type Dialog =
   | { kind: "rename"; wallet: Wallet }
   | { kind: "topup" | "transfer"; wallet: Wallet }
   | { kind: "paytable"; startFromId?: string }
+  | { kind: "paytable-photo" }
   | { kind: "rename-paytable"; table: Paytable };
 
 function App() {
@@ -144,11 +145,11 @@ function App() {
         onCreate={() => setDialog({ kind: "wallet" })} onRename={wallet => setDialog({ kind: "rename", wallet })}
         onTopup={wallet => setDialog({ kind: "topup", wallet })} onTransfer={wallet => setDialog({ kind: "transfer", wallet })} />}
       {route === "/settings" && <SettingsPage storageStatus={storageStatus} decisionCount={decisionCount} backupDue={backupDue} lastBackupAt={lastBackupAt} busy={busy || backup.importing} onExport={backup.exportBackup} onImport={backup.importBackup}
-        paytables={paytables} machines={machines} onNewPaytable={() => setDialog({ kind: "paytable" })} onCopyPaytable={table => setDialog({ kind: "paytable", startFromId: table.id })}
+        paytables={paytables} machines={machines} onNewPaytable={() => setDialog({ kind: "paytable" })} onPhotoPaytable={() => setDialog({ kind: "paytable-photo" })} onCopyPaytable={table => setDialog({ kind: "paytable", startFromId: table.id })}
         onRenamePaytable={table => setDialog({ kind: "rename-paytable", table })} onDeletePaytable={table => void deletePaytable(table)}
         deckColors={deckColors} onDeckColors={value => void run(() => preferencesService.setDeckColors(value))} />}
       {route === "/analyze" && <AnalyzePage search={search} replaceSearch={replaceSearch} machines={machines}
-        sessions={Object.values(sessions)} activeSession={activeSession} />}
+        sessions={Object.values(sessions)} activeSession={activeSession} busy={busy} run={run} />}
       {route === "/stats" && <StatsPage machines={machines} decisionCount={decisionCount} onTrainStarted={() => { setSessionViewId(null); openRoom(); }} onGoMachines={() => navigate("/")} />}
       {route === "/session" && <SessionPage session={shownSession} felt={roomFelt ?? "felt"} sessions={historySessions}
         analysis={tableAnalysis.analysis} analysisError={tableAnalysis.error} analysisLoading={tableAnalysis.loading} onRetry={tableAnalysis.request}
@@ -166,6 +167,7 @@ function App() {
     {dialog?.kind === "start" && <StartSessionDialog machine={dialog.machine} wallets={wallets} initialMode={dialog.mode} reason={dialog.reason} {...dialogProps} onStarted={() => { setSessionViewId(null); closeDialog(); openRoom(); }} />}
     {dialog?.kind === "wallet" && <NewWalletDialog {...dialogProps} onCreated={setSelectedWallet} />}
     {dialog?.kind === "rename" && <RenameWalletDialog wallet={dialog.wallet} {...dialogProps} />}
+    {dialog?.kind === "paytable-photo" && <PayTablePhotoDialog {...dialogProps} />}
     {dialog?.kind === "paytable" && <PayTableDialog startFrom={dialog.startFromId ? findPaytable(dialog.startFromId, paytables) : undefined} {...dialogProps} />}
     {dialog?.kind === "rename-paytable" && <RenamePaytableDialog table={dialog.table} {...dialogProps} />}
     {(dialog?.kind === "topup" || dialog?.kind === "transfer") && <WalletAmountDialog kind={dialog.kind} wallet={dialog.wallet} wallets={wallets} {...dialogProps} />}

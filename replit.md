@@ -376,3 +376,29 @@ R3 — why one hold beats another:
   - Saved explanations are keyed by the model that actually answered (`v1|provider|model|comparison`).
   - `ExplainPanel` tags lookups and replies with the comparison+model they were for and shows them only while that is
     still on screen.
+
+## Photo capture (docs/12-PHOTO-CAPTURE-PLAN.md)
+
+- Code in `apps/web/src/photo/`. **The AI only transcribes; the app interprets.** `paytable-photo.ts`: the model returns
+  printed labels, five coin columns (null where unseen) and a confidence per row; `readPaytable` maps labels with the pay
+  table model's synonyms (`matchAnyRank`, `matchRank`), detects the game from which hands are listed (aces-with-kicker →
+  DDB, aces/2–4/5–K → Bonus or Double Bonus by the aces pay, quads 50+ → BPD, deuces hands → Deuces Wild; the model's
+  guess only breaks ties), fills missing columns, and lists unknown labels for the player. `photoChecks` adds missing
+  hands, non-linear columns and an unusual royal to the editor's checks.
+- `hand-photo.ts`: five cards (rank, suit, confidence) + HELD flags + whether a pay table is visible; `handProblem`
+  triggers the router's one retry when the cards aren't five different real cards.
+- `image.ts`: photos are scaled to ≤ 1,600 px and re-encoded as JPEG on the device (drops EXIF/location); SHA-256
+  fingerprint; `imageTokens` estimates per provider. Photos are never stored: `photo-service.ts` caches only the reading
+  in `uploads` (fingerprint + model, 90 days), so the same photo read again with the same model is free.
+- Vision goes through the same router and providers: `TextRequest.image` (Anthropic image block; OpenAI `input_image`
+  data URL). Photos default to the Medium tier (`aiSettings.visionTier`, Dexie v5 sets existing rows to medium).
+- UI: `PhotoReader` (camera/file/paste → preview → tier chips with estimates → Read photo), `PayTablePhotoFlow` (read →
+  `PayTableEditor` with its `photo` prop: doubtful rows marked "Check", unknown rows to assign, the photo alongside,
+  "Looks like …"/"Closest built-in …" → save → `PhotoTableSummary`: return, rank among built-in tables of the game, and
+  `strategyDifference` from the worker = share of all deals where the best hold differs from the closest built-in
+  table, with examples). Entry points: Settings → Your pay tables → From a photo; machine editor (From a photo…, and
+  the "Photograph a pay table" card); Analyzer → From a photo (hand), which offers a second read of a visible pay table.
+- Explanations now include the Expert chart line (`chart` in the facts) when charts are already available at max bet.
+- `pnpm --filter @perfect-draw/web vision-eval <folder> [--provider anthropic|openai] [--tier …]`: scores real photos
+  against `<name>.json` answers (`{ "slug": … }` or `{ "familyId", "pays" }`); needs a real key in the environment and
+  spends real money. Tests never call real APIs (`e2e/photo.spec.ts` renders images and intercepts the API).

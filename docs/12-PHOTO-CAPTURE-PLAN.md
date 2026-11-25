@@ -3,7 +3,7 @@
 Spec: F2 (pay table capture) and F3.1 (hand photo) in `02-PRODUCT-SPEC.md`; Tech Spec §7.3–7.4 (`paytable_extract`,
 `hand_extract`, image pipeline); Prompt 9 in `05-REPLIT-AGENT-PROMPTS.md`. Also folds in the follow-up from PR #4: the
 strategy-chart line in AI explanations.
-Status: **draft, awaiting approval**.
+Status: **built** (see replit.md "Photo capture").
 
 Goal: point your phone at a machine and get its pay table into the app in seconds, or photograph a hand and see the
 best hold. **The AI only reads the picture; everything after that is the app's own code and the engine**: mapping row
@@ -74,6 +74,15 @@ names to hands, checking the numbers, and computing return and strategy. Nothing
 ## Out of scope
 - Multiplier games themselves (Ultimate X etc.) — later, via the hooks in `06-MULTIPLIER-GAMES.md`.
 - Reading credits or the bet from a hand photo.
+
+## Decisions (confirmed)
+1. **Photos are discarded** after confirming; there is no option to keep them. (The read result is cached by the
+   photo's fingerprint, without the photo, so reading the same photo again is free.)
+2. **Strategy difference** is shown as "the best hold changes on X% of deals compared with <closest built-in table>",
+   with the first few hands where it changes.
+3. **Default model for photos: Medium** (Claude Sonnet 5.5 / GPT-6.2 Sol), changeable per photo and in Settings → AI.
+4. **Hand photos offer both:** when the hand photo also shows a pay table, offer to read it too (a second, separate
+   read with its own cost estimate, confirmed like any pay table photo).
 
 ## Questions
 1. **Photos:** discard after confirming by default, with an opt-in "Keep photos on this device" — OK?

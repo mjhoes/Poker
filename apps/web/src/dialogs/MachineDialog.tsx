@@ -14,6 +14,7 @@ import { STARTER_MACHINES, defaultMachineName, starterDraft, useLibraryReturns }
 import { Icon } from "../components/Icons";
 import { useAllPaytables } from "../paytables/catalog";
 import { PayTableEditor } from "../paytables/PayTableEditor";
+import { PayTablePhotoFlow } from "../photo/PayTablePhotoFlow";
 import { announceSave } from "./PayTableDialogs";
 
 type MachineForm = {
@@ -74,8 +75,8 @@ export function useMachineEditor({ machine, wallets, run, onSaved }: {
 }
 
 /** First step for a new machine: add a popular machine in one click, customize one, or build from scratch. */
-function PopularMachines({ busy, onAdd, onCustomize, onBuild }: {
-  busy: boolean; onAdd: (slug: string) => void; onCustomize: (slug: string) => void; onBuild: () => void;
+function PopularMachines({ busy, onAdd, onCustomize, onBuild, onPhoto }: {
+  busy: boolean; onAdd: (slug: string) => void; onCustomize: (slug: string) => void; onBuild: () => void; onPhoto: () => void;
 }) {
   const returns = useLibraryReturns();
   return <div className="popular-step">
@@ -99,6 +100,11 @@ function PopularMachines({ busy, onAdd, onCustomize, onBuild }: {
         <strong>Build your own</strong>
         <span>Any game, pay table, bet and felt, or enter a pay table by hand.</span>
       </button>
+      <button type="button" className="popular-card popular-build" onClick={onPhoto}>
+        <span className="popular-build-icon" aria-hidden="true"><Icon name="camera" size={22} /></span>
+        <strong>Photograph a pay table</strong>
+        <span>At the casino? Take a photo of the machine's pay table and confirm what it read.</span>
+      </button>
     </div>
   </div>;
 }
@@ -111,6 +117,7 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
   const returns = useLibraryReturns();
   const allTables = useAllPaytables();
   const [enteringTable, setEnteringTable] = useState(false);
+  const [photoTable, setPhotoTable] = useState(false);
   const family = allTables.find(table => table.id === form.paytableId)?.familyId ?? FAMILIES[0];
   const tables = allTables.filter(table => table.familyId === family);
   const presetDenomination = DENOMINATIONS.find(value => parseCents(value) === denominationCents);
@@ -121,6 +128,11 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
       onSaved={result => { announceSave(result); update("paytableId", result.id); setEnteringTable(false); }} />
   </Modal>;
 
+  if (photoTable) return <Modal className="paytable-sheet" title="Pay table from a photo" subtitle="The AI reads the photo; the app checks the numbers and you confirm before anything is saved." onClose={() => setPhotoTable(false)}>
+    <PayTablePhotoFlow busy={busy} run={run} onCancel={() => setPhotoTable(false)} doneLabel="Use this table"
+      onSaved={result => { announceSave(result); update("paytableId", result.id); }} onDone={() => { setStep("edit"); setPhotoTable(false); }} />
+  </Modal>;
+
   if (step === "popular") return <Modal error={error} className="machine-sheet" title="New machine" subtitle="Start from a popular machine, or build your own." onClose={onClose}>
     <PopularMachines busy={busy}
       onAdd={slug => {
@@ -128,7 +140,7 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
         if (draft) void run(async () => { await machineService.save(draft); onClose(); }, { success: `Added “${draft.name}”.` });
       }}
       onCustomize={slug => { loadStarter(slug); setStep("edit"); }}
-      onBuild={() => setStep("edit")} />
+      onBuild={() => setStep("edit")} onPhoto={() => setPhotoTable(true)} />
   </Modal>;
 
   return <Modal error={error} className="machine-sheet" title={machine ? "Edit machine" : "New machine"} subtitle="Choose a game, a bet and a look. The preview updates as you go." onClose={onClose}>
@@ -143,7 +155,8 @@ export function MachineDialog({ machine, wallets, busy, run, onClose }: {
           <p className="field-label sheet-sub">Pay table</p>
           <ChoiceChips label="Pay table" value={form.paytableId} onChange={id => update("paytableId", id)}
             choices={tables.map(table => ({ value: table.id, label: table.name, hint: pct(table.id) ? `${pct(table.id)} return${table.source === "library" ? "" : " · yours"}` : table.source === "library" ? undefined : "Yours" }))} />
-          <Button variant="secondary" size="sm" icon="edit" className="enter-paytable" onClick={() => setEnteringTable(true)}>Enter a pay table…</Button>
+          <div className="enter-paytable"><Button variant="secondary" size="sm" icon="edit" onClick={() => setEnteringTable(true)}>Enter a pay table…</Button>
+            <Button variant="secondary" size="sm" icon="camera" onClick={() => setPhotoTable(true)}>From a photo…</Button></div>
         </section>
 
         <section className="sheet-step">

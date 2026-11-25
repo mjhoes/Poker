@@ -15,7 +15,9 @@ export function createOpenAIProvider(apiKey: string, options: { fetch?: typeof f
         response = await client.responses.create({
           model: request.model,
           instructions: request.system,
-          input: request.prompt,
+          input: request.image
+            ? [{ role: "user", content: [{ type: "input_image", image_url: `data:${request.image.mediaType};base64,${request.image.base64}`, detail: "high" }, { type: "input_text", text: request.prompt }] }]
+            : request.prompt,
           max_output_tokens: request.maxTokens ?? 16000,
           reasoning: { effort: "medium" },
           text: { format: zodTextFormat(request.schema, "result") },

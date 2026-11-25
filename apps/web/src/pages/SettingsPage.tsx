@@ -21,14 +21,14 @@ function CardColorsPanel({ value, onChange }: { value: "two" | "four"; onChange:
 }
 
 /** Hand-entered pay tables: available to every machine, renamable, removable once nothing uses them. */
-function PayTablesPanel({ paytables, machines, onNew, onCopy, onRename, onDelete }: {
-  paytables: Paytable[]; machines: Machine[]; onNew: () => void; onCopy: (table: Paytable) => void;
+function PayTablesPanel({ paytables, machines, onNew, onPhoto, onCopy, onRename, onDelete }: {
+  paytables: Paytable[]; machines: Machine[]; onNew: () => void; onPhoto: () => void; onCopy: (table: Paytable) => void;
   onRename: (table: Paytable) => void; onDelete: (table: Paytable) => void;
 }) {
   return <section className="panel panel-pad paytables-panel" aria-labelledby="paytables-heading">
     <div className="panel-title">
       <div><p className="eyebrow">PAY TABLES</p><h2 id="paytables-heading">Your pay tables</h2><p>Enter any machine's pays by hand. The engine computes its exact return and strategy.</p></div>
-      <Button icon="plus" onClick={onNew}>New pay table</Button>
+      <div className="panel-actions"><Button variant="secondary" icon="camera" onClick={onPhoto}>From a photo</Button><Button icon="plus" onClick={onNew}>New pay table</Button></div>
     </div>
     {paytables.length ? paytables.map(table => {
       const used = machines.filter(machine => machine.paytableId === table.id).length;
@@ -44,11 +44,11 @@ function PayTablesPanel({ paytables, machines, onNew, onCopy, onRename, onDelete
   </section>;
 }
 
-export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBackupAt, busy, onExport, onImport, paytables, machines, onNewPaytable, onCopyPaytable, onRenamePaytable, onDeletePaytable, deckColors, onDeckColors }: {
+export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBackupAt, busy, onExport, onImport, paytables, machines, onNewPaytable, onPhotoPaytable, onCopyPaytable, onRenamePaytable, onDeletePaytable, deckColors, onDeckColors }: {
   deckColors: "two" | "four"; onDeckColors: (value: "two" | "four") => void;
   storageStatus: string; decisionCount: number; backupDue: boolean; lastBackupAt: number | null; busy: boolean;
   onExport: () => void; onImport: (event: FormEvent<HTMLInputElement>) => void;
-  paytables: Paytable[]; machines: Machine[]; onNewPaytable: () => void; onCopyPaytable: (table: Paytable) => void;
+  paytables: Paytable[]; machines: Machine[]; onNewPaytable: () => void; onPhotoPaytable: () => void; onCopyPaytable: (table: Paytable) => void;
   onRenamePaytable: (table: Paytable) => void; onDeletePaytable: (table: Paytable) => void;
 }) {
   const statusText = storageStatus === "persistent" ? "Persistent permission granted" : storageStatus === "best-effort" ? "Best-effort storage" : storageStatus === "unavailable" ? "Storage unavailable" : "Checking storage";
@@ -68,6 +68,6 @@ export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBack
       </aside>
     </div>
     <AiSettingsPanel />
-    <PayTablesPanel paytables={paytables} machines={machines} onNew={onNewPaytable} onCopy={onCopyPaytable} onRename={onRenamePaytable} onDelete={onDeletePaytable} />
+    <PayTablesPanel paytables={paytables} machines={machines} onNew={onNewPaytable} onPhoto={onPhotoPaytable} onCopy={onCopyPaytable} onRename={onRenamePaytable} onDelete={onDeletePaytable} />
   </>;
 }

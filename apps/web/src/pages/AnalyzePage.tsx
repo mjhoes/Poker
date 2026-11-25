@@ -2,7 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Hand, HandAnalysis } from "@perfect-draw/engine";
 import type { Machine, RecentHand, Session } from "@perfect-draw/shared";
 import { Button, ChoiceChips } from "../components/ui";
-import { familyName } from "../components/UiHelpers";
+import { familyName, Modal } from "../components/UiHelpers";
+import { formatCost, modelInfo } from "../ai/models";
+import type { Run } from "../hooks/useActionRunner";
+import { PhotoReader } from "../photo/PhotoReader";
+import { PayTablePhotoFlow } from "../photo/PayTablePhotoFlow";
+import { readHand } from "../photo/hand-photo";
+import type { HandReply } from "../photo/hand-photo";
+import type { PreparedImage } from "../photo/image";
+import { announceSave } from "../dialogs/PayTableDialogs";
 import { dollarsFor } from "../components/ui";
 import { errorMessage } from "../hooks/useActionRunner";
 import { useAllPaytables } from "../paytables/catalog";
@@ -27,8 +35,9 @@ const SHOWN_HOLDS = 8;
  * The Hand Analyzer: any five cards on any table and bet, every hold ranked by the engine, why one hold beats another,
  * the strategy-chart line, and whether the answer changes on other tables. The address keeps the hand, table and bet.
  */
-export function AnalyzePage({ search, replaceSearch, machines, sessions, activeSession }: {
+export function AnalyzePage({ search, replaceSearch, machines, sessions, activeSession, busy, run }: {
   search: string; replaceSearch: (search: string) => void; machines: Machine[]; sessions: Session[]; activeSession?: Session;
+  busy: boolean; run: Run;
 }) {
   const tables = useAllPaytables();
   const recentHands = useAppStore(state => state.recentHands);
@@ -99,14 +108,22 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
     return () => clearTimeout(timer);
   }, [analysis]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Hand photos: the dialog, cards the reading wasn't sure of, and (in memory only) a photo that also shows a pay table.
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [doubtful, setDoubtful] = useState<number[]>([]);
+  const [photoNote, setPhotoNote] = useState("");
+  const [tablePhoto, setTablePhoto] = useState<PreparedImage | null>(null);
+  const [tablePhotoOpen, setTablePhotoOpen] = useState(false);
+  const dropTablePhoto = () => { setTablePhoto(current => { if (current) URL.revokeObjectURL(current.previewUrl); return null; }); setTablePhotoOpen(false); };
   const changeCards = (next: number[]) => {
+    setDoubtful([]); setPhotoNote("");
     setCards(next); setText(handText(next)); setTextError(null); setTextComplete(next.length === 5); setHeld(null); setMarking(false); setSelected(null); setShowAll(false);
   };
   const onType = (value: string) => {
     setText(value);
     const read = readHandText(value);
     setTextError(read.error); setTextComplete(read.complete);
-    if (read.cards.join(",") !== handKey) { setCards(read.cards); setHeld(null); setMarking(false); setSelected(null); setShowAll(false); }
+    if (read.cards.join(",") !== handKey) { setDoubtful([]); setPhotoNote(""); setCards(read.cards); setHeld(null); setMarking(false); setSelected(null); setShowAll(false); }
   };
   const toggleCard = (card: number) => changeCards(cards.includes(card) ? cards.filter(item => item !== card) : [...cards, card].slice(0, 5));
   function showTarget(next: AnalyzerTarget | undefined, nextCoins: number | null, missing: boolean) {
@@ -158,7 +175,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
               const kept = held !== null && (held & (1 << index)) !== 0;
               const inBest = !!best && !marking && (best.mask & (1 << index)) !== 0;
               return <button key={`${card}-${index}`} type="button"
-                className={`analyzer-slot ${inBest ? "is-best" : ""} ${marking ? (kept ? "is-kept" : "is-dropped") : ""}`}
+                className={`analyzer-slot ${inBest ? "is-best" : ""} ${marking ? (kept ? "is-kept" : "is-dropped") : ""} ${doubtful.includes(index) ? "is-doubtful" : ""}`}
                 aria-label={marking ? `${cardName(card)}, ${kept ? "kept" : "not kept"}` : `${cardName(card)}. Remove`}
                 aria-pressed={marking ? kept : undefined}
                 onClick={() => marking ? changeHeld((held ?? 0) ^ (1 << index)) : changeCards(cards.filter((_, position) => position !== index))}>
@@ -176,6 +193,7 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
                 autoComplete="off" autoCapitalize="off" spellCheck={false} aria-invalid={!!textError} aria-describedby="hand-text-help" />
             </label>
             <div className="analyzer-buttons">
+              <Button variant="secondary" icon="camera" onClick={() => setPhotoOpen(true)}>From a photo</Button>
               <Button variant="secondary" icon="cards" onClick={() => changeCards(randomHand())}>Random hand</Button>
               <Button variant="secondary" disabled={!cards.length} onClick={() => changeCards([])}>Clear</Button>
             </div>
@@ -184,6 +202,12 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
             {textError ?? "Rank then suit: A K Q J 10 (or T) … 2, and c d h s. Or pick cards below."}
           </p>
 
+          {photoNote && <p className="analyzer-photo-note" role="status">{photoNote}</p>}
+          {tablePhoto && <div className="analyzer-photo-table" role="group" aria-label="Pay table in the photo">
+            <span>The photo also shows a pay table. Read it too, to analyze this hand on that exact table?</span>
+            <Button variant="secondary" size="sm" icon="camera" onClick={() => setTablePhotoOpen(true)}>Read the pay table…</Button>
+            <button type="button" className="link-button" onClick={dropTablePhoto}>No thanks</button>
+          </div>}
           {!marking && <CardPicker cards={cards} onToggle={toggleCard} />}
 
           <div className="analyzer-table">
@@ -262,5 +286,25 @@ export function AnalyzePage({ search, replaceSearch, machines, sessions, activeS
         <RecentHands hands={recentHands} onOpen={openRecent} onClear={() => void preferencesService.clearRecentHands()} />
       </aside>
     </div>
+
+    {photoOpen && <Modal className="photo-sheet" title="Hand from a photo" subtitle="The AI reads the five cards; you can correct any card before relying on the answer." onClose={() => setPhotoOpen(false)}>
+      <PhotoReader kind="hand" onRead={result => {
+        let reading;
+        try { reading = readHand(result.reply as HandReply); }
+        catch (reason) { setPhotoNote(errorMessage(reason)); setPhotoOpen(false); URL.revokeObjectURL(result.image.previewUrl); return; }
+        changeCards(reading.cards);
+        if (reading.heldMask !== null) setHeld(reading.heldMask);
+        setDoubtful(reading.doubtful);
+        const source = `Read by ${modelInfo(result.model)?.name ?? result.model}${result.cached ? " (from this device, no new cost)" : ` · ${formatCost(result.cost)}`}`;
+        setPhotoNote(`${source}.${reading.doubtful.length ? " Outlined cards were hard to read; tap one to remove it, then pick the right card." : ""}${reading.heldMask !== null ? " The HELD cards are shown as what you held." : ""}`);
+        dropTablePhoto();
+        if (reading.payTableVisible) setTablePhoto(result.image); else URL.revokeObjectURL(result.image.previewUrl);
+        setPhotoOpen(false);
+      }} />
+    </Modal>}
+    {tablePhotoOpen && tablePhoto && <Modal className="paytable-sheet" title="Pay table from the same photo" subtitle="A second, separate read. Confirm the pays before using them." onClose={() => setTablePhotoOpen(false)}>
+      <PayTablePhotoFlow busy={busy} run={run} initialImage={tablePhoto} doneLabel="Analyze on this table" onCancel={() => setTablePhotoOpen(false)} onSaved={announceSave}
+        onDone={result => { setTargetKey(`table:${result.id}`); setCoins(5); setMissingTable(false); setTablePhoto(null); setTablePhotoOpen(false); }} />
+    </Modal>}
   </div>;
 }

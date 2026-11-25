@@ -37,6 +37,10 @@ export class LocalDatabase extends Dexie {
     });
     // Saved AI explanations (keyed by the comparison they explain); a cache, not part of backups.
     this.version(4).stores({ aiExplanations: "id, createdAt" });
+    // Photos default to the medium model (settings rows written earlier stored the old heavy default, unused so far).
+    this.version(5).stores({}).upgrade(async tx => {
+      await tx.table("aiSettings").toCollection().modify(settings => { settings.visionTier = "medium"; });
+    });
   }
   records<K extends TableName>(name: K): Table<Records[K], string> { return this.table(name); }
 }

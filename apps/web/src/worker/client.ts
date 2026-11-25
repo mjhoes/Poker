@@ -43,6 +43,7 @@ export function engineClient() {
       hasStrategyCharts: (...args) => call(() => remote.hasStrategyCharts(...args)),
       strategyCitation: (...args) => call(() => remote.strategyCitation(...args)),
       analyzeAcross: (...args) => call(() => remote.analyzeAcross(...args)),
+      strategyDifference: (...args) => call(() => remote.strategyDifference(...args)),
       generateDrill: (...args) => call(() => remote.generateDrill(...args)),
       prepareRound: (...args) => call(() => remote.prepareRound(...args)),
       resolveRound: (...args) => call(() => remote.resolveRound(...args)),
@@ -53,6 +54,9 @@ export function engineClient() {
   return instance;
 }
 export function resetEngineClient() { disconnect(new Error("The local engine was reset. Retry any pending action.")); }
+export function strategyDifferenceInWorker(paytableId: string, baseId: string, progress?: (value: AnalysisProgress) => void) {
+  return engineClient().strategyDifference(paytableId, baseId, progress ? proxy(progress) : undefined);
+}
 export function analyzeGameInWorker(family: GameFamilyId, vector: ValueVector, betCoins: number, progress?: (value: AnalysisProgress) => void) {
   return engineClient().analyzeGame(family, vector, betCoins, progress ? proxy(progress) : undefined);
 }

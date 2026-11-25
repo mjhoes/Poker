@@ -40,3 +40,45 @@
 .explain.is-empty .explain-invite { flex: 1 1 260px; }
 .explain-invite { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
 .explain-invite strong { color: var(--ink); }
+
+/* Photo capture */
+.photo-reader { display: grid; gap: 12px; }
+.photo-drop { display: grid; place-items: center; min-height: 180px; max-height: 340px; overflow: hidden; border: 2px dashed var(--line-strong); border-radius: var(--radius-md); background: var(--surface-2); }
+.photo-drop.has-image { border-style: solid; background: #1b1f1d; }
+.photo-drop img { display: block; max-width: 100%; max-height: 336px; object-fit: contain; }
+.photo-empty { display: grid; justify-items: center; gap: 8px; max-width: 420px; padding: 20px; color: var(--muted); text-align: center; font-size: var(--text-sm); line-height: 1.5; }
+.photo-empty p { margin: 0; }
+.photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.photo-meta { color: var(--muted); font-size: 11px; }
+.photo-invite { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.photo-invite a { color: var(--felt); font-weight: 700; }
+.photo-flow { display: grid; gap: 14px; }
+.photo-compare { display: grid; gap: 6px; margin: 0 0 14px; }
+.photo-compare img { width: 100%; max-height: 320px; object-fit: contain; border-radius: var(--radius-md); background: #1b1f1d; }
+.photo-compare figcaption { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.pays-grid tr.is-doubtful th, .pays-grid tr.is-doubtful td { background: color-mix(in srgb, var(--signal) 16%, transparent); }
+.row-doubt { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--signal); color: var(--signal-ink); font: 750 9.5px var(--font-ui); letter-spacing: .05em; text-transform: uppercase; }
+.photo-unknown { display: grid; gap: 8px; margin-top: 14px; padding: 12px; border: 1px solid color-mix(in srgb, var(--signal) 50%, var(--line)); border-radius: var(--radius-md); }
+.photo-unknown .field-label { margin: 0; }
+.photo-unknown-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-sm); }
+.photo-unknown-row small { color: var(--muted); }
+.photo-unknown-row select { min-height: 34px; padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fffef9; }
+.photo-summary { display: grid; gap: 10px; }
+.photo-summary h3 { margin: 0; font-size: 20px; }
+.photo-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 0; }
+.photo-facts div { padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
+.photo-facts dt { color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.photo-facts dd { margin: 4px 0 0; font: 650 16px var(--font-ui); }
+.photo-strategy p { margin: 0; font-size: var(--text-sm); line-height: 1.5; }
+.photo-examples { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--text-xs); }
+.photo-examples li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.photo-example-cards { display: flex; gap: 2px; }
+.photo-example-cards .mini-card { width: 20px; }
+.photo-progress { display: grid; gap: 6px; color: var(--muted); font-size: var(--text-xs); }
+.photo-progress progress { width: 100%; height: 8px; accent-color: var(--felt); }
+.panel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.enter-paytable { display: flex; flex-wrap: wrap; gap: 8px; }
+.analyzer-slot.is-doubtful { box-shadow: 0 0 0 3px var(--danger), 0 6px 14px rgb(16 40 31 / 16%); }
+.analyzer-photo-note { margin: 0 0 10px; color: var(--muted); font-size: var(--text-xs); }
+.analyzer-photo-table { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--felt) 8%, var(--surface)); font-size: var(--text-sm); }
+.analyzer-photo-table > span { flex: 1 1 240px; }

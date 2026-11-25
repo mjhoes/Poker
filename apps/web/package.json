@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:offline": "playwright test -c playwright.pwa.config.ts",
-    "test:visual": "playwright test -c playwright.visual.config.ts"
+    "test:visual": "playwright test -c playwright.visual.config.ts",
+    "vision-eval": "tsx --tsconfig tsconfig.app.json scripts/vision-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.14.0",

@@ -30,6 +30,7 @@ export interface TaskResult<T> {
  */
 export async function runTask<T>(options: {
   task: string; provider: AiProvider; tier: AiTier; system: string; prompt: string; schema: z.ZodType<T>;
+  image?: { base64: string; mediaType: "image/jpeg" | "image/png" };
   /** Returns a description of what is wrong with a schema-valid reply, or null when it is acceptable. */
   check?: (data: T) => string | null;
   retryNote?: (problem: string) => string;
@@ -48,7 +49,7 @@ export async function runTask<T>(options: {
     let prompt = options.prompt;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const result = await client.text({ system: options.system, prompt, schema: options.schema, model });
+        const result = await client.text({ system: options.system, prompt, schema: options.schema, model, image: options.image });
         await record(provider, options.task, result, totals, model);
         const problem = options.check?.(result.data) ?? null;
         if (!problem) return { data: result.data, provider, model: result.model, ...totals };

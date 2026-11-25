@@ -2,10 +2,14 @@ import type { AiProvider } from "@perfect-draw/shared";
 import type * as z from "zod/v4";
 
 /** Schemas use Zod 4 (`zod/v4`), which both SDKs' structured-output helpers accept. */
-export interface TextRequest<T> { system: string; prompt: string; schema: z.ZodType<T>; model: string; maxTokens?: number }
+export interface TextRequest<T> {
+  system: string; prompt: string; schema: z.ZodType<T>; model: string; maxTokens?: number;
+  /** A photo to read along with the prompt (already resized and re-encoded on the device). */
+  image?: { base64: string; mediaType: "image/jpeg" | "image/png" };
+}
 export interface TextResult<T> { data: T; model: string; inputTokens: number; outputTokens: number }
 
-/** One provider behind a common shape (Tech Spec §7.2). `vision` arrives with photo capture. */
+/** One provider behind a common shape (Tech Spec §7.2); a request with an `image` is a vision request. */
 export interface LLMProvider {
   id: AiProvider;
   text<T>(request: TextRequest<T>): Promise<TextResult<T>>;

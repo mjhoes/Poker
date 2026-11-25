@@ -7,6 +7,9 @@ import type { ExplainInput } from "./explain-facts";
 import { explainService } from "./explain";
 import { formatCost, modelFor, modelInfo, PROVIDERS, providerName, TIERS } from "./models";
 import { aiService, useAiStore } from "./store";
+import type { Hand } from "@perfect-draw/engine";
+import { gradeLabel } from "../table/Feedback";
+import { engineClient } from "../worker/client";
 
 /**
  * "Explain in plain English" for one hold comparison. Nothing is sent until the player presses Explain; each model size
@@ -66,11 +69,21 @@ export function ExplainPanel({ input, paytableId }: { input: ExplainInput; payta
     <a className="btn secondary small" href="#/settings?section=ai">Add an API key</a>
   </div>;
 
+  /** Adds the Expert chart's line for this hand when charts are already available (never starts a 20 s build). */
+  const withChartLine = async () => {
+    if (input.coins !== 5) return facts;
+    try {
+      if (!await engineClient().hasStrategyCharts(paytableId)) return facts;
+      const citation = await engineClient().strategyCitation(input.hand as unknown as Hand, paytableId, "Expert");
+      if (citation.line === null || !citation.lineLabel) return facts;
+      return explainFacts({ ...input, chart: { chart: "Expert", line: citation.line + 1, of: citation.lineCount, rule: gradeLabel(citation.lineLabel, citation.familyId), agreesWithBestHold: citation.mask === input.best.mask } });
+    } catch { return facts; } // the explanation works without it
+  };
   const explain = async () => {
     const asked = view;
     setPending(asked); setFailure(null);
     try {
-      const { record, calls } = await explainService.explain({ key, facts, provider: chosenProvider, tier: chosenTier });
+      const { record, calls } = await explainService.explain({ key, facts: await withChartLine(), provider: chosenProvider, tier: chosenTier });
       if (currentView.current === asked) setFound({ view: asked, record, freshCalls: calls });
     } catch (reason) {
       if (currentView.current === asked) setFailure({ view: asked, message: errorMessage(reason) });

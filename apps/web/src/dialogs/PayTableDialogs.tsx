@@ -6,6 +6,7 @@ import { Button } from "../components/ui";
 import { toast } from "../components/Toasts";
 import type { Run } from "../hooks/useActionRunner";
 import { PayTableEditor } from "../paytables/PayTableEditor";
+import { PayTablePhotoFlow } from "../photo/PayTablePhotoFlow";
 import type { PaytableInfo } from "../paytables/catalog";
 import { paytableService } from "../services/paytables";
 import type { SaveResult } from "../services/paytables";
@@ -20,6 +21,13 @@ export function announceSave(result: SaveResult) {
 export function PayTableDialog({ startFrom, busy, run, onClose }: { startFrom?: PaytableInfo; busy: boolean; run: Run; onClose: () => void }) {
   return <Modal className="paytable-sheet" title="Enter a pay table" subtitle="Type the pays printed on the machine. The engine computes the exact return as you go." onClose={onClose}>
     <PayTableEditor startFrom={startFrom} busy={busy} run={run} onCancel={onClose} onSaved={result => { announceSave(result); onClose(); }} />
+  </Modal>;
+}
+
+/** A pay table from a photo of the machine: read, confirm, save, then see its return and strategy difference. */
+export function PayTablePhotoDialog({ busy, run, onClose }: { busy: boolean; run: Run; onClose: () => void }) {
+  return <Modal className="paytable-sheet" title="Pay table from a photo" subtitle="The AI reads the photo; the app checks the numbers and you confirm before anything is saved." onClose={onClose}>
+    <PayTablePhotoFlow busy={busy} run={run} onCancel={onClose} onSaved={announceSave} onDone={onClose} />
   </Modal>;
 }
 

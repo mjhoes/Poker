@@ -15,6 +15,8 @@ export interface ExplainInput {
   other: { mask: number; name: string; role: "Your hold" | "The runner-up" | "This hold" };
   comparison: HoldComparison;
   /** The engine's own one-sentence summary (`comparisonSummary`). */ summary: string;
+  /** The strategy chart's line for this hand, when the table's charts are available (max bet only). */
+  chart?: { chart: string; line: number; of: number; rule: string; agreesWithBestHold: boolean };
 }
 
 const value = (n: number) => n.toFixed(2);
@@ -39,6 +41,7 @@ export function explainFacts(input: ExplainInput) {
       deciding: c.decisive.includes(row.rank),
     })),
     engineSummary: input.summary,
+    ...(input.chart ? { strategyChart: input.chart } : {}),
     units: `Pays, expected value and value are in credits per line at this bet (${input.coins} coin${input.coins === 1 ? "" : "s"} per line); value = chance × pay.`,
   };
 }
@@ -117,6 +120,10 @@ export const EXPLAIN_SYSTEM = [
   "  larger chance of a small pay). Name the deciding hands.",
   "- howToRemember: one short, memorable rule of thumb a player can recall at the machine. Prefer no numbers here.",
   "- commonMistake: one sentence on the tempting mistake this hand invites, or null if there isn't a typical one.",
+  "",
+  "If the DATA has a strategyChart, it is the line of a memorizable strategy chart that picks this hand's hold: mention",
+  "it in howToRemember (e.g. \"On the Expert chart, line 9: Two pair\"). If agreesWithBestHold is false, say the chart",
+  "simplifies this hand and the best hold is still the one to play.",
 ].join("\n");
 
 export function explainPrompt(facts: ExplainFacts) {
