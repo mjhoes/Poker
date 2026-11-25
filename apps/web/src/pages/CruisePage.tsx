@@ -94,7 +94,7 @@ function SessionsTable({ sessions, program, points, onEdit, onDelete }: {
 }) {
   const closed = sessions.filter(session => session.endedAt !== null).reverse();
   if (!closed.length) return null;
-  return <section className="panel panel-pad" aria-labelledby="sessions-title">
+  return <section className="panel panel-pad cruise-panel" aria-labelledby="sessions-title">
     <div className="panel-title"><div><p className="eyebrow">CASINO SESSIONS · {closed.length}</p><h2 id="sessions-title">What each session cost</h2></div></div>
     <div className="table-scroll"><table className="ledger cruise-table">
       <thead><tr><th>Started</th><th>Game</th><th>Time</th><th>Coin-in</th><th>Points</th><th>Net</th><th>Per point</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
@@ -125,7 +125,7 @@ function Totals({ rolled, title, eyebrow, extra, returnsState }: { rolled: Rollu
     : returnsState === "failed" ? "A game's return couldn't be worked out, so its play isn't counted. Reload to try again."
     : rolled.coinInWithoutReturnCents > 0 ? `${money(rolled.coinInWithoutReturnCents)} of coin-in on games without a pay table isn't counted`
     : rolled.unmeasuredSessions ? "At perfect play where your mistakes aren't measured yet" : "What skill controls";
-  return <section className="panel panel-pad" aria-label={title}>
+  return <section className="panel panel-pad cruise-panel" aria-label={title}>
     <div className="panel-title"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div></div>
     {rolled.sessions > 0 && <div className="cruise-stats">
       <Stat label="Points earned" value={number(rolled.points, Number.isInteger(rolled.points) ? 0 : 1)} />

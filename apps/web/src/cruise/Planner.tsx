@@ -59,7 +59,7 @@ export function Planner({ program, defaults, tables, machines }: { program: Prog
 
   const paceNote = defaults.paceSource === "casino" ? "your casino pace" : defaults.paceSource === "practice" ? "your Free Play pace" : "a typical pace";
   const current = band?.key === bandKey ? band : null;
-  return <section className="panel panel-pad planner" aria-labelledby="planner-title">
+  return <section className="panel panel-pad planner cruise-panel" aria-labelledby="planner-title">
     <div className="panel-title"><div><p className="eyebrow">PLANNER</p><h2 id="planner-title">What the target takes</h2>
       <p>Change anything to ask "what if". Denomination changes the time and the swings, not the cost per point.</p></div>
       {result && <Badge tone={result.onTrack ? "success" : "warning"} dot>{result.pointsNeeded === 0 ? "Target reached" : result.onTrack ? "On track" : "Behind"}</Badge>}
