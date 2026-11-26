@@ -96,7 +96,8 @@ test("quiet feedback stays quiet on Train: an open quiet session's cards show no
   await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeEnabled();
   expect((await openSession(page)).state.feedbackMode).toBe("silent_report");
 
-  // Before closing: the card is there, but not its result or its 10-minute relearn (PR #9 review).
+  // Before closing: the card is there, but not its result or its 10-minute relearn, and the Weakness Trainer doesn't
+  // list the mistake (PR #9 reviews).
   await page.getByRole("link", { name: "Train", exact: true }).click();
   const cards = page.getByRole("region", { name: "Every best-hold category you've played" });
   await expect(cards).toContainText("1 card holds hands from an open session with quiet feedback. Its results show here when you close it.");
@@ -105,15 +106,21 @@ test("quiet feedback stays quiet on Train: an open quiet session's cards show no
   await expect(row).toContainText("After your quiet session");
   await expect(row).not.toContainText("0 of 1");
   await expect(row).not.toContainText("In 10 min");
+  const weakness = page.getByRole("region", { name: "Your costliest mistakes" });
+  await expect(weakness).toContainText("No costly mistakes on this table yet.");
+  await expect(weakness).toContainText("Hands from your open session with quiet feedback join this list when you close it.");
+  await expect(weakness.getByRole("listitem")).toHaveCount(0);
 
-  // After closing, the results show.
-  await page.getByRole("link", { name: "Session room", exact: true }).click();
-  await page.getByRole("button", { name: "Close session" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Close session" }).click();
-  await expect(page.getByRole("button", { name: "Close session" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Train", exact: true }).click();
+  // Close it while Train stays open: the cards and the weakness list catch up without leaving the page.
+  const quietId = (await openSession(page)).id;
+  await page.evaluate(async id => {
+    const { sessionService } = await import("/src/services/sessions.ts" as string) as typeof import("../src/services/sessions");
+    await sessionService.close(id);
+  }, quietId);
   await expect(row).toContainText("0 of 1");
   await expect(row).toContainText("In 10 min");
   await expect(cards).not.toContainText("open session with quiet feedback");
+  await expect(weakness.getByRole("listitem")).toHaveCount(1);
+  await expect(weakness).not.toContainText("join this list when you close it");
   expect(errors).toEqual([]);
 });

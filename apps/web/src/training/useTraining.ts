@@ -9,7 +9,7 @@ import { errorMessage } from "../hooks/useActionRunner";
 
 /** Review cards, today's review on a table, and the daily cap, kept current as you play. */
 export function useReview(table: TrainingTable | null, keepGoing = false) {
-  const [value, setValue] = useState<{ cards: Card[]; queue: Awaited<ReturnType<typeof trainingService.queue>>; cap: number } | null>(null);
+  const [value, setValue] = useState<{ cards: Card[]; queue: Awaited<ReturnType<typeof trainingService.queue>>; cap: number; version: string } | null>(null);
   // Cards come due as time passes without any write: ask again every minute.
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -20,7 +20,10 @@ export function useReview(table: TrainingTable | null, keepGoing = false) {
     if (!table) { setValue(null); return; }
     const subscription = liveQuery(async () => {
       const [cards, queue, profile] = await Promise.all([trainingService.cards(), trainingService.queue(table, keepGoing), db.records("profile").get("local")]);
-      return { cards: cards.filter(card => card.familyId === table.familyId), queue, cap: profileSchema.parse(profile).prefs.dailyReviewCap };
+      const mine = cards.filter(card => card.familyId === table.familyId);
+      // Changes when any card is answered or a quiet session closes: what the Weakness Trainer's targets depend on.
+      const version = `${mine.reduce((latest, card) => Math.max(latest, card.updatedAt), 0)}:${mine.length}:${[...queue.hidden].sort().join("\t")}`;
+      return { cards: mine, queue, cap: profileSchema.parse(profile).prefs.dailyReviewCap, version };
     }).subscribe({ next: setValue, error: () => setValue(null) });
     return () => subscription.unsubscribe();
   }, [table, keepGoing, tick]);

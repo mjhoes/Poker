@@ -42,11 +42,13 @@ async function reviewsToday(now: number) {
     .filter(row => live(row) && !row.isCorrection && row.createdAt >= startOfDay(now)).count();
 }
 /**
- * A game's categories answered in sessions still open with quiet feedback. Their cards already hold those answers, so
- * they stay out of sight (and out of review) until the session closes and its report shows the results.
+ * A game's categories answered in sessions still open with quiet feedback (Rapid Drill always shows its grades, so it is
+ * never quiet). Their cards and mistakes already hold those answers, so they stay out of sight on Train (the cards, the
+ * review, the Weakness Trainer's targets) until the session closes and its report shows the results.
  */
 async function quietLabels(familyId: string) {
-  const open = (await db.records("sessions").toArray()).filter(session => live(session) && session.status !== "closed" && session.state.feedbackMode === "silent_report");
+  const open = (await db.records("sessions").toArray()).filter(session => live(session) && session.status !== "closed" &&
+    session.mode !== "drill" && session.state.feedbackMode === "silent_report");
   const ids: string[] = [];
   for (const session of open) if (await familyOf(session.machineSnapshot.paytableId) === familyId) ids.push(session.id);
   if (!ids.length) return new Set<string>();
@@ -84,14 +86,16 @@ export const trainingService = {
   },
   /**
    * The Weakness Trainer's targets on a table: Statistics' costliest confusion pairs (recency-weighted EV lost),
-   * leaving out categories whose cards have graduated; at most five.
+   * leaving out categories whose cards have graduated, and categories answered in an open quiet session (any pair or
+   * graduation change there could show its results); at most five.
    */
   async weaknessTargets(paytableId: string, coins: number): Promise<Target[]> {
     const familyId = await familyOf(paytableId);
     const report = await statsService.report({ paytableId, coins: coins as 1 | 2 | 3 | 4 | 5, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
     const cards = new Map((await allCards()).filter(card => card.familyId === familyId).map(card => [card.label, card]));
+    const hidden = await quietLabels(familyId);
     return report.confusion
-      .filter(pair => pair.weightedEvLost > 0 && !(cards.get(pair.bestLabel) && graduated(cards.get(pair.bestLabel)!)))
+      .filter(pair => pair.weightedEvLost > 0 && !hidden.has(pair.bestLabel) && !(cards.get(pair.bestLabel) && graduated(cards.get(pair.bestLabel)!)))
       .sort((a, b) => b.weightedEvLost - a.weightedEvLost).slice(0, 5)
       .map(pair => ({ bestLabel: pair.bestLabel, chosenLabel: pair.chosenLabel, weight: pair.weightedEvLost }));
   },

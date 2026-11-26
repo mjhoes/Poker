@@ -498,9 +498,11 @@ R3 — why one hold beats another:
   category or an error, never an unrelated hand that would update another card and leave the review due. The Weakness
   Trainer's targets still fall back to a real hand, and its 20% due-card share ignores the daily cap (which governs
   Today's Review only).
-- Quiet feedback stays quiet on Train: cards whose categories were answered in a session still open with
-  `silent_report` (`quietLabels`) are left out of review and shown as "Hidden" until it closes. The card update itself
-  still happens atomically with the decision.
+- Quiet feedback stays quiet on Train: categories answered in a Free Play session still open with `silent_report`
+  (`quietLabels`; Rapid Drill always grades, so it is never quiet) are left out of review and of the Weakness
+  Trainer's targets, and their cards show as "Hidden" until it closes. The card update itself still happens atomically
+  with the decision. Train re-ranks the weakness list whenever a card changes or a quiet session closes
+  (`useReview().version`).
 - Tests: `tests/training-core.test.ts`, `tests/training-services.test.ts`, `tests/training-tables.test.ts` (real NSUD
   and Full-Pay analyses from `packages/precomputed/assets`), `e2e/train.spec.ts`.
 

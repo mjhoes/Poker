@@ -48,7 +48,7 @@ Goal: spend practice where mistakes cost the most, and keep what you've learned 
 - **The cap and the Weakness Trainer.** The daily cap limits Today's Review only; the Weakness Trainer keeps its 20%
   share of due cards past it.
 - **Quiet sessions.** While a session with quiet feedback is open, the cards it answered show no results or schedule on
-  Train and stay out of review until it closes.
+  Train, and their categories stay out of review and out of the Weakness Trainer's targets until it closes.
 
 ## Out of scope this round
 Strategy Ladder and Pay Table Switcher (Round B), heuristic cards (F6), recency decay inside the mastery counts.

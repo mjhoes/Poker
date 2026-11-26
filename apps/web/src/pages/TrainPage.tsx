@@ -79,7 +79,7 @@ export function TrainPage({ machines, busy, run, onOpenRoom }: { machines: Machi
     trainingService.weaknessTargets(machine.paytableId, machine.coins)
       .then(value => { if (!cancelled) setTargets({ key: targetsKey, value }); }, reason => { if (!cancelled) setTargets({ key: targetsKey, error: errorMessage(reason) }); });
     return () => { cancelled = true; };
-  }, [targetsKey, review?.cards.length]); // eslint-disable-line react-hooks/exhaustive-deps -- re-rank as cards change
+  }, [targetsKey, review?.version]); // eslint-disable-line react-hooks/exhaustive-deps -- re-rank as answers land and quiet sessions close
 
   async function start(kind: "review" | "weakness" | "close_calls", keepGoing = false) {
     if (!machine) return;
@@ -126,6 +126,7 @@ export function TrainPage({ machines, busy, run, onOpenRoom }: { machines: Machi
           : shownTargets.value!.length ? <ol className="weakness-list">{shownTargets.value!.map(target => <li key={`${target.bestLabel}\t${target.chosenLabel}`}>
             <strong>{gradeLabel(target.bestLabel, familyId ?? "")}</strong><span>your hold: {gradeLabel(target.chosenLabel, familyId ?? "")}</span></li>)}</ol>
           : <p className="status-note">No costly mistakes on this table yet. Play some hands, or the trainer will mix reviews and ordinary hands.</p>}
+        {!!review?.queue.hidden.size && <p className="status-note">Hands from your open session with quiet feedback join this list when you close it.</p>}
         <Button variant="gold" icon="play" disabled={busy} onClick={() => void start("weakness")}>Start Weakness Trainer</Button>
       </section>
 

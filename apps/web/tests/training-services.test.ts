@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { analyzeHandFast, parseHand, standardVariant } from "@perfect-draw/engine";
+import { analyzeHandFast, parseHand, resolveRound, standardVariant } from "@perfect-draw/engine";
+import type { Hand } from "@perfect-draw/engine";
 import { getLibraryPayTable } from "@perfect-draw/paytables";
 import { newId } from "@perfect-draw/shared";
 import { db, initializeDatabase } from "../src/data/db";
@@ -9,6 +10,7 @@ import { walletService } from "../src/services/wallets";
 import { sessionService } from "../src/services/sessions";
 import { createPlayService } from "../src/services/play";
 import { ReviewsDoneError, trainingService } from "../src/services/training";
+import { statsService } from "../src/services/statistics";
 
 const table = getLibraryPayTable("jacks-or-better-9-6");
 let clock = new Date("2026-12-01T09:00:00").getTime();
@@ -110,6 +112,31 @@ describe("today's review", () => {
     // Nothing is dealt, so no unrelated hand can use up the cap or leave the review due forever.
     await expect(play.deal(here.id, null)).rejects.toThrow(ReviewsDoneError);
     expect(api.prepareRound).not.toHaveBeenCalled();
+  });
+});
+
+describe("quiet feedback", () => {
+  it("keeps an open quiet session's answers off Train: its cards, review and weakness targets, even for an existing card", async () => {
+    const { play, api, machine } = await setup();
+    api.resolveRound.mockImplementation(async (hand: Hand, mask: number, decks: number[][], _id: string, coins: number) =>
+      resolveRound(hand, mask, decks, table.familyId, standardVariant.valueVector(table, coins, {})));
+    // An existing card: answered right in Rapid Drill (always graded, never quiet).
+    const drill = await sessionService.start({ machineId: machine.id, mode: "drill", feedbackMode: "silent_report" });
+    await answer(play, drill.id, 0b01111);
+    const [card] = await trainingService.cards();
+    const scope = () => trainingService.table(table.id, 5);
+    expect((await trainingService.queue(await scope())).hidden.size).toBe(0);
+    // The same category held wrong in a quiet Free Play session that stays open.
+    const quiet = await sessionService.start({ machineId: machine.id, mode: "free_play", feedbackMode: "silent_report" });
+    await answer(play, quiet.id, 0);
+    clock += 11 * 60_000; // the lapse is due again: review must not show it either
+    vi.spyOn(statsService, "report").mockResolvedValue({ confusion: [{ bestLabel: card.label, chosenLabel: "DRAW5", weightedEvLost: 1 }] } as never);
+    expect([...(await trainingService.queue(await scope())).hidden]).toEqual([card.label]);
+    expect((await trainingService.queue(await scope())).due).toEqual([]);
+    expect(await trainingService.weaknessTargets(table.id, 5)).toEqual([]);
+    await sessionService.close(quiet.id);
+    expect((await trainingService.queue(await scope())).due.map(item => item.label)).toEqual([card.label]);
+    expect(await trainingService.weaknessTargets(table.id, 5)).toEqual([{ bestLabel: card.label, chosenLabel: "DRAW5", weight: 1 }]);
   });
 });
 
