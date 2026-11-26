@@ -3,9 +3,15 @@ import { entity, timestamp, nameSchema, uuid, hash, cents, positiveCents, family
 import { sessionSchema } from "./records";
 import { localDay } from "@perfect-draw/engine";
 
+/**
+ * A review card: one hold category of a game family. alpha/beta = Beta(1,1) counts (1 + right, 1 + wrong);
+ * fsrs* and dueAt = spaced-repetition schedule (FSRS); reps/lapses count scheduled reviews and forgotten ones.
+ */
 export const masterySchema = z.object({
-  ...entity, familyId: familyIdSchema, label: z.string(), alpha: z.number().positive(), beta: z.number().positive(),
+  ...entity, familyId: familyIdSchema, label: z.string().min(1).max(250), alpha: z.number().positive(), beta: z.number().positive(),
   lastSeenAt: timestamp, fsrsStability: z.number().nonnegative(), fsrsDifficulty: z.number().nonnegative(), dueAt: timestamp,
+  evLostTotal: z.number().finite().nonnegative().default(0), reps: z.number().int().nonnegative().default(0),
+  lapses: z.number().int().nonnegative().default(0), lastReviewedAt: timestamp.nullable().default(null),
 });
 export const heuristicSchema = z.object({
   ...entity, paytableId: hash, targetLabelPair: z.tuple([z.string(), z.string()]), ruleAst: z.record(z.unknown()),

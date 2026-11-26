@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { clearToasts } from "../components/Toasts";
 
-export const ROUTES = ["/", "/wallets", "/settings", "/session", "/analyze", "/stats", "/cruise"] as const;
+export const ROUTES = ["/", "/wallets", "/settings", "/session", "/analyze", "/stats", "/cruise", "/train"] as const;
 export type Route = typeof ROUTES[number];
 
 /** `#/analyze?hand=…` → route "/analyze" and search "hand=…". Unknown routes go home. */

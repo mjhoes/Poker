@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { PaceChip, PaceMeter } from "../cruise/PaceMeter";
+import { TrainingNote } from "../training/TrainingNote";
+import type { Run } from "../hooks/useActionRunner";
 import { findPaytable } from "../paytables/catalog";
 import type { FeedbackMode, Session } from "@perfect-draw/shared";
 import type { TableSummary } from "../worker/engine-api";
@@ -59,8 +61,8 @@ function SessionHistory({ sessions, onSelect }: { sessions: Session[]; onSelect:
   </div>)}</>;
 }
 
-export function SessionPage({ session, felt, sessions, analysis, analysisError, analysisLoading, busy, playError, onRetryPlay, onPause, onResume, onClose, onSelect, onHold, onSetMask, onDeal, onSubmit, onFeedback, onRetry, onBet, onBetMax }: {
-  session?: Session; felt: FeltId; sessions: Session[]; analysis: TableSummary | null; analysisError: string; analysisLoading: boolean; busy: boolean;
+export function SessionPage({ session, felt, sessions, analysis, analysisError, analysisLoading, busy, run, playError, onRetryPlay, onPause, onResume, onClose, onSelect, onHold, onSetMask, onDeal, onSubmit, onFeedback, onRetry, onBet, onBetMax }: {
+  session?: Session; felt: FeltId; sessions: Session[]; analysis: TableSummary | null; analysisError: string; analysisLoading: boolean; busy: boolean; run: Run;
   playError: string; onRetryPlay: () => void;
   onPause: (session: Session) => void; onResume: (session: Session) => void; onClose: (session: Session) => void; onSelect: (id: string) => void;
   onHold: (session: Session, index: number) => void; onSetMask: (session: Session, mask: number) => void;
@@ -165,6 +167,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
     </header>
 
     <div className="session-workspace">
+      {session.training && <TrainingNote session={session} busy={busy} run={run} />}
       {session.trainingFocus && <section className="focused-drill-note" aria-label="Focused Rapid Drill">
         <p className="eyebrow">FOCUSED RAPID DRILL</p>
         <h2>Practice this decision</h2>

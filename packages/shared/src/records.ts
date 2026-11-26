@@ -27,7 +27,9 @@ export const profileSchema = z.object({
     /** Deal and draw animation pace, chosen at the table; applies to every machine. */
     dealSpeed: z.enum(["relaxed", "normal", "fast"]).default("normal"),
     /** The Hand Analyzer's recent hands, newest first. */
-    recentHands: z.array(recentHandSchema).max(20).default([]) }).default({}),
+    recentHands: z.array(recentHandSchema).max(20).default([]),
+    /** Review cards served a day before "Keep going" (adaptive training). */
+    dailyReviewCap: z.number().int().min(5).max(500).default(50) }).default({}),
 });
 export const providerSchema = z.enum(["openai", "anthropic"]);
 export const aiSettingsSchema = z.object({
@@ -133,6 +135,16 @@ export const sessionSummarySchema = z.object({
   topMistakes: z.array(z.object({ label: z.string(), count: z.number().int().nonnegative() })).default([]),
   mistakeCounts: z.record(z.number().int().nonnegative()).default({}),
 }).default({});
+/** Adaptive training plan for a Rapid Drill session (docs/15-ADAPTIVE-TRAINING-PLAN.md). */
+export const trainingSchema = z.object({
+  kind: z.enum(["review", "weakness", "close_calls"]),
+  /** Review: keep serving due cards past the daily cap. */
+  keepGoing: z.boolean().default(false),
+  /** Close calls: the largest EV gap between the best two holds, in credits per coin bet. */
+  closeCallPerCoin: z.number().min(0.01).max(0.5).optional(),
+  /** Weakness Trainer: the confusion pairs to train, weighted by what they cost. */
+  targets: z.array(z.object({ bestLabel: z.string().min(1).max(250), chosenLabel: z.string().min(1).max(250), weight: z.number().finite().nonnegative() })).max(5).optional(),
+});
 export const paceSchema = z.object({
   targetHandsPerHour: z.number().int().min(100).max(3000), accuracyPct: z.number().min(90).max(100),
   /** The trip whose needed pace set the target, if any. */
@@ -151,6 +163,7 @@ export const sessionSchema = z.object({
   virtualCoinInCents: cents.nonnegative().default(0), virtualPoints: z.number().finite().nonnegative().default(0),
   /** Casino-Pace Mode: a Free Play session trained toward a pace while holding an accuracy bar (% of perfect play's EV). */
   pace: paceSchema.nullable().default(null),
+  training: trainingSchema.nullable().default(null),
 });
 export const decisionSchema = z.object({
   ...entity, sessionId: uuid, paytableId: hash, analysisKey: hash,

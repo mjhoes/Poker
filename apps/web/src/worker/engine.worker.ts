@@ -96,11 +96,11 @@ const api: EngineAPI = {
   rollupDecisions: timeZone => rollupDecisions(timeZone, (table, coins) => statsEngine.game(table, coins)),
   async statistics(input) { return statsEngine.report(input); },
   async validateTraining(paytableId, coins, label) { return statsEngine.validateTraining(paytableId, coins, label); },
-  async prepareRound(paytableId, coins, lines, focus) {
+  async prepareRound(paytableId, coins, lines, focus, target) {
     const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
     const dealt = dealRound(lines, random);
-    if (focus) {
-      const analysis = await statsEngine.prepareTarget(paytableId, coins, focus.label, focus.analysisKey);
+    if (focus || target) {
+      const analysis = focus ? await statsEngine.prepareTarget(paytableId, coins, focus.label, focus.analysisKey) : await statsEngine.prepareDeal(paytableId, coins, target!);
       const remaining = Array.from({ length: 52 }, (_, i) => i).filter(card => !analysis.hand.includes(card));
       // Drills never draw or pay, but keep the same validated persistent round format.
       return { analysis, drawDecks: [remaining] };

@@ -25,9 +25,12 @@ export type StrategyDifference = {
   /** The most common deals where the best hold changes (the hand as dealt, and each table's best hold). */
   examples: { hand: number[]; best: string; baseBest: string; dealsPct: number }[];
 };
+/** What an adaptive-training deal asks for: categories, a confused pair, and/or a close-call gap (total coins at the bet). */
+export type DealTarget = { labels?: string[]; pairs?: { correct: string; confusedWith: string }[]; closeCallMaxGap?: number };
 export interface EngineAPI {
   rollupDecisions(timeZone: string): Promise<number>;
-  prepareRound(paytableId: string, coins: number, lines: number, focus?: Session["trainingFocus"]): Promise<{ analysis: HandAnalysis; drawDecks: number[][] }>;
+  /** A dealt round; a focused drill (`focus`) or an adaptive-training `target` picks the hand. */
+  prepareRound(paytableId: string, coins: number, lines: number, focus?: Session["trainingFocus"], target?: DealTarget): Promise<{ analysis: HandAnalysis; drawDecks: number[][] }>;
   statistics(input: StatsQuery): Promise<StatsReportView>;
   validateTraining(paytableId: string, coins: number, label: string): Promise<string>;
   resolveRound(hand: Hand, mask: number, decks: number[][], paytableId: string, coins: number): Promise<RoundOutcome>;

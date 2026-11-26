@@ -474,6 +474,25 @@ R3 — why one hold beats another:
   trip's target, best pace, the speed/cost sentence); the planner offers "Use your best accurate pace".
 - Tests: `tests/pace.test.ts`, the pace-session case in `tests/services.test.ts`, `e2e/pace.spec.ts`.
 
+## Adaptive training, round A (docs/15-ADAPTIVE-TRAINING-PLAN.md)
+
+- Route `#/train` (`pages/TrainPage.tsx`): machine picker (its game and pay table), Today's review, Weakness Trainer,
+  Close Calls (slider 0.01–0.50 credits per coin, default 0.10), your cards, and the daily cap (5–500, default 50,
+  `profile.prefs.dailyReviewCap`). Round B (Strategy Ladder, Pay Table Switcher) is next.
+- Cards = `categoryMastery` rows, one per (family, best-hold category). `services/play.ts` updates the card of every
+  first decision inside the decision's transaction (`recordAnswer`): Beta(1,1) counts, EV lost per coin, and FSRS v4.5
+  (default weights, 90% recall; Good when right, Again when wrong). A due or new card is scheduled; a right answer
+  before it's due only counts; a wrong one is a lapse, due again in 10 minutes. Pure arithmetic in `training/core.ts`.
+- Today's review (`reviewQueue`): due cards for the machine's game, most costly first (mistake rate × EV lost per
+  mistake). The cap counts reviews answered today in review sessions (any game), not ordinary play or the trainers;
+  past it, Keep going (`training.keepGoing`) serves the rest. Graduated = under 2% mistakes (posterior) over 30+ hands.
+- Training sessions are Rapid Drill sessions with `sessions.training = { kind: review | weakness | close_calls,
+  keepGoing, closeCallPerCoin?, targets? }`. Before each deal, `trainingService.nextDeal` picks the target and the
+  worker's `prepareRound(…, target)` → `StatsEngine.prepareDeal` generates a matching hand (pair, else category, else
+  any real hand; always within a close-call gap). Weakness targets = Statistics' top 5 confusion pairs by recency-weighted
+  EV lost, minus graduated cards; each deal is 70% a target (by weight), 20% a due card, 10% any hand.
+- Tests: `tests/training-core.test.ts`, `tests/training-services.test.ts`, `e2e/train.spec.ts`.
+
 ## Test acknowledgments instead of sleeps
 
 - `apps/web/src/diagnostics.ts` `signal(name)` counts outcomes that leave nothing on screen in

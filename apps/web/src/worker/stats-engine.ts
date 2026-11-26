@@ -1,3 +1,4 @@
+import type { DealTarget } from "./engine-api";
 import {
   analyzeGame, analyzeHandFast, categoryDistribution, clearSubsetCache, computeStatistics,
   clearTrainingCache, generateHand, registerTrainingAnalysis, standardVariant,
@@ -90,6 +91,29 @@ export class StatsEngine {
       ...computeStatistics(observations, categoryDistribution(analysis), now, { timeZone: query.timeZone, aggregates }), excludedIncompatible,
       denominations: [...denominations].sort((a, b) => a - b), undenominatedArchived,
     };
+  }
+  /**
+   * A hand for adaptive training: the target's confused pair, else its categories, else any real hand, always within
+   * the close-call gap when one is asked for (a gap no hand meets is an error).
+   */
+  async prepareDeal(paytableId: string, coins: number, target: DealTarget): Promise<HandAnalysis> {
+    const { key, analysis } = await this.game(paytableId, coins);
+    registerTrainingAnalysis(key, analysis);
+    const gap = target.closeCallMaxGap;
+    const attempts: Parameters<typeof generateHand>[0][] = [
+      ...(target.pairs?.length ? [{ analysisKey: key, targetPairs: target.pairs, closeCallMaxGap: gap }] : []),
+      ...(target.labels?.length ? [{ analysisKey: key, targetLabels: target.labels, closeCallMaxGap: gap }] : []),
+      { analysisKey: key, closeCallMaxGap: gap },
+    ];
+    let lastError: unknown;
+    for (const options of attempts) {
+      try {
+        const drill = generateHand({ ...options, sampling: "real" });
+        this.prepareFamily(analysis.familyId);
+        return analyzeHandFast(drill.hand, analysis.valueVector, analysis.familyId);
+      } catch (error) { lastError = error; }
+    }
+    throw lastError instanceof Error ? lastError : new Error("No hand fits this training plan.");
   }
   async validateTraining(paytableId: string, coins: number, label: string) {
     const { key, analysis } = await this.game(paytableId, coins);
