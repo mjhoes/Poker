@@ -226,6 +226,17 @@ export const rewardService = {
   },
 };
 
+/** Your most recent Free Play decisions (pace sessions included), for the speed/accuracy trade-off. */
+export async function freePlayDecisions(limit = 5000) {
+  const freePlay = new Set((await db.records("sessions").toArray()).filter(session => live(session) && session.mode === "free_play").map(session => session.id));
+  return (await db.records("decisions").orderBy("createdAt").reverse().limit(limit * 2).toArray())
+    .filter(decision => live(decision) && freePlay.has(decision.sessionId)).slice(0, limit);
+}
+/** One session's decisions. */
+export async function sessionDecisions(sessionId: string) {
+  return (await db.records("decisions").where("sessionId").equals(sessionId).toArray()).filter(live);
+}
+
 /** Pace of your recent Free Play (hands per active hour), from the last 3,000 decisions. */
 export async function practicePaceNow() {
   const freePlay = new Set((await db.records("sessions").toArray()).filter(session => live(session) && session.mode === "free_play").map(session => session.id));

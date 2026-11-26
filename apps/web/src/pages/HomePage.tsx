@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Machine, Session, Wallet } from "@perfect-draw/shared";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
-import { dateTime, modeName, money } from "../components/UiHelpers";
+import { dateTime, sessionModeName, money } from "../components/UiHelpers";
 import { Badge, Button, ChoiceChips, MenuButton } from "../components/ui";
 import { parseCents } from "../services/money";
 import { MachineCabinet, NewMachineTile } from "../machines/MachineCabinet";
@@ -95,7 +95,7 @@ export function HomePage({ machines, wallets, sessions, busy, onCreate, onEdit, 
     {recent.length > 0 && <section className="panel panel-pad recent-sessions">
       <div className="panel-title"><div><p className="eyebrow">Recent</p><h2>Recent sessions</h2></div><a href="#/session" className="text-button">Open session room</a></div>
       {recent.map(item => <div className="list-row" key={item.id}>
-        <div className="list-main"><strong>{item.machineSnapshot.name} · {modeName(item.mode)}</strong><span>{dateTime(item.startedAt)}</span></div>
+        <div className="list-main"><strong>{item.machineSnapshot.name} · {sessionModeName(item)}</strong><span>{dateTime(item.startedAt)}</span></div>
         <Badge tone={item.status === "active" ? "success" : item.status === "paused" ? "warning" : "neutral"}>{item.status === "active" ? "In play" : item.status === "paused" ? "Paused" : "Closed"}</Badge>
       </div>)}
     </section>}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { liveQuery } from "dexie";
 import { db } from "../data/db";
-import { casinoService, practicePaceNow, programService, rewardService, tripService } from "../services/cruise";
+import { casinoService, freePlayDecisions, practicePaceNow, programService, rewardService, sessionDecisions, tripService } from "../services/cruise";
+import { paceBands, sessionPace } from "./pace";
 import { statsService } from "../services/statistics";
 import { engineClient } from "../worker/client";
 import { MIN_DECISIONS_FOR_ERROR_COST } from "./economics";
@@ -125,4 +126,32 @@ export function usePracticePace() {
     return () => { cancelled = true; };
   }, []);
   return pace;
+}
+
+/** The speed/accuracy trade-off from your Free Play, kept current as you play. */
+export function usePaceBands() {
+  const [bands, setBands] = useState<ReturnType<typeof paceBands> | null>(null);
+  useEffect(() => {
+    const subscription = liveQuery(async () => paceBands(await freePlayDecisions())).subscribe({ next: setBands, error: () => setBands(null) });
+    return () => subscription.unsubscribe();
+  }, []);
+  return bands;
+}
+/** A session's pace and accuracy, updated after every hand. */
+export function useSessionPace(sessionId: string) {
+  const [pace, setPace] = useState<ReturnType<typeof sessionPace> | null>(null);
+  useEffect(() => {
+    const subscription = liveQuery(async () => sessionPace(await sessionDecisions(sessionId))).subscribe({ next: setPace, error: () => setPace(null) });
+    return () => subscription.unsubscribe();
+  }, [sessionId]);
+  return pace;
+}
+/** The program in use (the first one: the built-in Club Royale unless you've added others). */
+export function useProgram() {
+  const [program, setProgram] = useState<Awaited<ReturnType<typeof programService.list>>[number] | null>(null);
+  useEffect(() => {
+    const subscription = liveQuery(() => programService.list()).subscribe({ next: list => setProgram(list[0] ?? null), error: () => setProgram(null) });
+    return () => subscription.unsubscribe();
+  }, []);
+  return program;
 }

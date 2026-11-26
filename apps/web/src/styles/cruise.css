@@ -104,3 +104,23 @@
   .band-row { grid-template-columns: 1fr; gap: 6px; }
   .band-row span { flex-direction: row; justify-content: space-between; align-items: baseline; }
 }
+
+/* Casino pace: the meter in the session room and the trade-off on the Cruise page */
+.pace-meter { margin-bottom: 14px; border-left: 3px solid var(--signal); }
+.pace-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pace-head .eyebrow { margin: 0; }
+.pace-now { display: flex; align-items: baseline; gap: 8px; margin: 10px 0 8px; }
+.pace-now strong { font: 650 34px var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.pace-now span { color: var(--muted); font-size: var(--text-xs); }
+.pace-track { position: relative; height: 10px; border-radius: var(--radius-pill); background: var(--soft); overflow: visible; }
+.pace-fill { position: absolute; inset: 0 auto 0 0; border-radius: var(--radius-pill); background: var(--felt); transition: width var(--dur-slow) var(--ease-out); }
+.pace-target { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--signal-ink); }
+.pace-note { margin: 10px 0 6px; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
+.pace-bar-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.pace-summary { margin: 0 0 12px; font-size: var(--text-md); line-height: 1.6; }
+.pace-table { min-width: 560px; }
+.pace-table tr.is-best td { background: #edf1e9; }
+.field-note-action { align-self: flex-start; font-size: 10px; }
+.pace-chip { margin-left: auto; margin-right: 10px; padding: 3px 9px; border: 1px solid color-mix(in srgb, var(--felt-muted) 40%, transparent); border-radius: var(--radius-pill); color: var(--felt-muted); font: 650 var(--text-xs) var(--font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pace-chip.is-on { border-color: var(--felt-accent); color: var(--felt-accent); }
+.pace-chip.is-under { border-color: #f2a48f; color: #f6c3b5; }

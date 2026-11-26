@@ -1,6 +1,6 @@
 import type { Session } from "@perfect-draw/shared";
 import { Badge } from "./ui";
-import { creditLabel, modeName, money } from "./UiHelpers";
+import { creditLabel, sessionModeName, money } from "./UiHelpers";
 import { Icon } from "./Icons";
 import type { Route } from "../hooks/useRoute";
 
@@ -35,10 +35,10 @@ export function AppHeader({ route, openSessions, activeSessionId, onSelectSessio
         const creditsCount = creditLabel(session.state);
         const amount = money(Math.round(session.state.credits * config.denominationCents) + session.state.creditRemainderCents);
         const active = session.id === activeSessionId;
-        return <button key={session.id} type="button" className={`session-chip ${active ? "selected" : ""}`} aria-label={`Select session ${index + 1}: ${config.name}, ${creditsCount} (${amount}), ${modeName(session.mode)}, ${session.status}${active ? ", active" : ""}`} onClick={() => onSelectSession(session.id)}>
+        return <button key={session.id} type="button" className={`session-chip ${active ? "selected" : ""}`} aria-label={`Select session ${index + 1}: ${config.name}, ${creditsCount} (${amount}), ${sessionModeName(session)}, ${session.status}${active ? ", active" : ""}`} onClick={() => onSelectSession(session.id)}>
           <span className={`chip-state ${session.status === "paused" ? "paused" : ""}`} />
           <span className="chip-name">{config.name}</span>
-          <span className="chip-meta">{creditsCount} · {amount} · {modeName(session.mode)}</span>
+          <span className="chip-meta">{creditsCount} · {amount} · {sessionModeName(session)}</span>
           {session.status === "paused" && <Badge tone="warning">Paused</Badge>}
         </button>;
       })}

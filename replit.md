@@ -448,8 +448,27 @@ R3 — why one hold beats another:
   Backups already included the four tables; Settings notes that a backup now holds financial history.
 - Tests: `tests/cruise-economics.test.ts` (incl. the §4 worked example), `tests/risk.test.ts` (matches the spec's
   ±$950 / ±$1,900 example), `tests/cruise-services.test.ts`, `e2e/cruise.spec.ts` (clock-driven timer through a pause
-  and a reload, cash-out from point readings, planner example, rewards, CSV, program change). Casino-Pace Mode (F4.8) is
-  next.
+  and a reload, cash-out from point readings, planner example, rewards, CSV, program change).
+
+## Casino-Pace Mode (docs/14-CASINO-PACE-PLAN.md)
+
+- A pace session is a Free Play session with `sessions.pace = { targetHandsPerHour, accuracyPct, tripId? }` (null on
+  ordinary sessions; `sessionStartSchema` takes `pace` and `feedbackMode`, and refuses pace on a drill). Dealing,
+  betting, statistics and practice pace are unchanged; `sessionModeName` shows it as "Casino pace".
+- Started from the Cruise page ("Train your pace", `cruise/PaceTraining.tsx`) on one of your machines with its
+  default wallet. Target defaults to the trip's needed pace (`neededPace`: points still needed × $/point ÷ the
+  machine's bet ÷ casino hours left), else your best accurate pace, else your pace. Accuracy bar choices 99.5 / 99.8 /
+  99.9 (default) / 99.95% EV kept; feedback quiet (`silent_report`, default), after each draw, or before the draw. The
+  bar and feedback start from your last pace session.
+- Arithmetic in `cruise/pace.ts`: a hand's pace = time since the previous hand in the session (gaps over 60 s aren't a
+  pace); EV kept = Σ chosen EV ÷ Σ best EV; mistakes' cost = mean EV lost per coin bet, as % of return, and × $/point.
+  `paceBands` groups Free Play hands (last 5,000) into under 500 / 500–700 / 700–900 / 900–1,100 / 1,100+ hands/hr;
+  `bestPace` = the fastest band with ≥ 50 hands that keeps the bar. Archived decisions have no timing, so the bands
+  cover the raw-decision window.
+- Session room: `PaceMeter` (last-20-hands pace vs target, session pace; accuracy hidden until close with quiet
+  feedback) and `PaceChip` on the table's top line. Cruise page: `PacePanel` (bands, EV kept, cost, hours to the
+  trip's target, best pace, the speed/cost sentence); the planner offers "Use your best accurate pace".
+- Tests: `tests/pace.test.ts`, the pace-session case in `tests/services.test.ts`, `e2e/pace.spec.ts`.
 
 ## Test acknowledgments instead of sleeps
 

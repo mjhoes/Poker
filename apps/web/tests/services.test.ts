@@ -178,3 +178,17 @@ describe("local services", () => {
     expect(await db.records("categoryMastery").count()).toBe(0);
   });
 });
+
+describe("Casino-Pace sessions", () => {
+  it("start as Free Play with the target, accuracy bar and chosen feedback; drills can't carry a pace", async () => {
+    const { machine, wallet } = await fixture();
+    const session = await sessionService.start({ machineId: machine.id, walletId: wallet.id, mode: "free_play", feedbackMode: "silent_report", pace: { targetHandsPerHour: 750, accuracyPct: 99.9 } });
+    expect(session.mode).toBe("free_play");
+    expect(session.pace).toEqual({ targetHandsPerHour: 750, accuracyPct: 99.9 });
+    expect(session.state.feedbackMode).toBe("silent_report");
+    await expect(sessionService.start({ machineId: machine.id, mode: "drill", pace: { targetHandsPerHour: 750, accuracyPct: 99.9 } })).rejects.toThrow("Free Play");
+    await expect(sessionService.start({ machineId: machine.id, mode: "free_play", pace: { targetHandsPerHour: 50, accuracyPct: 99.9 } })).rejects.toThrow();
+    // Sessions saved before pace existed read as ordinary Free Play.
+    expect((await sessionService.list()).filter(row => row.pace === null)).toHaveLength(1);
+  });
+});

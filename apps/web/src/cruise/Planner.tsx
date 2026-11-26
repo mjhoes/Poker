@@ -19,6 +19,8 @@ const hoursText = (hours: number) => !Number.isFinite(hours) ? "—" : hours < 1
 export type PlannerDefaults = {
   targetPoints: number; pointsSoFar: number; hoursLeft: number; handsPerHour: number;
   paceSource: "casino" | "practice" | "default"; paytableId?: string; denominationCents: number; coins: number;
+  /** Your fastest Free Play pace that keeps the accuracy bar (Casino-Pace Mode), if there is one. */
+  bestPace?: number | null; accuracyPct?: number;
 };
 
 type Overrides = Partial<Record<"target" | "soFar" | "hours" | "pace" | "paytableId" | "denomination" | "coins", string>>;
@@ -85,7 +87,9 @@ export function Planner({ program, defaults, tables, machines }: { program: Prog
       <label className="field"><span className="field-label">Target points</span><input aria-label="Planner target points" inputMode="numeric" value={target} onChange={event => set("target")(event.target.value)} /></label>
       <label className="field"><span className="field-label">Points so far</span><input aria-label="Planner points so far" inputMode="numeric" value={soFar} onChange={event => set("soFar")(event.target.value)} /></label>
       <label className="field"><span className="field-label">Casino hours left</span><input aria-label="Casino hours left" inputMode="decimal" value={hours} onChange={event => set("hours")(event.target.value)} /></label>
-      <label className="field"><span className="field-label">Hands per hour</span><input aria-label="Hands per hour" inputMode="numeric" value={pace} onChange={event => set("pace")(event.target.value)} />{overrides.pace === undefined && <small className="field-note">{paceNote}</small>}</label>
+      <label className="field"><span className="field-label">Hands per hour</span><input aria-label="Hands per hour" inputMode="numeric" value={pace} onChange={event => set("pace")(event.target.value)} />{overrides.pace === undefined && <small className="field-note">{paceNote}</small>}
+        {defaults.bestPace && Math.round(defaults.bestPace) !== Number(pace) && <button type="button" className="link-button field-note-action" onClick={() => set("pace")(String(Math.round(defaults.bestPace!)))}>
+          Use your best accurate pace: {number(defaults.bestPace)}</button>}</label>
       <label className="field wide"><span className="field-label">Game</span><select aria-label="Planner game" value={paytableId} onChange={event => set("paytableId")(event.target.value)}>
         {tables.map(table => <option key={table.id} value={table.id}>{table.name}</option>)}
       </select></label>
