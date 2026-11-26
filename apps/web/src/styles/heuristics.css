@@ -31,3 +31,6 @@
 .lab-condition { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .lab-result { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); justify-items: start; }
 @media (max-width: 960px) { .heuristic-grid, .lab-holds { grid-template-columns: 1fr; } }
+.print-panel { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.print-panel .eyebrow, .print-panel h2, .print-panel .train-copy { margin: 0; }
+.print-paper { min-width: 120px; }

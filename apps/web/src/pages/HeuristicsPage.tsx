@@ -10,6 +10,7 @@ import { findPaytable } from "../paytables/catalog";
 import { heuristicService } from "../services/heuristics";
 import type { HeuristicCard } from "../services/heuristics";
 import { HeuristicCardView } from "../heuristics/HeuristicCardView";
+import { PrintPanel } from "../heuristics/PrintPanel";
 import { EMPTY_DRAFT, RuleLab } from "../heuristics/RuleLab";
 import { astToDraft } from "../heuristics/rules";
 import type { RuleDraft } from "../heuristics/rules";
@@ -71,6 +72,7 @@ export function HeuristicsPage({ machines, busy, run }: { machines: Machine[]; b
     {mastered.length > 0 && <details className="heuristic-group" open><summary>Mastered ({mastered.length})</summary><div className="heuristic-grid">{mastered.map(view)}</div></details>}
     {archived.length > 0 && <details className="heuristic-group"><summary>Archived ({archived.length})</summary><div className="heuristic-grid">{archived.map(view)}</div></details>}
 
+    <PrintPanel machine={machine} cardCount={active.length + mastered.length} busy={busy} />
     <RuleLab machine={machine} familyId={familyId} draft={draft} onDraft={setDraft} busy={busy} run={run} />
   </>;
 }

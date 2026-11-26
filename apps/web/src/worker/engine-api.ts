@@ -46,6 +46,10 @@ export type LadderTier = "Beginner" | "Intermediate" | "Expert";
 export type LadderChart = {
   familyId: GameFamilyId; tier: LadderTier; returnPct: number; optimalReturnPct: number;
   lines: { label: string; alternatives?: string[]; freq: number; dealable: boolean }[];
+  /** Deuces Wild charts come in sections by deuces held (line ranks `startRank` to before `endRank`). */
+  sections?: { title: string; startRank: number; endRank: number }[];
+  /** How to choose between two holds that both match the same line. */
+  tieBreakRule: string;
 };
 export interface EngineAPI {
   rollupDecisions(timeZone: string): Promise<number>;

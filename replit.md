@@ -547,6 +547,20 @@ R3 — why one hold beats another:
 - Tests: `tests/heuristics-engine.test.ts` (real 9/6 Jacks), `tests/heuristics-services.test.ts` (real engine in
   process, fake AI provider), `e2e/heuristics.spec.ts` (intercepted Anthropic API).
 
+## Printable strategy PDF (docs/18-PRINTABLE-STRATEGY-PLAN.md)
+
+- Heuristics page → "Take your strategy with you": pick a chart tier (Beginner, Intermediate, Expert) and paper
+  (letter or A4, defaulting by locale), then **Download PDF**. One file: the chart (max bet) with the machine's
+  non-archived heuristic cards on full pages, then a wallet card on 3.5 × 2 in panels to cut and fold (2, 4 or 6
+  panels, type from 7 down to 5 pt).
+- A chart line's grouped holds are in order (each has its own priority; the tie-break applies only within one), so
+  they're joined with "else", never "or", on the PDF and on Train's ladder chart (`training/chart-text.ts`).
+- Made in the browser with `pdf-lib` (standard Helvetica fonts, works offline). The library is lazy-loaded from
+  `print/strategy-pdf.ts`. `services/print.ts` gathers the content; the engine's `ladderChart` now includes Deuces
+  sections and the tie-break rule.
+- Tests: `tests/print-pdf.test.ts` (all library tables × tiers × paper: every line printed, everything inside its page
+  and panel, the PDF opens; `PRINT_SAMPLES=<dir>` keeps samples), and the "print" test in `e2e/heuristics.spec.ts`.
+
 ## Test acknowledgments instead of sleeps
 
 - `apps/web/src/diagnostics.ts` `signal(name)` counts outcomes that leave nothing on screen in

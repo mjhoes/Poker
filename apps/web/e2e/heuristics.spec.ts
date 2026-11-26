@@ -1,4 +1,6 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { PDFDocument } from "pdf-lib";
 import type { Page, Route } from "@playwright/test";
 import { createPlayTable } from "./play-helpers";
 
@@ -160,5 +162,32 @@ test("Rule Lab: an AI reading that comes back after you changed the rule or the 
   release();
   await expect(lab.getByLabel("Prefer")).toHaveValue("4FL");
   await expect(lab.getByLabel("Over")).toHaveValue("LP");
+  expect(errors).toEqual([]);
+});
+
+test("print: one PDF with the chart and your heuristic cards, then a wallet card", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await createPlayTable(page, { mode: "drill" });
+  await page.getByRole("link", { name: "Heuristics", exact: true }).click();
+  const lab = page.getByRole("region", { name: "Write a rule, see its exact cost" });
+  await expect(lab.getByLabel("Prefer")).toBeVisible({ timeout: 60_000 }); // the table's holds are loaded
+  await lab.getByLabel("Prefer").selectOption({ label: "Low pair (Tens or lower)" });
+  await lab.getByLabel("Over").selectOption({ label: "4 to a Flush" });
+  await lab.getByRole("group", { name: "Rule Lab result" }).getByRole("button", { name: "Save as card" }).click({ timeout: 60_000 });
+  await expect(page.getByRole("article").filter({ hasText: "FROM THE RULE LAB" })).toHaveCount(1);
+
+  const print = page.getByRole("region", { name: "Take your strategy with you" });
+  await expect(print).toContainText("your 1 heuristic card on full pages, then a wallet card");
+  await print.getByRole("radiogroup", { name: "Chart" }).getByRole("radio", { name: "Beginner" }).click();
+  await print.getByLabel("Paper").selectOption("a4");
+  const downloading = page.waitForEvent("download", { timeout: 60_000 });
+  await print.getByRole("button", { name: "Download PDF" }).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toMatch(/^perfect-draw-.+-beginner\.pdf$/);
+  await expect(print.getByRole("status").filter({ hasText: /^Saved perfect-draw-.+-beginner\.pdf: 1 page and a wallet card of \d panels\.$/ })).toBeVisible();
+  const pdf = await PDFDocument.load(await readFile((await download.path())!));
+  expect(pdf.getPageCount()).toBe(2);
+  expect(pdf.getTitle()).toMatch(/· Beginner strategy$/);
+  expect(pdf.getPage(0).getSize()).toEqual({ width: 595.28, height: 841.89 });
   expect(errors).toEqual([]);
 });

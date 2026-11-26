@@ -8,8 +8,9 @@ import { findPaytable, useAllPaytables } from "../paytables/catalog";
 import { gradeLabel } from "../table/Feedback";
 import { maskIndexes, shortCard } from "../table/cards";
 import { trainingService } from "../services/training";
-import type { LadderChart, LadderTier } from "../worker/engine-api";
+import type { LadderTier } from "../worker/engine-api";
 import { LADDER_STREAK, ladderNewest, switcherRoundDealt } from "./plans";
+import { ALTERNATIVES_NOTE, chartLineText } from "./chart-text";
 import { useLadderChart, useLadderProgress } from "./useTraining";
 
 /*
@@ -19,8 +20,7 @@ import { useLadderChart, useLadderProgress } from "./useTraining";
 
 const TIERS: readonly LadderTier[] = ["Beginner", "Intermediate", "Expert"];
 export type RoundBStart = { kind: "ladder"; tier: LadderTier; restart?: boolean } | { kind: "switcher"; compareWith: string[] };
-const lineText = (line: LadderChart["lines"][number], familyId: string) =>
-  (line.alternatives ?? [line.label]).map(label => gradeLabel(label, familyId)).join(" or ");
+const lineText = chartLineText;
 const percent = (value: number) => `${value < 1 ? value.toFixed(2) : value.toFixed(1)}%`;
 
 export function LadderPanel({ machine, busy, onStart }: { machine: Machine; busy: boolean; onStart: (input: RoundBStart) => void }) {
@@ -48,6 +48,7 @@ export function LadderPanel({ machine, busy, onStart }: { machine: Machine; busy
           <progress max={lines.length} value={Math.min(lines.length, state.step - 1)} aria-label="Lines learned" />
         </div>
         <details className="ladder-chart"><summary>The {tier} chart: {chart.lines.length} lines, returns {chart.returnPct.toFixed(2)}% (perfect play {chart.optimalReturnPct.toFixed(2)}%)</summary>
+          {chart.lines.some(line => line.alternatives?.length) && <p className="muted">{ALTERNATIVES_NOTE}</p>}
           <ol>{chart.lines.map((line, index) => <li key={index} className={index === newest ? "is-current" : learned(index) ? "is-learned" : ""}>
             <span>{lineText(line, chart.familyId)}</span>
             <small>{!line.dealable ? "No deal to practice" : index === newest ? "Learning" : learned(index) ? "Learned" : ""}</small>
