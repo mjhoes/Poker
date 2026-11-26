@@ -11,6 +11,8 @@ import { sessionService } from "../src/services/sessions";
 import { createPlayService } from "../src/services/play";
 import { ReviewsDoneError, trainingService } from "../src/services/training";
 import { statsService } from "../src/services/statistics";
+import { paytableService } from "../src/services/paytables";
+import { draftFromLibrary, quickFill } from "../src/paytables/model";
 
 const table = getLibraryPayTable("jacks-or-better-9-6");
 let clock = new Date("2026-12-01T09:00:00").getTime();
@@ -173,7 +175,7 @@ describe("round B", () => {
       lines: [{ label: "RF4", freq: 0.01, dealable: true }, { label: "rare", freq: 0, dealable: false }, { label: "2P", freq: 0.02, dealable: true }],
     });
     const ladder = await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert" });
-    expect(ladder.training?.ladder).toEqual({ tier: "Expert", lines: [0, 2], step: 1, streak: 0, pending: null });
+    expect(ladder.training?.ladder).toEqual({ tier: "Expert", lines: [0, 2], step: 1, streak: 0, pending: null, progressAt: clock });
     // Max bet whatever the machine's default; the table can't change it.
     await expect(sessionService.applyAction(ladder.id, { type: "bet", coins: 2 })).rejects.toThrow("5 coins");
     for (let hand = 0; hand < 4; hand++) {
@@ -192,8 +194,15 @@ describe("round B", () => {
     await sessionService.close(ladder.id);
     // The next ladder on this chart carries on; starting over goes back to line 1; another chart starts fresh.
     clock += 1000;
-    expect((await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert" })).training?.ladder).toMatchObject({ step: 2, streak: 1 });
+    const resumed = await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert" });
+    expect(resumed.training?.ladder).toMatchObject({ step: 2, streak: 1 });
+    clock += 1000;
     expect((await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert", restart: true })).training?.ladder).toMatchObject({ step: 1, streak: 0 });
+    // Closing the older ladder afterwards changes only its session, not which progress is newest (PR #10 review).
+    clock += 1000;
+    await sessionService.close(resumed.id);
+    expect(await trainingService.ladderProgress(table.id, "Expert")).toMatchObject({ step: 1, streak: 0 });
+    expect((await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert" })).training?.ladder).toMatchObject({ step: 1 });
     expect((await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Beginner" })).training?.ladder).toMatchObject({ tier: "Beginner", step: 1 });
   });
   it("the Pay Table Switcher deals one hand on each table in turn, and records each answer on its own table", async () => {
@@ -217,9 +226,24 @@ describe("round B", () => {
     expect(state.training?.switcher?.round).toEqual({ hand, next: 2 });
     const decisions = (await db.table("decisions").toArray()).filter(row => row.sessionId === session.id).sort((x, y) => x.createdAt - y.createdAt);
     expect(decisions.map(row => row.paytableId)).toEqual([table.id, other.id]);
+    // Every table at the machine's bet: the bet can't change mid-round (PR #10 review).
+    expect(decisions.map(row => row.coins)).toEqual([5, 5]);
+    await expect(sessionService.applyAction(session.id, { type: "bet", coins: 1 })).rejects.toThrow("the machine's bet");
     // The round is done: the next deal starts a new one on the machine's table.
     await answer(play, session.id, 0b01111);
     expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { paytableId: table.id, switcher: { others: [other.id], differ: true } });
   });
+  it("an open Switcher keeps its comparison tables: they can't be deleted until it closes", async () => {
+    const { machine } = await setup();
+    const quick = quickFill(draftFromLibrary("jacks_or_better"), "7/5");
+    if ("error" in quick) throw new Error(quick.error);
+    const custom = await paytableService.saveCustom({ name: "7/5 Jacks", draft: quick.draft });
+    const session = await trainingService.start({ machineId: machine.id, kind: "switcher", compareWith: [custom.id] });
+    await expect(paytableService.remove(custom.id)).rejects.toThrow("An open session uses this pay table");
+    await sessionService.pause(session.id); // a paused session still counts
+    await expect(paytableService.remove(custom.id)).rejects.toThrow("An open session uses this pay table");
+    await sessionService.close(session.id);
+    await paytableService.remove(custom.id);
+    expect(await paytableService.listCustom()).toEqual([]);
+  });
 });
-

@@ -21,15 +21,17 @@ Learn a strategy chart top-down, one line at a time, then mixed review.
   right in a row on the newest line climbs a step; a mistake there resets the run. Past the last line the ladder is
   mixed review of every line.
 - **Progress** is kept per pay table and chart, in the ladder sessions themselves: a new ladder session continues
-  from the latest one, or starts over when asked.
+  from the one with the newest progress (its own timestamp, not the session's), or starts over when asked.
 - Answers still update review cards (round A), and decisions go to Statistics as usual.
 
 ## B2: Pay Table Switcher (F4.6)
 
 The same hand on two or three pay tables of the same game, one after another: learn which plays change.
 
-- **Tables.** The machine's table plus one or two others of the same game (built-in or yours), at the machine's bet.
-  The Train page shows how often the best hold differs between them.
+- **Tables.** The machine's table plus one or two others of the same game (built-in or yours), all at the machine's
+  bet (fixed for the session: a different bet could change the best hold on its own). The Train page shows how often
+  the best hold differs between them: a deal differs when no hold is optimal on both tables, ties included. A custom
+  table an open Switcher compares can't be deleted until the session closes.
 - **Rounds.** Each round deals one hand on the machine's table, then the same cards on each other table in turn. 75% of
   rounds use a hand whose best hold differs on at least one of the tables; 25% use any hand, so the answer isn't
   always "it changes". The machine screen shows the pay table of the hand in play.

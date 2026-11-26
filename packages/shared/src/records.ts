@@ -149,6 +149,11 @@ export const ladderStateSchema = z.object({
   lines: z.array(z.number().int().min(0).max(500)).min(1).max(200),
   step: z.number().int().min(1), streak: z.number().int().min(0),
   pending: z.number().int().min(0).nullable().default(null),
+  /**
+   * When this ladder's progress last changed (started, started over, or answered). The latest ladder on a chart is the
+   * one with the newest progress, not the newest session update: closing an old session must not undo a Start over.
+   */
+  progressAt: timestamp,
 });
 /** Pay Table Switcher: the tables (the machine's first) and the round in play (its cards, and the next table's index). */
 export const switcherStateSchema = z.object({

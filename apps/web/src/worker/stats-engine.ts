@@ -1,13 +1,14 @@
 import type { DealTarget } from "./engine-api";
 import {
   analyzeGame, analyzeHandFast, categoryDistribution, clearSubsetCache, computeStatistics,
-  clearTrainingCache, generateHand, registerTrainingAnalysis, standardVariant,
+  clearTrainingCache, generateHand, getCanonicalHands, registerTrainingAnalysis, standardVariant,
 } from "@perfect-draw/engine";
-import type { GameAnalysis, HandAnalysis } from "@perfect-draw/engine";
+import type { GameAnalysis, Hand, HandAnalysis } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import { decisionSchema, recordSchemas, statsQuerySchema } from "@perfect-draw/shared";
 import type { StatsQuery, StatsReportView } from "@perfect-draw/shared";
 import { db, live, requireRecord } from "../data/db";
+import { bestHoldDiffers } from "./strategy-difference";
 
 /** Derived short-coin analyses need no strategy induction or incompatible asset-schema changes. */
 export class StatsEngine {
@@ -131,22 +132,22 @@ export class StatsEngine {
     if (target.strict) throw new Error("This card's category isn't a best hold on this table at this bet.");
     throw lastError instanceof Error ? lastError : new Error("No hand fits this training plan.");
   }
-  /** Deal IDs where two tables' best holds differ (a tie that includes the other's best counts as the same). */
+  /**
+   * Deal IDs where two tables' best holds differ: no hold is optimal under both. Shares the Strategy Difference check,
+   * which re-solves tied deals exactly (three or more holds can tie).
+   */
   private readonly differing = new Map<string, number[]>();
+  private canonicalHands?: Map<number, Hand>;
   private async differIds(paytableId: string, other: string, coins: number) {
     const a = await this.game(paytableId, coins), b = await this.game(other, coins);
     if (a.analysis.familyId !== b.analysis.familyId) throw new Error("The Pay Table Switcher compares tables of the same game.");
     const cacheKey = `${a.key}|${b.key}`;
     let ids = this.differing.get(cacheKey);
     if (!ids) {
+      this.canonicalHands ??= new Map(getCanonicalHands().map(hand => [hand.id, hand.hand]));
+      this.prepareFamily(a.analysis.familyId); // tied deals are re-solved
       ids = [];
-      for (const [id, mine] of a.analysis.perHand) {
-        const theirs = b.analysis.perHand.get(id)!;
-        const same = mine.bestMask === theirs.bestMask ||
-          (mine.bestMask === theirs.secondMask && theirs.ev - theirs.secondEv < 1e-9) ||
-          (theirs.bestMask === mine.secondMask && mine.ev - mine.secondEv < 1e-9);
-        if (!same) ids.push(id);
-      }
+      for (const id of a.analysis.perHand.keys()) if (bestHoldDiffers(id, a.analysis, b.analysis, this.canonicalHands)) ids.push(id);
       this.differing.set(cacheKey, ids);
     }
     return ids;

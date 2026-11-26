@@ -122,7 +122,7 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient, pl
           // Every first decision updates the review card of the hand's best-hold category.
           if (attempts === 0) await recordAnswer({ familyId: analysis.familyId, label: grade.bestLabel, correct: grade.correct, evLossPerCoin: grade.evLoss / coins, at: submittedAt });
           // The Strategy Ladder climbs on first answers to its newest line.
-          if (attempts === 0 && training?.ladder) training = { ...training, ladder: ladderAnswer(training.ladder, grade.correct) };
+          if (attempts === 0 && training?.ladder) training = { ...training, ladder: ladderAnswer(training.ladder, grade.correct, submittedAt) };
           attempts++;
         }
         if (shouldWarn) {

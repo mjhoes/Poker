@@ -104,11 +104,12 @@ export const trainingService = {
   ladderChart: (paytableId: string, tier: LadderTier) => engineClient().ladderChart(paytableId, tier),
   /** How often the best hold differs between a table and each other table, at a bet (for the Pay Table Switcher). */
   switcherDiffer: (paytableId: string, others: string[], coins: number) => engineClient().switcherDiffer(paytableId, others, coins),
-  /** Strategy Ladder progress on a pay table's chart: the latest ladder session's, or null before the first. */
+  /** Strategy Ladder progress on a pay table's chart: the ladder with the newest progress, or null before the first. */
   async ladderProgress(paytableId: string, tier: LadderTier) {
     const sessions = (await db.records("sessions").toArray()).filter(session => live(session) &&
       session.training?.kind === "ladder" && session.training.ladder?.tier === tier && session.machineSnapshot.paytableId === paytableId);
-    const latest = sessions.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    // The newest progress wins, whatever happened to the sessions since (closing an old one changes only its updatedAt).
+    const latest = sessions.sort((a, b) => b.training!.ladder!.progressAt - a.training!.ladder!.progressAt)[0];
     return latest ? { ...latest.training!.ladder!, sessionId: latest.id, open: latest.status !== "closed" } : null;
   },
   /** Starts a training session (Rapid Drill) on a machine. */
@@ -126,7 +127,7 @@ export const trainingService = {
       const resume = previous && previous.lines.join(",") === lines.join(",") ? previous : null;
       return sessionService.start({
         machineId: machine.id, mode: "drill",
-        training: { kind: "ladder", keepGoing: false, ladder: { tier: input.tier, lines, step: resume?.step ?? 1, streak: resume?.streak ?? 0, pending: null } },
+        training: { kind: "ladder", keepGoing: false, ladder: { tier: input.tier, lines, step: resume?.step ?? 1, streak: resume?.streak ?? 0, pending: null, progressAt: Date.now() } },
       });
     }
     if (input.kind === "switcher") {

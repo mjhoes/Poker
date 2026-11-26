@@ -1,4 +1,4 @@
-import { fixedBet } from "./bet";
+import { fixedBet, fixedBetReason } from "./bet";
 import { machineDraftSchema, newId, sessionActionSchema, sessionSchema, sessionStartSchema, uuid } from "@perfect-draw/shared";
 import type { Session, SessionService } from "@perfect-draw/shared";
 import { standardVariant } from "@perfect-draw/engine";
@@ -53,7 +53,7 @@ export const sessionService: SessionService = {
         // A dealt hand keeps the bet it was paid with; the new bet applies from the next deal.
         if (current.state.handId && current.state.phase === "holding") throw new Error("Finish this hand before changing the bet.");
         const fixed = fixedBet(current);
-        if (fixed !== null && action.coins !== fixed) throw new Error(current.trainingFocus ? "A focused drill keeps the bet it was set up for." : "The Strategy Ladder deals at 5 coins: strategy charts are for max bet.");
+        if (fixed !== null && action.coins !== fixed) throw new Error(fixedBetReason(current));
         const next = sessionSchema.parse({ ...current, updatedAt: Date.now(), state: { ...current.state, betCoins: action.coins } });
         await db.records("sessions").put(next); return next;
       }

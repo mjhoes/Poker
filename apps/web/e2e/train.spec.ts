@@ -182,6 +182,11 @@ test("Pay Table Switcher: the same cards on two pay tables, then how they compar
   // The same cards, now on the other table.
   expect(two.state.analysis!.hand).toEqual(one.state.analysis!.hand);
   expect(two.state.handPaytableId).toBe(two.training!.switcher!.tables[1]);
+  // Both tables at the machine's bet: the table can't change it (PR #10 review).
+  expect(two.state.handCoins).toBe(one.state.handCoins);
+  await expect(page.locator(".bet-controls")).toContainText("Every table at the machine's bet");
+  await expect(page.getByRole("button", { name: "Bet One" })).toHaveCount(0);
+  await expect(page.locator(".bet-controls").getByRole("radio", { name: "1 credit" })).toBeDisabled();
   const compare = note.getByRole("list", { name: "This hand on each table" });
   await expect(compare.getByRole("listitem")).toHaveCount(2);
   await expect(compare.getByRole("listitem").first()).toContainText("You had it");

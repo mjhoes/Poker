@@ -31,7 +31,7 @@ export function LadderPanel({ machine, busy, onStart }: { machine: Machine; busy
   const lines = chart ? chart.lines.flatMap((line, index) => line.dealable ? [index] : []) : [];
   // Progress counts only for the chart as it is now (a rebuilt chart starts again).
   const current = progress && progress.lines.join(",") === lines.join(",") ? progress : null;
-  const state = { tier, lines, step: current?.step ?? 1, streak: current?.streak ?? 0, pending: null };
+  const state = { tier, lines, step: current?.step ?? 1, streak: current?.streak ?? 0, pending: null, progressAt: 0 };
   const newest = lines.length ? ladderNewest(state) : null;
   const learned = (index: number) => { const at = lines.indexOf(index); return at >= 0 && at < state.step - 1; };
   return <section className="panel panel-pad train-panel" aria-labelledby="ladder-title">

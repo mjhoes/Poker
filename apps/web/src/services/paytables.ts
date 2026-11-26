@@ -63,7 +63,9 @@ export const paytableService = {
       if (!row || !live(row) || row.source === "library") throw new Error("Only your own pay tables can be deleted.");
       const machines = (await db.records("machines").toArray()).filter(machine => live(machine) && machine.paytableId === id);
       if (machines.length) throw new Error(`${machines.length === 1 ? `“${machines[0].name}” uses` : `${machines.length} machines use`} this pay table. Change or delete ${machines.length === 1 ? "it" : "them"} first.`);
-      const open = (await db.records("sessions").toArray()).filter(session => session.status !== "closed" && session.machineSnapshot.paytableId === id);
+      // Open or paused sessions that play it: on their machine, or as a Pay Table Switcher comparison.
+      const open = (await db.records("sessions").toArray()).filter(session => live(session) && session.status !== "closed" &&
+        (session.machineSnapshot.paytableId === id || session.training?.switcher?.tables.includes(id)));
       if (open.length) throw new Error("An open session uses this pay table. Close it first.");
       await db.records("paytables").put(paytableSchema.parse({ ...row, updatedAt: Date.now(), deletedAt: Date.now() }));
     });

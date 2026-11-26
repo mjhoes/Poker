@@ -41,7 +41,7 @@ export function BetControls({ session, busy, onBet }: { session: Session; busy: 
     <ChoiceChips label="Credits per line" value={String(coins)} onChange={value => onBet(Number(value))}
       choices={["1", "2", "3", "4", "5"].map(value => ({ value, label: value, name: `${value} credit${value === "1" ? "" : "s"}`, disabled }))} />
     <span className="bet-total">
-      {locked ? <><Icon name="info" size={14} />Locked for this hand</> : fixed ? <>{session.trainingFocus ? "Set by this focused drill" : "Strategy charts are for max bet"}</> : session.mode === "drill"
+      {locked ? <><Icon name="info" size={14} />Locked for this hand</> : fixed ? <>{session.trainingFocus ? "Set by this focused drill" : session.training?.kind === "switcher" ? "Every table at the machine's bet" : "Strategy charts are for max bet"}</> : session.mode === "drill"
         ? <>Practice at this bet · no wager</>
         : <>{money(coins * lines * config.denominationCents)} per hand{lines > 1 ? ` (${lines} lines)` : ""}</>}
     </span>

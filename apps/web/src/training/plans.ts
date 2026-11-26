@@ -28,15 +28,18 @@ export function ladderPick(state: LadderState, random: () => number): { line: nu
   return { line: pickFrom(state.step - 1), isNew: false };
 }
 
-/** After a first decision on the hand in play: four right in a row on the newest line climbs a step; a mistake there resets the run. */
-export function ladderAnswer(state: LadderState, correct: boolean): LadderState {
+/**
+ * After a first decision on the hand in play (`at`): four right in a row on the newest line climbs a step; a mistake
+ * there resets the run.
+ */
+export function ladderAnswer(state: LadderState, correct: boolean, at: number): LadderState {
   if (state.pending === null) return state;
   let { step, streak } = state;
   if (state.pending === ladderNewest(state)) {
     streak = correct ? streak + 1 : 0;
     if (streak >= LADDER_STREAK) { step++; streak = 0; }
   }
-  return { ...state, step, streak, pending: null };
+  return { ...state, step, streak, pending: null, progressAt: at };
 }
 
 /** A Switcher round's share of hands whose best hold differs on another table (the rest are any hand). */

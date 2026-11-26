@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LADDER_STREAK, ladderAnswer, ladderNewest, ladderPick, switcherDealt, switcherNext, switcherRoundDealt } from "../src/training/plans";
 import type { LadderState, SwitcherState } from "../src/training/plans";
 
-const ladder = (over: Partial<LadderState> = {}): LadderState => ({ tier: "Expert", lines: [0, 1, 3, 4], step: 1, streak: 0, pending: null, ...over });
+const ladder = (over: Partial<LadderState> = {}): LadderState => ({ tier: "Expert", lines: [0, 1, 3, 4], step: 1, streak: 0, pending: null, progressAt: 0, ...over });
 const seeded = (seed = 1) => () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 
 describe("Strategy Ladder", () => {
@@ -17,14 +17,14 @@ describe("Strategy Ladder", () => {
   });
   it("climbs after four right in a row on the newest line; a mistake there resets the run; review answers don't count", () => {
     let state = ladder({ step: 2 });
-    for (let i = 0; i < LADDER_STREAK - 1; i++) state = ladderAnswer({ ...state, pending: 1 }, true);
-    expect([state.step, state.streak, state.pending]).toEqual([2, 3, null]);
-    state = ladderAnswer({ ...state, pending: 0 }, false); // a review mistake
+    for (let i = 0; i < LADDER_STREAK - 1; i++) state = ladderAnswer({ ...state, pending: 1 }, true, 1);
+    expect([state.step, state.streak, state.pending, state.progressAt]).toEqual([2, 3, null, 1]);
+    state = ladderAnswer({ ...state, pending: 0 }, false, 1); // a review mistake
     expect([state.step, state.streak]).toEqual([2, 3]);
-    expect(ladderAnswer({ ...state, pending: 1 }, false).streak).toBe(0);
-    state = ladderAnswer({ ...state, pending: 1 }, true);
+    expect(ladderAnswer({ ...state, pending: 1 }, false, 1).streak).toBe(0);
+    state = ladderAnswer({ ...state, pending: 1 }, true, 1);
     expect([state.step, state.streak, ladderNewest(state)]).toEqual([3, 0, 3]);
-    expect(ladderAnswer({ ...state, pending: null }, true)).toEqual({ ...state, pending: null }); // nothing dealt
+    expect(ladderAnswer({ ...state, pending: null }, true, 1)).toEqual({ ...state, pending: null }); // nothing dealt
   });
   it("past the last line, reviews every line equally", () => {
     const done = ladder({ step: 5 });
@@ -32,7 +32,7 @@ describe("Strategy Ladder", () => {
     const random = seeded(7), seen = new Set<number>();
     for (let i = 0; i < 200; i++) { const pick = ladderPick(done, random); expect(pick.isNew).toBe(false); seen.add(pick.line); }
     expect([...seen].sort()).toEqual([0, 1, 3, 4]);
-    expect(ladderAnswer({ ...done, pending: 4 }, true).step).toBe(5);
+    expect(ladderAnswer({ ...done, pending: 4 }, true, 1).step).toBe(5);
   });
 });
 

@@ -513,12 +513,15 @@ R3 — why one hold beats another:
   hold is a best play, so grading agrees with the chart. Step n unlocks the first n practicable lines; 60% of hands are
   the newest line, 40% earlier lines (even); 4 right in a row on the newest line climbs; past the last line it is mixed
   review. Progress lives in the ladder sessions (`training.ladder`); a new ladder on the same table and chart carries
-  on (`trainingService.ladderProgress`), or starts over. Always 5 coins: `fixedBet` in `services/bet.ts`.
+  on from the one with the newest `progressAt` (set at start and on each answer, so closing an old session can't undo
+  a Start over), or starts over. Always 5 coins: `fixedBet` in `services/bet.ts`.
 - Pay Table Switcher: the machine's table plus one or two others of the same game. Each round deals a hand on the
-  machine's table (75% one whose best hold differs on another table, `StatsEngine.switcherDeal`), then the same cards on
+  machine's table (75% one whose best hold differs on another table, `StatsEngine.switcherDeal`; "differs" = no hold is
+  optimal on both, via the tie-aware `bestHoldDiffers` shared with Strategy Difference), then the same cards on
   each other table (`state.handPaytableId`; the pay table on screen, the header, decisions and the analyzer link follow
-  it). The session panel compares the tables after the round's last answer. The Train page shows how often the best
-  hold differs (`switcherDiffer`).
+  it). Every table plays at the machine's bet (`fixedBet`). The session panel compares the tables after the round's
+  last answer. The Train page shows how often the best hold differs (`switcherDiffer`). A custom table an open or
+  paused Switcher compares can't be deleted until that session closes.
 - Tests: `tests/ladder-index.test.ts` (line frequencies match the real charts), `tests/training-plans.test.ts`,
   `tests/training-services.test.ts` (round B), `tests/training-tables.test.ts` (real 9/6 vs 8/5), `e2e/train.spec.ts`.
 
