@@ -7,7 +7,8 @@ import { db, live, requireRecord } from "../data/db";
 import { applyAnswer, graduated, reviewQueue, startOfDay, weaknessPick } from "../training/core";
 import type { Answer, Card, Target } from "../training/core";
 import { engineClient } from "../worker/client";
-import type { DealTarget } from "../worker/engine-api";
+import type { DealTarget, LadderTier } from "../worker/engine-api";
+import { ladderPick, switcherNext } from "../training/plans";
 import { sessionService } from "./sessions";
 import { statsService } from "./statistics";
 
@@ -99,10 +100,46 @@ export const trainingService = {
       .sort((a, b) => b.weightedEvLost - a.weightedEvLost).slice(0, 5)
       .map(pair => ({ bestLabel: pair.bestLabel, chosenLabel: pair.chosenLabel, weight: pair.weightedEvLost }));
   },
+  /** A table's chart for the Strategy Ladder (built the first time for a custom table). */
+  ladderChart: (paytableId: string, tier: LadderTier) => engineClient().ladderChart(paytableId, tier),
+  /** How often the best hold differs between a table and each other table, at a bet (for the Pay Table Switcher). */
+  switcherDiffer: (paytableId: string, others: string[], coins: number) => engineClient().switcherDiffer(paytableId, others, coins),
+  /** Strategy Ladder progress on a pay table's chart: the latest ladder session's, or null before the first. */
+  async ladderProgress(paytableId: string, tier: LadderTier) {
+    const sessions = (await db.records("sessions").toArray()).filter(session => live(session) &&
+      session.training?.kind === "ladder" && session.training.ladder?.tier === tier && session.machineSnapshot.paytableId === paytableId);
+    const latest = sessions.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    return latest ? { ...latest.training!.ladder!, sessionId: latest.id, open: latest.status !== "closed" } : null;
+  },
   /** Starts a training session (Rapid Drill) on a machine. */
-  async start(input: { machineId: string; kind: "review" | "weakness" | "close_calls"; closeCallPerCoin?: number; keepGoing?: boolean }) {
+  async start(input: { machineId: string; kind: "review" | "weakness" | "close_calls"; closeCallPerCoin?: number; keepGoing?: boolean }
+    | { machineId: string; kind: "ladder"; tier: LadderTier; restart?: boolean }
+    | { machineId: string; kind: "switcher"; compareWith: string[] }) {
     uuid.parse(input.machineId);
     const machine = await requireRecord("machines", input.machineId);
+    if (input.kind === "ladder") {
+      const chart = await trainingService.ladderChart(machine.paytableId, input.tier);
+      const lines = chart.lines.flatMap((line, index) => line.dealable ? [index] : []);
+      if (!lines.length) throw new Error("No line of this chart can be practiced on this table.");
+      // Carry on from the latest ladder on this chart, unless it was rebuilt differently or you start over.
+      const previous = input.restart ? null : await trainingService.ladderProgress(machine.paytableId, input.tier);
+      const resume = previous && previous.lines.join(",") === lines.join(",") ? previous : null;
+      return sessionService.start({
+        machineId: machine.id, mode: "drill",
+        training: { kind: "ladder", keepGoing: false, ladder: { tier: input.tier, lines, step: resume?.step ?? 1, streak: resume?.streak ?? 0, pending: null } },
+      });
+    }
+    if (input.kind === "switcher") {
+      const others = [...new Set(input.compareWith)];
+      if (!others.length || others.length > 2) throw new Error("Choose one or two other pay tables.");
+      if (others.includes(machine.paytableId)) throw new Error("Choose pay tables other than this machine's.");
+      const familyId = await familyOf(machine.paytableId);
+      for (const other of others) if (await familyOf(other) !== familyId) throw new Error("The Pay Table Switcher compares tables of the same game.");
+      return sessionService.start({
+        machineId: machine.id, mode: "drill",
+        training: { kind: "switcher", keepGoing: false, switcher: { tables: [machine.paytableId, ...others], round: null } },
+      });
+    }
     const targets = input.kind === "weakness" ? await trainingService.weaknessTargets(machine.paytableId, machine.coins) : undefined;
     return sessionService.start({
       machineId: machine.id, mode: "drill",
@@ -113,6 +150,8 @@ export const trainingService = {
   async nextDeal(session: Session, coins: number, random: () => number = Math.random): Promise<DealTarget> {
     const training = session.training!;
     if (training.kind === "close_calls") return { closeCallMaxGap: (training.closeCallPerCoin ?? 0.1) * coins };
+    if (training.kind === "ladder") return { ladder: { tier: training.ladder!.tier, line: ladderPick(training.ladder!, random).line } };
+    if (training.kind === "switcher") return switcherNext(training.switcher!, random);
     const table = await trainingService.table(session.machineSnapshot.paytableId, coins);
     if (training.kind === "review") {
       const queue = await trainingService.queue(table, training.keepGoing);

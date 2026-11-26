@@ -162,3 +162,64 @@ describe("training plans", () => {
     await expect(trainingService.setDailyCap(1)).rejects.toThrow();
   });
 });
+
+describe("round B", () => {
+  it("the Strategy Ladder deals its lines at 5 coins, climbs on first answers, and carries on in the next session", async () => {
+    const { play, api } = await setup();
+    const wallet = await walletService.create({ name: "Ladder", initialCents: 10_000 });
+    const machine = await machineService.save({ name: "One coin", paytableId: table.id, coins: 1, defaultWalletId: wallet.id, denominationCents: 25 });
+    vi.spyOn(trainingService, "ladderChart").mockResolvedValue({
+      familyId: "jacks_or_better", tier: "Expert", returnPct: 99.5, optimalReturnPct: 99.54,
+      lines: [{ label: "RF4", freq: 0.01, dealable: true }, { label: "rare", freq: 0, dealable: false }, { label: "2P", freq: 0.02, dealable: true }],
+    });
+    const ladder = await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert" });
+    expect(ladder.training?.ladder).toEqual({ tier: "Expert", lines: [0, 2], step: 1, streak: 0, pending: null });
+    // Max bet whatever the machine's default; the table can't change it.
+    await expect(sessionService.applyAction(ladder.id, { type: "bet", coins: 2 })).rejects.toThrow("5 coins");
+    for (let hand = 0; hand < 4; hand++) {
+      await answer(play, ladder.id, 0b01111);
+      expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { ladder: { tier: "Expert", line: 0 } });
+    }
+    let session = (await sessionService.list()).find(row => row.id === ladder.id)!;
+    expect(session.training?.ladder).toMatchObject({ step: 2, streak: 0, pending: null });
+    // A wrong answer on the newest line resets its run.
+    vi.spyOn(Math, "random").mockReturnValue(0.1); // newest line
+    await answer(play, ladder.id, 0);
+    session = (await sessionService.list()).find(row => row.id === ladder.id)!;
+    expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { ladder: { tier: "Expert", line: 2 } });
+    expect(session.training?.ladder).toMatchObject({ step: 2, streak: 0 });
+    await answer(play, ladder.id, 0b01111);
+    await sessionService.close(ladder.id);
+    // The next ladder on this chart carries on; starting over goes back to line 1; another chart starts fresh.
+    clock += 1000;
+    expect((await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert" })).training?.ladder).toMatchObject({ step: 2, streak: 1 });
+    expect((await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert", restart: true })).training?.ladder).toMatchObject({ step: 1, streak: 0 });
+    expect((await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Beginner" })).training?.ladder).toMatchObject({ tier: "Beginner", step: 1 });
+  });
+  it("the Pay Table Switcher deals one hand on each table in turn, and records each answer on its own table", async () => {
+    const { play, api, machine } = await setup();
+    const other = getLibraryPayTable("jacks-or-better-8-5");
+    await expect(trainingService.start({ machineId: machine.id, kind: "switcher", compareWith: [getLibraryPayTable("deuces-wild-nsud").id] })).rejects.toThrow("same game");
+    await expect(trainingService.start({ machineId: machine.id, kind: "switcher", compareWith: [] })).rejects.toThrow("one or two");
+    const session = await trainingService.start({ machineId: machine.id, kind: "switcher", compareWith: [other.id] });
+    expect(session.training?.switcher).toEqual({ tables: [table.id, other.id], round: null });
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    await answer(play, session.id, 0b01111);
+    expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { paytableId: table.id, switcher: { others: [other.id], differ: true } });
+    let state = (await sessionService.list()).find(row => row.id === session.id)!;
+    expect(state.state.handPaytableId).toBeNull();
+    const hand = state.state.analysis!.hand;
+    expect(state.training?.switcher?.round).toEqual({ hand, next: 1 });
+    await answer(play, session.id, 0b01111);
+    expect(api.prepareRound).toHaveBeenLastCalledWith(other.id, 5, 1, null, { paytableId: other.id, hand });
+    state = (await sessionService.list()).find(row => row.id === session.id)!;
+    expect(state.state.handPaytableId).toBe(other.id);
+    expect(state.training?.switcher?.round).toEqual({ hand, next: 2 });
+    const decisions = (await db.table("decisions").toArray()).filter(row => row.sessionId === session.id).sort((x, y) => x.createdAt - y.createdAt);
+    expect(decisions.map(row => row.paytableId)).toEqual([table.id, other.id]);
+    // The round is done: the next deal starts a new one on the machine's table.
+    await answer(play, session.id, 0b01111);
+    expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { paytableId: table.id, switcher: { others: [other.id], differ: true } });
+  });
+});
+

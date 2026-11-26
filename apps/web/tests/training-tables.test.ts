@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
+import { analyzeHand, standardVariant } from "@perfect-draw/engine";
 import { getLibraryPayTable } from "@perfect-draw/paytables";
 import { loadPrecomputedAnalysis, loadPrecomputedManifest } from "@perfect-draw/precomputed";
 import { db, initializeDatabase } from "../src/data/db";
@@ -37,3 +38,21 @@ describe("which review cards a table can deal", () => {
     expect((await engine.prepareDeal(fullPay.id, 5, { labels: ["D0_2P"] })).best.label).not.toBe("D0_2P");
   }, 60_000);
 });
+
+describe("Pay Table Switcher deals", () => {
+  it("measures how often two tables' best holds differ, and deals hands where they do", async () => {
+    const jacks = getLibraryPayTable("jacks-or-better-9-6"), eightFive = getLibraryPayTable("jacks-or-better-8-5");
+    const [{ differPct }] = await engine.switcherDiffer(jacks.id, [eightFive.id], 5);
+    expect(differPct).toBeGreaterThan(0.01);
+    expect(differPct).toBeLessThan(10);
+    expect((await engine.switcherDiffer(nsud.id, [fullPay.id], 5))[0].differPct).toBeGreaterThan(differPct); // deuces tables differ more
+    await expect(engine.switcherDiffer(jacks.id, [nsud.id], 5)).rejects.toThrow("same game");
+    for (let round = 0; round < 5; round++) {
+      const mine = await engine.switcherDeal(jacks.id, [eightFive.id], 5, true);
+      const theirs = analyzeHand(mine.hand, standardVariant.valueVector(eightFive, 5, {}), "jacks_or_better");
+      // The 9/6 best hold is strictly worse on 8/5 (not a tie).
+      expect(theirs.results.find(hold => hold.mask === mine.best.mask)!.ev).toBeLessThan(theirs.best.ev - 1e-9);
+    }
+  }, 120_000);
+});
+

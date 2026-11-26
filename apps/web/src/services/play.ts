@@ -12,6 +12,7 @@ import { decisionService } from "./decisions";
 import { creditState } from "./money";
 import { betForNextDeal } from "./bet";
 import { recordAnswer, trainingService } from "./training";
+import { ladderAnswer, switcherDealt } from "../training/plans";
 
 type PlayEngine = Pick<EngineAPI, "prepareRound" | "resolveRound">;
 const transactionTables = () => [db.records("sessions"), db.records("wallets"), db.records("walletLedger"), db.records("decisions"), db.records("categoryMastery")];
@@ -38,9 +39,11 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient, pl
       // An adaptive-training session asks its plan what the next hand should be (a due card, a weakness, a close call).
       const target = initial.training ? await plan.nextDeal(initial, coins) : undefined;
       const lines = initial.mode === "drill" ? 1 : config.lines;
+      // A Pay Table Switcher round deals its later hands on another table of the same game.
+      const dealOn = target?.paytableId ?? config.paytableId;
       const prepared = target
-        ? await getEngine().prepareRound(config.paytableId, coins, lines, initial.trainingFocus, target)
-        : await getEngine().prepareRound(config.paytableId, coins, lines, initial.trainingFocus);
+        ? await getEngine().prepareRound(dealOn, coins, lines, initial.trainingFocus, target)
+        : await getEngine().prepareRound(dealOn, coins, lines, initial.trainingFocus);
       const analysis = handAnalysisSchema.parse(prepared.analysis);
       const drawDecks = drawDecksSchema.parse(prepared.drawDecks);
       if (drawDecks.length !== (initial.mode === "drill" ? 1 : config.lines) ||
@@ -58,13 +61,18 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient, pl
           balanceDisplay = creditState((await postLedger(session.walletId, -bet, "bet", { sessionId: id })).balanceCents, config.denominationCents);
         }
         const now = Date.now();
+        // The ladder remembers which chart line this hand practices; the Switcher moves its round along.
+        let training = session.training;
+        if (training?.ladder && target?.ladder) training = { ...training, ladder: { ...training.ladder, pending: target.ladder.line } };
+        if (training?.switcher && target) training = { ...training, switcher: switcherDealt(training.switcher, analysis.hand, !!target.hand) };
         const next = sessionSchema.parse({
-          ...session, updatedAt: now,
+          ...session, updatedAt: now, training,
           summary: { ...session.summary, coinInCents: session.summary.coinInCents + bet, netCents: session.summary.netCents - bet },
           state: {
             ...session.state, hand: analysis.hand, heldMask: 0, phase: "holding", ...balanceDisplay, primaryGrade: null,
             handId: newId(), handIndex: session.summary.hands + 1, dealtAt: now, decisionStartedAt: now,
             decisionElapsedMs: 0, analysis, drawDecks, warning: null, feedback: null, outcome: null, attempts: 0, handCoins: coins,
+            handPaytableId: dealOn === config.paytableId ? null : dealOn,
           },
         });
         await db.records("sessions").put(next); return next;
@@ -80,26 +88,28 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient, pl
       const mask = initial.state.heldMask;
       const config = initial.machineSnapshot;
       const coins = initial.state.handCoins ?? config.coins;
+      const paytableId = initial.state.handPaytableId ?? config.paytableId;
       const submittedAt = Date.now();
       const grade = gradeDecision(analysis, mask, initial.mode === "drill" ? 1 : config.lines);
       const warn = initial.mode === "free_play" && initial.state.feedbackMode === "warn_before_draw" && !grade.correct;
       if (confirmMistake && (!warn || initial.state.warning?.chosenMask !== mask)) throw new Error("Review this hold before confirming the warning.");
       const shouldWarn = warn && !confirmMistake;
       const outcome = initial.mode === "free_play" && !shouldWarn
-        ? outcomeSchema.parse(await getEngine().resolveRound(analysis.hand, mask, initial.state.drawDecks, config.paytableId, coins)) : null;
+        ? outcomeSchema.parse(await getEngine().resolveRound(analysis.hand, mask, initial.state.drawDecks, paytableId, coins)) : null;
       if (outcome && outcome.lines.length !== config.lines) throw new Error("Engine line count does not match this machine.");
       return db.transaction("rw", transactionTables(), async () => {
         const session = await requireRecord("sessions", id); active(session);
         if (session.state.handId !== handId) throw new Error("This hand is no longer current.");
         if (session.state.phase === "complete") return session;
         if (session.state.heldMask !== mask || session.state.feedbackMode !== initial.state.feedbackMode) throw new Error("Your hold or feedback mode changed. Submit the current selection again.");
+        let training = session.training;
         // Repeated warning/confirmation clicks reuse the logged attempt.
         const reuseWarning = session.state.warning?.chosenMask === mask;
         let attempts = session.state.attempts;
         if (!reuseWarning) {
           const decision = decisionSchema.parse({
             id: attempts === 0 ? handId : newId(), ...stamp(), sessionId: id, handId,
-            paytableId: config.paytableId, analysisKey: analysisKey(analysis.familyId, analysis.valueVector, coins),
+            paytableId, analysisKey: analysisKey(analysis.familyId, analysis.valueVector, coins),
             variantKind: session.variant.kind, variantState: session.state.variantState,
             canonicalHandId: canonicalizeHand(analysis.hand).id, dealtCards: analysis.hand,
             ...grade, decisionMs: session.state.decisionElapsedMs + Math.max(0, submittedAt - (session.state.decisionStartedAt ?? submittedAt)),
@@ -111,6 +121,8 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient, pl
           await decisionService.record(decision);
           // Every first decision updates the review card of the hand's best-hold category.
           if (attempts === 0) await recordAnswer({ familyId: analysis.familyId, label: grade.bestLabel, correct: grade.correct, evLossPerCoin: grade.evLoss / coins, at: submittedAt });
+          // The Strategy Ladder climbs on first answers to its newest line.
+          if (attempts === 0 && training?.ladder) training = { ...training, ladder: ladderAnswer(training.ladder, grade.correct) };
           attempts++;
         }
         if (shouldWarn) {
@@ -129,7 +141,7 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient, pl
           mistakeCounts[label] = (mistakeCounts[label] ?? 0) + 1;
         }
         const next = sessionSchema.parse({
-          ...session, updatedAt: Date.now(),
+          ...session, updatedAt: Date.now(), training,
           summary: {
             ...session.summary, hands: session.summary.hands + 1,
             netCents: session.summary.netCents + payout,

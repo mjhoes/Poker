@@ -51,6 +51,8 @@ export function engineClient() {
       statistics: (...args) => call(() => remote.statistics(...args)),
       validateTraining: (...args) => call(() => remote.validateTraining(...args)),
       trainableLabels: (...args) => call(() => remote.trainableLabels(...args)),
+      ladderChart: (...args) => call(() => remote.ladderChart(...args)),
+      switcherDiffer: (...args) => call(() => remote.switcherDiffer(...args)),
     };
   }
   return instance;

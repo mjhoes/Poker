@@ -16,4 +16,26 @@
 .weakness-list li span { display: block; color: var(--muted); font-size: var(--text-xs); }
 .train-cards { min-width: 520px; }
 .training-note .btn { margin-top: 8px; }
+.train-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ladder-progress { display: grid; gap: 2px; width: 100%; font-size: var(--text-sm); }
+.ladder-progress strong { font-size: var(--text-md); }
+.ladder-progress .muted { color: var(--muted); font-size: var(--text-xs); }
+.ladder-progress progress { width: 100%; height: 6px; margin-top: 6px; border: 0; border-radius: 999px; overflow: hidden; background: var(--line); appearance: none; }
+.ladder-progress progress::-webkit-progress-bar { background: var(--line); }
+.ladder-progress progress::-webkit-progress-value { background: var(--felt); }
+.ladder-progress progress::-moz-progress-bar { background: var(--felt); }
+.ladder-chart { width: 100%; font-size: var(--text-sm); }
+.ladder-chart summary { cursor: pointer; color: var(--muted); }
+.ladder-chart ol { display: grid; gap: 2px; max-height: 260px; overflow-y: auto; margin: 8px 0 0; padding-left: 30px; list-style: decimal; }
+.ladder-chart li span { margin-right: 6px; }
+.ladder-chart li small { color: var(--muted); }
+.ladder-chart li.is-current { font-weight: 700; }
+.ladder-chart li.is-learned small { color: var(--success); }
+.switcher-tables { display: grid; gap: 4px; width: 100%; margin: 0; padding: 0; border: 0; }
+.switcher-tables .switcher-option { margin-top: 6px; }
+.switcher-compare { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--text-sm); }
+.switcher-compare li { display: grid; gap: 1px; padding: 6px 10px; border-left: 3px solid var(--line); }
+.switcher-compare li.is-right { border-left-color: var(--felt); }
+.switcher-compare li.is-wrong { border-left-color: var(--danger); }
+.switcher-compare li span { color: var(--muted); }
 @media (max-width: 960px) { .train-grid { grid-template-columns: 1fr; } }

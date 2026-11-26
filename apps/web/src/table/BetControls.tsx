@@ -3,7 +3,7 @@ import { ChoiceChips } from "../components/ui";
 import { Icon } from "../components/Icons";
 import { money } from "../components/UiHelpers";
 import { findPaytable } from "../paytables/catalog";
-import { betForNextDeal } from "../services/bet";
+import { betForNextDeal, fixedBet } from "../services/bet";
 
 /** The bet that applies right now: the locked bet of a hand in play, otherwise the bet chosen for the next deal. */
 export function currentBet(session: Session) {
@@ -12,8 +12,8 @@ export function currentBet(session: Session) {
   return {
     coins: locked ? state.handCoins ?? machineSnapshot.coins : betForNextDeal(session),
     locked,
-    /** A focused drill's bet is part of what it trains. */
-    fixed: !!session.trainingFocus,
+    /** A focused drill's bet is part of what it trains; the Strategy Ladder plays max bet. */
+    fixed: fixedBet(session) !== null,
   };
 }
 
@@ -41,7 +41,7 @@ export function BetControls({ session, busy, onBet }: { session: Session; busy: 
     <ChoiceChips label="Credits per line" value={String(coins)} onChange={value => onBet(Number(value))}
       choices={["1", "2", "3", "4", "5"].map(value => ({ value, label: value, name: `${value} credit${value === "1" ? "" : "s"}`, disabled }))} />
     <span className="bet-total">
-      {locked ? <><Icon name="info" size={14} />Locked for this hand</> : fixed ? <>Set by this focused drill</> : session.mode === "drill"
+      {locked ? <><Icon name="info" size={14} />Locked for this hand</> : fixed ? <>{session.trainingFocus ? "Set by this focused drill" : "Strategy charts are for max bet"}</> : session.mode === "drill"
         ? <>Practice at this bet · no wager</>
         : <>{money(coins * lines * config.denominationCents)} per hand{lines > 1 ? ` (${lines} lines)` : ""}</>}
     </span>

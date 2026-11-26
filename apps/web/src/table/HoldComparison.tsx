@@ -1,3 +1,4 @@
+import { handPaytableId } from "../services/bet";
 import { useState } from "react";
 import type { Session } from "@perfect-draw/shared";
 import { dollarsFor } from "../components/ui";
@@ -42,7 +43,7 @@ export function HoldComparison({ session, grade }: { session: Session; grade: Gr
   if (!analysis || analysis.hand.length !== 5) return null;
   return <HoldComparisonPanel analysis={analysis} bestMask={grade.bestMask} other={other} onOther={setOther}
     mine={grade.correct ? null : grade.chosenMask} denominationCents={session.machineSnapshot.denominationCents}
-    context={{ paytableId: session.machineSnapshot.paytableId, coins: session.state.handCoins ?? session.machineSnapshot.coins }} />;
+    context={{ paytableId: handPaytableId(session), coins: session.state.handCoins ?? session.machineSnapshot.coins }} />;
 }
 
 /** The strongest hold worth strictly less than the best. */

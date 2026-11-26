@@ -5,6 +5,7 @@ import { db } from "../data/db";
 import { trainingService } from "../services/training";
 import type { Card } from "./core";
 import type { TrainingTable } from "../services/training";
+import type { LadderChart, LadderTier } from "../worker/engine-api";
 import { errorMessage } from "../hooks/useActionRunner";
 
 /** Review cards, today's review on a table, and the daily cap, kept current as you play. */
@@ -58,4 +59,32 @@ export function useFamily(paytableId: string | undefined) {
     return () => { cancelled = true; };
   }, [paytableId]);
   return familyId;
+}
+
+/** A table's chart for the Strategy Ladder (an engine call: built once for a custom table, about 20 s). */
+export function useLadderChart(paytableId: string | undefined, tier: LadderTier) {
+  const [value, setValue] = useState<{ key: string; chart?: LadderChart; error?: string } | null>(null);
+  const key = paytableId ? `${paytableId}:${tier}` : "";
+  useEffect(() => {
+    if (!paytableId) { setValue(null); return; }
+    let cancelled = false;
+    setValue({ key });
+    trainingService.ladderChart(paytableId, tier).then(chart => { if (!cancelled) setValue({ key, chart }); },
+      reason => { if (!cancelled) setValue({ key, error: errorMessage(reason) }); });
+    return () => { cancelled = true; };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- the key names both inputs
+  return value?.key === key ? value : null;
+}
+
+/** Strategy Ladder progress on a chart, kept current as you play (undefined while loading, null before the first ladder). */
+export function useLadderProgress(paytableId: string | undefined, tier: LadderTier) {
+  const [value, setValue] = useState<{ key: string; progress: Awaited<ReturnType<typeof trainingService.ladderProgress>> } | undefined>();
+  const key = paytableId ? `${paytableId}:${tier}` : "";
+  useEffect(() => {
+    if (!paytableId) return;
+    const subscription = liveQuery(() => trainingService.ladderProgress(paytableId, tier))
+      .subscribe({ next: progress => setValue({ key, progress }), error: () => setValue({ key, progress: null }) });
+    return () => subscription.unsubscribe();
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- the key names both inputs
+  return value?.key === key ? value.progress : undefined;
 }

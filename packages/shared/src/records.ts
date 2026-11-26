@@ -116,6 +116,8 @@ export const sessionStateSchema = z.object({
   betCoins: z.number().int().min(1).max(5).nullable().default(null),
   /** Coins per line locked for the hand in play (or last played); null on hands dealt before bets could change. */
   handCoins: z.number().int().min(1).max(5).nullable().default(null),
+  /** The pay table of the hand in play when it isn't the machine's (a Pay Table Switcher round); null = the machine's. */
+  handPaytableId: hash.nullable().default(null),
 }).superRefine((state, ctx) => {
   if (state.hand.length === 0 && (state.heldMask !== 0 || state.phase !== "ready")) ctx.addIssue({ code: "custom", message: "A non-ready state needs a hand" });
   if (state.handId) {
@@ -136,15 +138,35 @@ export const sessionSummarySchema = z.object({
   mistakeCounts: z.record(z.number().int().nonnegative()).default({}),
 }).default({});
 /** Adaptive training plan for a Rapid Drill session (docs/15-ADAPTIVE-TRAINING-PLAN.md). */
+export const ladderTierSchema = z.enum(["Beginner", "Intermediate", "Expert"]);
+/**
+ * Strategy Ladder progress (docs/16-ADAPTIVE-TRAINING-ROUND-B.md): the chart, its practicable lines (chart line indexes,
+ * top-down), how many are unlocked (`step`; past the last = mixed review), the run of right answers on the newest
+ * line, and the line of the hand in play.
+ */
+export const ladderStateSchema = z.object({
+  tier: ladderTierSchema,
+  lines: z.array(z.number().int().min(0).max(500)).min(1).max(200),
+  step: z.number().int().min(1), streak: z.number().int().min(0),
+  pending: z.number().int().min(0).nullable().default(null),
+});
+/** Pay Table Switcher: the tables (the machine's first) and the round in play (its cards, and the next table's index). */
+export const switcherStateSchema = z.object({
+  tables: z.array(hash).min(2).max(3),
+  round: z.object({ hand: z.array(z.number().int().min(0).max(51)).length(5), next: z.number().int().min(1).max(3) }).nullable().default(null),
+});
 export const trainingSchema = z.object({
-  kind: z.enum(["review", "weakness", "close_calls"]),
+  kind: z.enum(["review", "weakness", "close_calls", "ladder", "switcher"]),
   /** Review: keep serving due cards past the daily cap. */
   keepGoing: z.boolean().default(false),
   /** Close calls: the largest EV gap between the best two holds, in credits per coin bet. */
   closeCallPerCoin: z.number().min(0.01).max(0.5).optional(),
   /** Weakness Trainer: the confusion pairs to train, weighted by what they cost. */
   targets: z.array(z.object({ bestLabel: z.string().min(1).max(250), chosenLabel: z.string().min(1).max(250), weight: z.number().finite().nonnegative() })).max(5).optional(),
-});
+  ladder: ladderStateSchema.optional(),
+  switcher: switcherStateSchema.optional(),
+}).refine(training => (training.kind === "ladder") === !!training.ladder && (training.kind === "switcher") === !!training.switcher,
+  "A Strategy Ladder or Pay Table Switcher session needs its plan.");
 export const paceSchema = z.object({
   targetHandsPerHour: z.number().int().min(100).max(3000), accuracyPct: z.number().min(90).max(100),
   /** The trip whose needed pace set the target, if any. */

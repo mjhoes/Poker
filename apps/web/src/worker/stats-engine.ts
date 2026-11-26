@@ -131,6 +131,48 @@ export class StatsEngine {
     if (target.strict) throw new Error("This card's category isn't a best hold on this table at this bet.");
     throw lastError instanceof Error ? lastError : new Error("No hand fits this training plan.");
   }
+  /** Deal IDs where two tables' best holds differ (a tie that includes the other's best counts as the same). */
+  private readonly differing = new Map<string, number[]>();
+  private async differIds(paytableId: string, other: string, coins: number) {
+    const a = await this.game(paytableId, coins), b = await this.game(other, coins);
+    if (a.analysis.familyId !== b.analysis.familyId) throw new Error("The Pay Table Switcher compares tables of the same game.");
+    const cacheKey = `${a.key}|${b.key}`;
+    let ids = this.differing.get(cacheKey);
+    if (!ids) {
+      ids = [];
+      for (const [id, mine] of a.analysis.perHand) {
+        const theirs = b.analysis.perHand.get(id)!;
+        const same = mine.bestMask === theirs.bestMask ||
+          (mine.bestMask === theirs.secondMask && theirs.ev - theirs.secondEv < 1e-9) ||
+          (theirs.bestMask === mine.secondMask && mine.ev - mine.secondEv < 1e-9);
+        if (!same) ids.push(id);
+      }
+      this.differing.set(cacheKey, ids);
+    }
+    return ids;
+  }
+  /** The share of real deals (%) whose best hold differs between this table and each other one, at this bet. */
+  async switcherDiffer(paytableId: string, others: readonly string[], coins: number) {
+    const result: { paytableId: string; differPct: number }[] = [];
+    for (const other of others) {
+      const ids = await this.differIds(paytableId, other, coins);
+      const { analysis } = await this.game(paytableId, coins);
+      result.push({ paytableId: other, differPct: ids.reduce((sum, id) => sum + analysis.perHand.get(id)!.weight, 0) * 100 / 2598960 });
+    }
+    return result;
+  }
+  /** A Pay Table Switcher round's hand on its first table: one whose best hold differs on another table, or any. */
+  async switcherDeal(paytableId: string, others: readonly string[], coins: number, differ: boolean): Promise<HandAnalysis> {
+    const union = new Set<number>();
+    // One table pair at a time: only two full analyses are kept in memory.
+    if (differ) for (const other of others) for (const id of await this.differIds(paytableId, other, coins)) union.add(id);
+    const ids = [...union];
+    const { key, analysis } = await this.game(paytableId, coins);
+    registerTrainingAnalysis(key, analysis);
+    const drill = generateHand({ analysisKey: key, onlyIds: ids.length ? ids : undefined, sampling: "real" });
+    this.prepareFamily(analysis.familyId);
+    return analyzeHandFast(drill.hand, analysis.valueVector, analysis.familyId);
+  }
   async validateTraining(paytableId: string, coins: number, label: string) {
     const { key } = await this.game(paytableId, coins);
     if (!(await this.trainableLabels(paytableId, coins)).includes(label)) throw new Error("No hands have this optimal category at the selected bet.");

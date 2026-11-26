@@ -29,7 +29,23 @@ export type StrategyDifference = {
  * What an adaptive-training deal asks for: categories, a confused pair, and/or a close-call gap (total coins at the bet).
  * `strict`: only the asked-for categories, never any other hand (a review card).
  */
-export type DealTarget = { labels?: string[]; pairs?: { correct: string; confusedWith: string }[]; closeCallMaxGap?: number; strict?: boolean };
+export type DealTarget = {
+  labels?: string[]; pairs?: { correct: string; confusedWith: string }[]; closeCallMaxGap?: number; strict?: boolean;
+  /** Strategy Ladder (5 coins): a deal where this chart line picks the hold and that hold is a best play. */
+  ladder?: { tier: LadderTier; line: number };
+  /** Pay Table Switcher, a round's first table: a deal whose best hold differs on one of `others` (`differ`), else any. */
+  switcher?: { others: string[]; differ: boolean };
+  /** Pay Table Switcher, a later table: these same cards. */
+  hand?: number[];
+  /** The pay table to deal on when it isn't the machine's (a Pay Table Switcher round's later table). */
+  paytableId?: string;
+};
+export type LadderTier = "Beginner" | "Intermediate" | "Expert";
+/** A strategy chart for the ladder: each line, and whether any deal can practice it (its hold is a best play there). */
+export type LadderChart = {
+  familyId: GameFamilyId; tier: LadderTier; returnPct: number; optimalReturnPct: number;
+  lines: { label: string; alternatives?: string[]; freq: number; dealable: boolean }[];
+};
 export interface EngineAPI {
   rollupDecisions(timeZone: string): Promise<number>;
   /** A dealt round; a focused drill (`focus`) or an adaptive-training `target` picks the hand. */
@@ -38,6 +54,10 @@ export interface EngineAPI {
   validateTraining(paytableId: string, coins: number, label: string): Promise<string>;
   /** The categories that are a best hold on this table at this bet (sorted). */
   trainableLabels(paytableId: string, coins: number): Promise<string[]>;
+  /** A table's Beginner, Intermediate or Expert chart, line by line, for the Strategy Ladder. */
+  ladderChart(paytableId: string, tier: LadderTier): Promise<LadderChart>;
+  /** For the Pay Table Switcher: the share of deals (%) whose best hold differs between `paytableId` and each other table. */
+  switcherDiffer(paytableId: string, others: string[], coins: number): Promise<{ paytableId: string; differPct: number }[]>;
   resolveRound(hand: Hand, mask: number, decks: number[][], paytableId: string, coins: number): Promise<RoundOutcome>;
   analyzeHand(cards: Hand, paytableId: string, coins: number): Promise<HandAnalysis>;
   analyzeGame(familyId: GameFamilyId, vector: ValueVector, betCoins: number, progress?: (value: AnalysisProgress) => void): Promise<AnalysisSummary>;

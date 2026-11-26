@@ -30,4 +30,6 @@ export { describeLabel } from "./label-descriptions";
 export { evaluateRule, validateRuleAST } from "./rules";
 export type { RuleAST, HoldSelector, RuleCondition, RuleEvaluation, RuleCounterexample } from "./rules";
 export { generateHand } from "./drills";
+export { chartLineIndex } from "./ladder";
+export type { ChartLineIndex } from "./ladder";
 export type { DrillHand, DrillOptions } from "./drills";
