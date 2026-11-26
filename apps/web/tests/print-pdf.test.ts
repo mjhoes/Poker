@@ -189,7 +189,7 @@ describe("the printed chart plays like the engine's chart", () => {
     expect(playPrinted(content, hand, value.familyId, list.refinement)).toBe(engine.mask);
   });
   for (const [slugName, tiers, stride] of [["jacks-or-better-9-6", PRINT_TIERS, 3], ["double-double-bonus-9-6", PRINT_TIERS, 7], ["deuces-wild-nsud", PRINT_TIERS, 7]] as const) {
-    it(`${slugName}: ${stride === 1 ? "every deal" : `one deal in every ${stride}`} is held as the engine's chart holds it, at every tier`, async () => {
+    it(`${slugName}: one deal in every ${stride} is held as the engine's chart holds it, at every tier`, async () => {
       const table = PAY_TABLE_LIBRARY.find(item => item.slug === slugName)!;
       const value = await analysis(table.id);
       const hands = getCanonicalHands();
