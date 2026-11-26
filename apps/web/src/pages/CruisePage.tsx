@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { Machine } from "@perfect-draw/shared";
+import type { Machine, Session, Wallet } from "@perfect-draw/shared";
 import { Badge, Button, MenuButton } from "../components/ui";
 import { money } from "../components/UiHelpers";
 import type { ConfirmOptions } from "../components/ConfirmDialog";
@@ -13,13 +13,16 @@ import {
   sessionStatus, toCsv, tripPhase,
 } from "../cruise/economics";
 import type { CasinoSession, Program, Rollup, Trip } from "../cruise/economics";
-import { returnKey, useCruiseData, useExpectedReturns, useNow, usePracticePace } from "../cruise/useCruise";
+import { returnKey, useCruiseData, useExpectedReturns, useNow, usePaceBands, usePracticePace } from "../cruise/useCruise";
 import { CashOutDialog, formatDuration, PAUSE_LABELS, PauseDialog, ProgramDialog, ReadingDialog, REWARD_TYPES, RewardDialog, StartCasinoDialog, TripDialog } from "../cruise/CruiseDialogs";
 import { Planner } from "../cruise/Planner";
+import { PaceDialog, PacePanel } from "../cruise/PaceTraining";
+import type { TripNeed } from "../cruise/PaceTraining";
+import { bestPace, DEFAULT_ACCURACY_PCT } from "../cruise/pace";
 
 type Dialog =
   | { kind: "trip"; trip?: Trip } | { kind: "program"; program: Program } | { kind: "start"; trip: Trip }
-  | { kind: "pause" | "cash" | "points" | "cashout"; session: CasinoSession } | { kind: "reward"; tripId?: string };
+  | { kind: "pause" | "cash" | "points" | "cashout"; session: CasinoSession } | { kind: "reward"; tripId?: string } | { kind: "pace" };
 
 const signed = (cents: number) => `${cents > 0 ? "+" : cents < 0 ? "−" : ""}${money(Math.abs(cents))}`;
 const number = (value: number, digits = 0) => value.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -142,8 +145,17 @@ function Totals({ rolled, title, eyebrow, extra, returnsState }: { rolled: Rollu
   </section>;
 }
 
-export function CruisePage({ machines, busy, run, confirm }: { machines: Machine[]; busy: boolean; run: Run; confirm: (options: ConfirmOptions) => Promise<boolean> }) {
+export function CruisePage({ machines, wallets, practiceSessions, busy, run, confirm, onOpenRoom }: {
+  machines: Machine[]; wallets: Wallet[]; practiceSessions: Session[]; busy: boolean; run: Run;
+  confirm: (options: ConfirmOptions) => Promise<boolean>; onOpenRoom: () => void;
+}) {
   const data = useCruiseData();
+  const paceData = usePaceBands();
+  const bands = paceData?.bands ?? null;
+  // The accuracy bar and feedback start from your last pace session (99.9% and quiet the first time).
+  const lastPace = [...practiceSessions].filter(session => session.pace).sort((a, b) => b.startedAt - a.startedAt)[0];
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const accuracyPct = accuracy ?? lastPace?.pace?.accuracyPct ?? DEFAULT_ACCURACY_PCT;
   const tables = useAllPaytables();
   const practicePace = usePracticePace();
   const [tripId, setTripId] = useState("");
@@ -179,6 +191,13 @@ export function CruisePage({ machines, busy, run, confirm }: { machines: Machine
   const pace = casinoPace ?? practicePace ?? DEFAULT_HANDS_PER_HOUR;
   const lastSession = [...data.sessions].reverse().find(session => session.endedAt !== null) ?? data.sessions[data.sessions.length - 1];
   const pointsSoFar = (trip?.startingPoints ?? 0) + tripRolled.points;
+  const tripHoursLeft = trip && tripPhase(trip, now) !== "done" ? hoursLeft(trip, tripSessions, now) : 0;
+  const need: TripNeed | null = trip ? {
+    pointsNeeded: Math.max(0, Math.ceil(trip.targetPoints - pointsSoFar)), hoursLeft: tripHoursLeft, dollarsPerPoint: program.dollarsPerPoint,
+    betCents: lastSession ? betCents(lastSession) : 125,
+  } : null;
+  const best = bands ? bestPace(bands, accuracyPct) : null;
+  const pacePanel = <PacePanel bands={bands} withheld={paceData?.withheld ?? 0} program={program} need={need} accuracyPct={accuracyPct} onAccuracy={setAccuracy} onTrain={() => setDialog({ kind: "pace" })} />;
 
   async function deleteTrip(value: Trip) {
     if (!await confirm({ title: `Delete “${value.shipName}”?`, tone: "danger", icon: "trash", confirmLabel: "Delete trip",
@@ -232,7 +251,9 @@ export function CruisePage({ machines, busy, run, confirm }: { machines: Machine
       <p className="muted">{program.name}: 1 point per {money(program.dollarsPerPoint * 100)} of coin-in{program.freePlayEarnsPoints ? "" : "; free play earns none"}.</p>
       <div className="panel-actions"><Button variant="gold" icon="plus" onClick={() => setDialog({ kind: "trip" })}>Plan a trip</Button>
         <Button variant="secondary" icon="settings" onClick={() => setDialog({ kind: "program", program })}>Program rules</Button></div>
-    </div> : <>
+    </div> : null}
+    {!trip && pacePanel}
+    {trip && <>
       <div className="trip-bar">
         <label className="field trip-picker"><span className="field-label">Trip</span>
           <select aria-label="Trip" value={trip.id} onChange={event => setTripId(event.target.value)}>
@@ -265,10 +286,12 @@ export function CruisePage({ machines, busy, run, confirm }: { machines: Machine
 
       {/* Inputs follow the trip until changed; switching trips starts afresh. */}
       <Planner key={trip.id} program={program} tables={tables} machines={machines} defaults={{
-        targetPoints: trip.targetPoints, pointsSoFar, hoursLeft: phase === "done" ? 0 : hoursLeft(trip, tripSessions, now),
+        targetPoints: trip.targetPoints, pointsSoFar, hoursLeft: tripHoursLeft, bestPace: best?.meanHandsPerHour ?? null, accuracyPct,
         handsPerHour: pace, paceSource: casinoPace ? "casino" : practicePace ? "practice" : "default",
         paytableId: lastSession?.paytableId ?? machines[0]?.paytableId, denominationCents: lastSession?.denominationCents ?? 25, coins: lastSession?.coins ?? 5,
       }} />
+
+      {pacePanel}
 
       <SessionsTable sessions={tripSessions} program={program} points={points} onEdit={session => setDialog({ kind: "cashout", session })} onDelete={session => void deleteSession(session)} />
     </>}
@@ -299,6 +322,9 @@ export function CruisePage({ machines, busy, run, confirm }: { machines: Machine
     {dialog?.kind === "pause" && <PauseDialog session={dialog.session} busy={busy} run={run} onClose={close} />}
     {(dialog?.kind === "cash" || dialog?.kind === "points") && <ReadingDialog session={dialog.session} kind={dialog.kind} busy={busy} run={run} onClose={close} />}
     {dialog?.kind === "cashout" && <CashOutDialog session={dialog.session} program={program} pace={pace} busy={busy} run={run} onClose={close} />}
+    {dialog?.kind === "pace" && <PaceDialog machines={machines} wallets={wallets} program={program} tripId={trip?.id} accuracyPct={accuracyPct}
+      need={need && need.pointsNeeded > 0 && need.hoursLeft > 0 ? need : null} feedbackMode={lastPace?.state.feedbackMode ?? "silent_report"}
+      fallbackPace={Math.round(best?.meanHandsPerHour ?? pace)} busy={busy} run={run} onClose={close} onStarted={() => { close(); onOpenRoom(); }} />}
     {dialog?.kind === "reward" && <RewardDialog programs={data.programs} trips={data.trips} tripId={dialog.tripId} busy={busy} run={run} onClose={close} />}
   </>;
 }

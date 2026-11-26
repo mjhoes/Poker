@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { PaceChip, PaceMeter } from "../cruise/PaceMeter";
 import { findPaytable } from "../paytables/catalog";
 import type { FeedbackMode, Session } from "@perfect-draw/shared";
 import type { TableSummary } from "../worker/engine-api";
-import { creditLabel, dateTime, familyName, modeName, money, plural } from "../components/UiHelpers";
+import { creditLabel, dateTime, familyName, sessionModeName, money, plural } from "../components/UiHelpers";
 import type { FeltId } from "../components/Felt";
 import { Badge, Button, CoinAmount, Disclosure, Tooltip } from "../components/ui";
 import { Icon } from "../components/Icons";
@@ -53,7 +54,7 @@ function ClosedSummary({ session }: { session: Session }) {
 
 function SessionHistory({ sessions, onSelect }: { sessions: Session[]; onSelect: (id: string) => void }) {
   return <>{sessions.map(item => <div className="list-row" key={item.id}>
-    <div className="list-main"><strong>{item.machineSnapshot.name} · {modeName(item.mode)}</strong><span>{dateTime(item.startedAt)} · {plural(item.summary.hands, "hand")}</span></div>
+    <div className="list-main"><strong>{item.machineSnapshot.name} · {sessionModeName(item)}</strong><span>{dateTime(item.startedAt)} · {plural(item.summary.hands, "hand")}</span></div>
     <button className="text-button" type="button" onClick={() => onSelect(item.id)}>View report</button>
   </div>)}</>;
 }
@@ -151,7 +152,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
   return <>
     <header className="session-bar">
       <div>
-        <p className="eyebrow session-eyebrow">{modeName(session.mode)} {statusBadge(session)}</p>
+        <p className="eyebrow session-eyebrow">{sessionModeName(session)} {statusBadge(session)}</p>
         <h1>{config.name}</h1>
         <p className="session-bar-meta">{libraryTable?.name ?? "Custom pay table"} · {money(config.denominationCents)} per coin · bet {plural(bet, "coin")}{freePlay ? ` × ${plural(config.lines, "line")}` : " · no wager"}</p>
       </div>
@@ -174,7 +175,8 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
       <section className="play-console">
         <div className="play-table" data-felt={felt} data-speed={dealSpeed}>
           <div className="play-topline">
-            <span className="play-mode-tag">{modeName(session.mode)}</span>
+            <span className="play-mode-tag">{sessionModeName(session)}</span>
+            {session.pace && <PaceChip session={session} />}
             <span className="hand-counter">Hand {state?.handIndex ? String(state.handIndex).padStart(3, "0") : "—"}</span>
             {session.status !== "closed" && <TableSettings session={session} busy={busy} onFeedback={mode => onFeedback(session, mode)} />}
           </div>
@@ -235,6 +237,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
       </section>
 
       <aside className="session-side">
+        {session.pace && <PaceMeter session={session} />}
         <section className="panel panel-pad session-stats">
           <p className="eyebrow">This session</p>
           <div className="metric-row"><span>Credits</span><strong className="coin-amount"><span className="coin-amount-credits">{creditLabel(state ?? { credits: 0 })}</span><span className="coin-amount-dollars">({money(creditsValueCents(session))})</span></strong></div>

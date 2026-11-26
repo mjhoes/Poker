@@ -1,7 +1,8 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, initializeDatabase } from "../src/data/db";
-import { casinoService, programService, rewardService, tripService } from "../src/services/cruise";
+import { casinoService, freePlayDecisions, programService, rewardService, tripService } from "../src/services/cruise";
+import { newId } from "@perfect-draw/shared";
 import { backupService } from "../src/services/backup";
 import { estimateFor, pointsEarned, rollup, sessionCoinIn } from "../src/cruise/economics";
 
@@ -128,4 +129,31 @@ it("backs up and restores the cruise records", async () => {
   expect(await tripService.list()).toHaveLength(1);
   expect((await casinoService.list())[0]).toMatchObject({ pointsBefore: 10, pointsAfter: 20 });
   expect(await rewardService.list()).toHaveLength(1);
+});
+
+describe("Free Play hands for the pace trade-off (PR #8 review)", () => {
+  const session = (id: string, mode: string, status: string, feedbackMode = "warn_before_draw") =>
+    ({ id, mode, status, deletedAt: null, updatedAt: 0, state: { feedbackMode } });
+  const decision = (sessionId: string, createdAt: number, extra: Record<string, unknown> = {}) =>
+    ({ id: newId(), sessionId, createdAt, isCorrection: false, deletedAt: null, updatedAt: createdAt, ...extra });
+  it("keeps closed Free Play history when far more drill decisions are newer, and doesn't count corrections", async () => {
+    const free = newId(), drill = newId();
+    await db.table("sessions").bulkAdd([session(free, "free_play", "closed"), session(drill, "drill", "active")]);
+    await db.table("decisions").bulkAdd([
+      decision(free, 1000), decision(free, 2000), decision(free, 3000), decision(free, 3500, { isCorrection: true }),
+      ...Array.from({ length: 10_001 }, (_, index) => decision(drill, 10_000 + index)),
+    ]);
+    const { decisions } = await freePlayDecisions();
+    expect(decisions.map(row => row.createdAt)).toEqual([3000, 2000, 1000]);
+    expect((await freePlayDecisions(2)).decisions.map(row => row.createdAt)).toEqual([3000, 2000]);
+  });
+  it("holds back an open quiet session's hands until it closes; other open sessions count", async () => {
+    const quiet = newId(), shown = newId();
+    await db.table("sessions").bulkAdd([session(quiet, "free_play", "active", "silent_report"), session(shown, "free_play", "active", "show_after_draw")]);
+    await db.table("decisions").bulkAdd([decision(quiet, 1000), decision(quiet, 2000), decision(shown, 3000)]);
+    expect(await freePlayDecisions()).toMatchObject({ withheld: 2, decisions: [{ sessionId: shown }] });
+    await db.table("sessions").update(quiet, { status: "closed" });
+    expect(await freePlayDecisions()).toMatchObject({ withheld: 0 });
+    expect((await freePlayDecisions()).decisions).toHaveLength(3);
+  });
 });

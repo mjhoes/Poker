@@ -226,6 +226,27 @@ export const rewardService = {
   },
 };
 
+/**
+ * Your most recent Free Play hands (pace sessions included), for the speed/accuracy trade-off: the newest `limit`
+ * first decisions (corrections aren't hands) from Free Play sessions, scanning back until that many are found, so
+ * drill history never crowds them out. Sessions still open with quiet feedback are left out until they close: their
+ * accuracy is hidden until then, here as in the session room. `withheld` says how many hands that holds back.
+ */
+export async function freePlayDecisions(limit = 5000) {
+  const sessions = (await db.records("sessions").toArray()).filter(session => live(session) && session.mode === "free_play");
+  const quietOpen = new Set(sessions.filter(session => session.status !== "closed" && session.state.feedbackMode === "silent_report").map(session => session.id));
+  const counted = new Set(sessions.filter(session => !quietOpen.has(session.id)).map(session => session.id));
+  const decisions = await db.records("decisions").orderBy("createdAt").reverse()
+    .filter(decision => live(decision) && !decision.isCorrection && counted.has(decision.sessionId)).limit(limit).toArray();
+  const withheld = quietOpen.size ? await db.records("decisions").where("sessionId").anyOf([...quietOpen])
+    .filter(decision => live(decision) && !decision.isCorrection).count() : 0;
+  return { decisions, withheld };
+}
+/** One session's decisions. */
+export async function sessionDecisions(sessionId: string) {
+  return (await db.records("decisions").where("sessionId").equals(sessionId).toArray()).filter(live);
+}
+
 /** Pace of your recent Free Play (hands per active hour), from the last 3,000 decisions. */
 export async function practicePaceNow() {
   const freePlay = new Set((await db.records("sessions").toArray()).filter(session => live(session) && session.mode === "free_play").map(session => session.id));

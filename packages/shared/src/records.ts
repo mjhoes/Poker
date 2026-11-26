@@ -133,6 +133,11 @@ export const sessionSummarySchema = z.object({
   topMistakes: z.array(z.object({ label: z.string(), count: z.number().int().nonnegative() })).default([]),
   mistakeCounts: z.record(z.number().int().nonnegative()).default({}),
 }).default({});
+export const paceSchema = z.object({
+  targetHandsPerHour: z.number().int().min(100).max(3000), accuracyPct: z.number().min(90).max(100),
+  /** The trip whose needed pace set the target, if any. */
+  tripId: uuid.optional(),
+});
 export const sessionSchema = z.object({
   ...entity, machineId: uuid, walletId: uuid,
   // Snapshot terms: editing a machine must not change a hand already in progress.
@@ -144,6 +149,8 @@ export const sessionSchema = z.object({
   activeMs: z.number().finite().nonnegative().default(0), handsPerHour: z.number().finite().nonnegative().default(0),
   trainingFocus: z.object({ label: z.string().min(1).max(250), analysisKey: hash }).nullable().default(null),
   virtualCoinInCents: cents.nonnegative().default(0), virtualPoints: z.number().finite().nonnegative().default(0),
+  /** Casino-Pace Mode: a Free Play session trained toward a pace while holding an accuracy bar (% of perfect play's EV). */
+  pace: paceSchema.nullable().default(null),
 });
 export const decisionSchema = z.object({
   ...entity, sessionId: uuid, paytableId: hash, analysisKey: hash,
