@@ -6,6 +6,7 @@ import type { Machine, StatsQuery, StatsReportView } from "@perfect-draw/shared"
 import { dollarsFor } from "../components/ui";
 import { denominationLabel } from "../machines/machine-info";
 import { TrendChart, WeaknessRankingChart } from "../components/StatisticsCharts";
+import { localCount } from "../components/UiHelpers";
 import { statsService } from "../services/statistics";
 
 type TrendMetric = "accuracyPct" | "evLostPer1000" | "asDrilledReturnPct";
@@ -22,8 +23,7 @@ const creditsFormatter = (denominationCents: number | null) => (value: number | 
   const amount = value !== 0 && Math.abs(value) < 0.001 ? `${value.toExponential(2)} credits` : `${value.toFixed(digits)} credits`;
   return denominationCents ? `${amount} (${dollarsFor(value, denominationCents)})` : amount;
 };
-const COUNT = new Intl.NumberFormat();
-const count = (value: number) => COUNT.format(value);
+const count = localCount;
 const dateEpoch = (value: string, end = false) => {
   if (!value) return undefined;
   const bounds = localDayBounds(value, Intl.DateTimeFormat().resolvedOptions().timeZone);

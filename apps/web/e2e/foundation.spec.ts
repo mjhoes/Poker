@@ -198,3 +198,24 @@ test("changing page clears error toasts, without updating the toasts during a re
   await page.getByRole("link", { name: "Machines", exact: true }).click();
   expect(warnings.filter(text => text.includes("Cannot update a component"))).toEqual([]);
 });
+
+test("timestamps follow a time zone change without a reload: after a page change or the app coming back", async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTimezoneOverride", { timezoneId: "America/New_York" });
+  await page.clock.setFixedTime(new Date(Date.UTC(2026, 10, 27, 5, 30)));
+  await page.goto("/");
+  await createWallet(page); // its opening deposit is stamped 05:30 UTC
+  const when = page.locator("table.ledger tbody tr").first().locator("td").first();
+  await expect(when).toHaveText("Nov 27, 2026, 12:30 AM");
+  // Travel west with the app open, then change page: the same entry reads in the new zone.
+  await cdp.send("Emulation.setTimezoneOverride", { timezoneId: "America/Los_Angeles" });
+  await page.getByRole("link", { name: "Machines", exact: true }).click();
+  await page.getByRole("link", { name: "Wallets", exact: true }).click();
+  await expect(when).toHaveText("Nov 26, 2026, 9:30 PM");
+  // And when the app comes back to the front (a resume), on the page it was left on.
+  await cdp.send("Emulation.setTimezoneOverride", { timezoneId: "Asia/Tokyo" });
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await page.getByRole("button", { name: /^Add credits/ }).first().click();
+  await page.keyboard.press("Escape");
+  await expect(when).toHaveText("Nov 27, 2026, 2:30 PM");
+});

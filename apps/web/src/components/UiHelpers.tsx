@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 // Formatters are made once: building an Intl formatter costs far more than using one, and these run on every render.
 const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const WHOLE = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
-const STAMP = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const fixedDigits = new Map<number, Intl.NumberFormat>();
 /** A number with US grouping ("4,000"), rounded to `digits` decimals (shown in full). */
 export function grouped(value: number, digits = 0) {
@@ -18,7 +17,37 @@ export const money = (cents: number) => USD.format(cents / 100);
 export const credits = (value: number) => WHOLE.format(Math.floor(value));
 export const creditLabel = (state: { credits: number; creditRemainderCents?: number }) =>
   `${credits(state.credits)} credits${state.creditRemainderCents ? ` + ${money(state.creditRemainderCents)}` : ""}`;
-export const dateTime = (value: number) => STAMP.format(value);
+/*
+ * Formatters for the device's own time zone and language follow them when they change while the app stays open (travel,
+ * a PWA left running). The zone and language are read again, exactly, when the app is shown again, gains focus,
+ * changes page or the language changes; between those, each use compares the device's current UTC offset, which is
+ * cheap. A changed zone or language builds new formatters; otherwise they're reused.
+ */
+type LocalFormats = { zone: string; language: string; offset: number; stamp: Intl.DateTimeFormat; count: Intl.NumberFormat };
+let local: LocalFormats | null = null;
+let recheck = true;
+function localFormats(): LocalFormats {
+  const offset = new Date().getTimezoneOffset();
+  if (local && !recheck && local.offset === offset) return local;
+  recheck = false;
+  const { timeZone: zone, locale: language } = new Intl.DateTimeFormat().resolvedOptions();
+  if (local && local.zone === zone && local.language === language) { local.offset = offset; return local; }
+  local = {
+    zone, language, offset,
+    stamp: new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }),
+    count: new Intl.NumberFormat(),
+  };
+  return local;
+}
+if (typeof window !== "undefined") {
+  const mark = () => { recheck = true; };
+  for (const event of ["focus", "pageshow", "hashchange", "languagechange"]) window.addEventListener(event, mark);
+  document.addEventListener("visibilitychange", mark);
+}
+/** A count in the device's current language. */
+export const localCount = (value: number) => localFormats().count.format(value);
+/** A date and time in the device's current time zone and language. */
+export const dateTime = (value: number) => localFormats().stamp.format(value);
 const FAMILY_NAMES: Record<string, string> = {
   jacks_or_better: "Jacks or Better", bonus_poker: "Bonus Poker", bonus_poker_deluxe: "Bonus Poker Deluxe",
   double_bonus: "Double Bonus", double_double_bonus: "Double Double Bonus", deuces_wild: "Deuces Wild",
@@ -34,8 +63,7 @@ const HAND_RANK_NAMES: Record<string, string> = {
   TWO_PAIR: "Two Pair", JACKS_OR_BETTER: "Jacks or Better", NOTHING: "No win",
 };
 export const handRankName = (id: string) => HAND_RANK_NAMES[id] ?? titleCase(id);
-const COUNT = new Intl.NumberFormat();
-export const plural = (count: number, noun: string) => `${COUNT.format(count)} ${noun}${count === 1 ? "" : "s"}`;
+export const plural = (count: number, noun: string) => `${localFormats().count.format(count)} ${noun}${count === 1 ? "" : "s"}`;
 export const modeName = (mode: string) => ({ drill: "Rapid Drill", free_play: "Free Play" } as Record<string, string>)[mode] ?? mode.replaceAll("_", " ");
 /** A session's mode as players know it: a Free Play session with pace settings is a Casino pace session. */
 export const sessionModeName = (session: { mode: string; pace?: unknown; training?: { kind: string } | null }) =>
