@@ -124,3 +124,77 @@ test("quiet feedback stays quiet on Train: an open quiet session's cards show no
   await expect(weakness).not.toContainText("join this list when you close it");
   expect(errors).toEqual([]);
 });
+
+test("Strategy Ladder: choose a chart, climb its first line at max bet, and carry on later", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await createPlayTable(page);
+  await page.getByRole("link", { name: "Train", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Climb a strategy chart" });
+  await expect(panel.getByRole("button", { name: "Expert", exact: true })).toHaveAttribute("aria-pressed", "true"); // the default chart
+  const progress = panel.getByRole("group", { name: "Ladder progress" });
+  await expect(progress).toContainText(/^Line 1 of \d+/);
+  await expect(progress).toContainText(/0 of \d+ learned/);
+  await panel.getByRole("button", { name: "Start ladder" }).click();
+
+  await expect(page.locator(".session-eyebrow")).toContainText("Strategy Ladder");
+  const note = page.getByRole("region", { name: "Training plan" });
+  await expect(note).toContainText("STRATEGY LADDER · EXPERT CHART");
+  await expect(note).toContainText(/Line 1 of \d+: /);
+  await expect(page.locator(".bet-controls")).toContainText("Strategy charts are for max bet");
+  // Four right in a row on line 1 climbs to the next line.
+  for (let hand = 0; hand < 4; hand++) {
+    await drillHand(page, true);
+    expect((await openSession(page)).state.handCoins).toBe(5);
+  }
+  await expect(note).toContainText(/1 of \d+ learned/);
+  await expect(note).not.toContainText(/Line 1 of/);
+  expect((await openSession(page)).training?.ladder).toMatchObject({ tier: "Expert", step: 2, streak: 0 });
+
+  // Back on Train: the Expert ladder continues from here; another chart starts at its own first line.
+  await page.getByRole("link", { name: "Train", exact: true }).click();
+  await expect(progress).toContainText(/1 of \d+ learned/);
+  await expect(panel.getByRole("button", { name: "Continue ladder" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Start over" })).toBeVisible();
+  await panel.getByRole("button", { name: "Beginner", exact: true }).click();
+  await expect(progress).toContainText(/0 of \d+ learned/);
+  await expect(panel.getByRole("button", { name: "Start ladder" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("Pay Table Switcher: the same cards on two pay tables, then how they compare", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await createPlayTable(page);
+  await page.getByRole("link", { name: "Train", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Same hand, different pay tables" });
+  const first = panel.getByRole("checkbox").first();
+  await expect(first).toBeChecked(); // one other table of the game is picked to start
+  await expect(panel).toContainText(/Best hold differs on \d+(\.\d+)?% of deals\./);
+  await panel.getByRole("button", { name: "Start Switcher" }).click();
+
+  await expect(page.locator(".session-eyebrow")).toContainText("Pay Table Switcher");
+  const note = page.getByRole("region", { name: "Training plan" });
+  await drillHand(page, true);
+  await expect(note).toContainText("table 1 of 2");
+  const one = await openSession(page);
+  await drillHand(page, false);
+  await expect(note).toContainText("table 2 of 2");
+  const two = await openSession(page);
+  // The same cards, now on the other table.
+  expect(two.state.analysis!.hand).toEqual(one.state.analysis!.hand);
+  expect(two.state.handPaytableId).toBe(two.training!.switcher!.tables[1]);
+  // Both tables at the machine's bet: the table can't change it (PR #10 review).
+  expect(two.state.handCoins).toBe(one.state.handCoins);
+  await expect(page.locator(".bet-controls")).toContainText("Every table at the machine's bet");
+  await expect(page.getByRole("button", { name: "Bet One" })).toHaveCount(0);
+  await expect(page.locator(".bet-controls").getByRole("radio", { name: "1 credit" })).toBeDisabled();
+  const compare = note.getByRole("list", { name: "This hand on each table" });
+  await expect(compare.getByRole("listitem")).toHaveCount(2);
+  await expect(compare.getByRole("listitem").first()).toContainText("You had it");
+  const decisions = (await readPlayState(page)).decisions.filter(row => row.sessionId === two.id);
+  expect(new Set(decisions.map(row => row.paytableId))).toEqual(new Set(two.training!.switcher!.tables));
+  // The next deal starts a new round on the machine's table.
+  await page.getByRole("button", { name: "Deal hand", exact: true }).click();
+  await expect(note).toContainText("table 1 of 2");
+  await expect(compare).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

@@ -19,6 +19,7 @@ import { TableSettings } from "../table/TableSettings";
 import { HoldReview, MistakeFeedback, OptimalFeedback, gradeLabel } from "../table/Feedback";
 import { winningMask } from "../table/cards";
 import { BetControls, currentBet } from "../table/BetControls";
+import { fixedBet, handPaytableId } from "../services/bet";
 
 const Ev = ({ value, session }: { value: number; session: Session }) =>
   <CoinAmount amount={value} denominationCents={session.machineSnapshot.denominationCents} digits={3} />;
@@ -111,7 +112,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
         onHold(session, Number(event.key) - 1);
         return;
       }
-      if ((event.key === "b" || event.key === "m") && canDeal && !busy && !session.trainingFocus && (!interactive || cardButton || actionButton)) {
+      if ((event.key === "b" || event.key === "m") && canDeal && !busy && fixedBet(session) === null && (!interactive || cardButton || actionButton)) {
         event.preventDefault();
         if (event.key === "m") onBetMax(session);
         else onBet(session, currentBet(session).coins % 5 + 1);
@@ -156,7 +157,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
       <div>
         <p className="eyebrow session-eyebrow">{sessionModeName(session)} {statusBadge(session)}</p>
         <h1>{config.name}</h1>
-        <p className="session-bar-meta">{libraryTable?.name ?? "Custom pay table"} · {money(config.denominationCents)} per coin · bet {plural(bet, "coin")}{freePlay ? ` × ${plural(config.lines, "line")}` : " · no wager"}</p>
+        <p className="session-bar-meta">{state?.handPaytableId ? `${findPaytable(state.handPaytableId)?.name ?? "Another pay table"} (this hand)` : libraryTable?.name ?? "Custom pay table"} · {money(config.denominationCents)} per coin · bet {plural(bet, "coin")}{freePlay ? ` × ${plural(config.lines, "line")}` : " · no wager"}</p>
       </div>
       {session.status !== "closed" && <div className="session-bar-actions">
         {session.status === "active" ? <Button variant="secondary" icon="pause" disabled={busy} onClick={() => onPause(session)}>Pause</Button> : <Button variant="gold" icon="play" disabled={busy} onClick={() => onResume(session)}>Resume</Button>}
@@ -184,7 +185,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
             {session.status !== "closed" && <TableSettings session={session} busy={busy} onFeedback={mode => onFeedback(session, mode)} />}
           </div>
 
-          <PayTable paytableId={config.paytableId} coins={bet} hits={hits} />
+          <PayTable paytableId={handPaytableId(session)} coins={bet} hits={hits} />
           <LineRows session={session} familyId={familyId} />
 
           <div className="hand-zone">
@@ -216,7 +217,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
           {reviewing && warning ? <HoldReview grade={warning} session={session} busy={busy} open={detailsOpen} onToggle={toggleDetails}
             onUseBest={() => onSetMask(session, warning.bestMask)} onDrawAnyway={() => onSubmit(session, true)} /> : <div className="play-action-row">
             {canDeal && <>
-              {!session.trainingFocus && <><Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBet(session, bet % 5 + 1)} title="Add one credit per line (B)">Bet One</Button>
+              {fixedBet(session) === null && <><Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBet(session, bet % 5 + 1)} title="Add one credit per line (B)">Bet One</Button>
               <Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBetMax(session)} title="Bet 5 credits per line and deal (M)">Bet Max</Button></>}
               <Button variant="gold" icon="cards" data-play-action="deal" disabled={!canPlay} loading={busy} loadingLabel="Dealing…" onClick={() => onDeal(session)}>Deal hand</Button>
             </>}

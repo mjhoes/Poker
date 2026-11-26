@@ -17,6 +17,24 @@ function optimalHolds(hand: Hand, analysis: Analysis) {
   return new Set(results.filter(row => best - row.ev < EPSILON).map(row => row.mask));
 }
 
+/**
+ * Whether perfect strategy changes on one deal between two tables of the same game: no hold is optimal under both.
+ * Same stored best hold: no change. No tie on either side: the stored best holds decide. Otherwise only the tied
+ * side(s) are re-solved to find every optimal hold. Null when the deal can't be compared (missing from either).
+ */
+export function bestHoldDiffers(id: number, mine: Analysis, base: Analysis, hands: ReadonlyMap<number, Hand>): boolean | null {
+  const result = mine.perHand.get(id), other = base.perHand.get(id);
+  if (!result || !other) return null;
+  if (result.bestMask === other.bestMask) return false;
+  const mineTied = result.ev - result.secondEv < EPSILON, baseTied = other.ev - other.secondEv < EPSILON;
+  if (!mineTied && !baseTied) return true;
+  const hand = hands.get(id);
+  if (!hand) return null;
+  const mineOptimal = mineTied ? optimalHolds(hand, mine) : new Set([result.bestMask]);
+  const baseOptimal = baseTied ? optimalHolds(hand, base) : new Set([other.bestMask]);
+  return ![...mineOptimal].some(mask => baseOptimal.has(mask));
+}
+
 export function compareStrategies(mine: Analysis, base: Analysis, hands: ReadonlyMap<number, Hand>, examples = 4) {
   if (mine.familyId !== base.familyId) throw new Error("Compare with a table of the same game.");
   let total = 0, differing = 0;
@@ -24,19 +42,7 @@ export function compareStrategies(mine: Analysis, base: Analysis, hands: Readonl
   for (const [id, result] of mine.perHand) {
     total += result.weight;
     const other = base.perHand.get(id);
-    if (!other) continue;
-    // Same stored best hold: no change. No tie on either side: the stored best holds decide. Otherwise re-solve only
-    // the tied side(s) and look for a hold optimal under both tables.
-    let differs = result.bestMask !== other.bestMask;
-    const mineTied = result.ev - result.secondEv < EPSILON, baseTied = other.ev - other.secondEv < EPSILON;
-    if (differs && (mineTied || baseTied)) {
-      const hand = hands.get(id);
-      if (!hand) continue;
-      const mineOptimal = mineTied ? optimalHolds(hand, mine) : new Set([result.bestMask]);
-      const baseOptimal = baseTied ? optimalHolds(hand, base) : new Set([other.bestMask]);
-      differs = ![...mineOptimal].some(mask => baseOptimal.has(mask));
-    }
-    if (!differs) continue;
+    if (!other || !bestHoldDiffers(id, mine, base, hands)) continue;
     differing += result.weight;
     changes.push({ id, weight: result.weight, best: result.bestLabel, baseBest: other.bestLabel });
   }

@@ -29,7 +29,7 @@ export const plural = (count: number, noun: string) => `${count.toLocaleString()
 export const modeName = (mode: string) => ({ drill: "Rapid Drill", free_play: "Free Play" } as Record<string, string>)[mode] ?? mode.replaceAll("_", " ");
 /** A session's mode as players know it: a Free Play session with pace settings is a Casino pace session. */
 export const sessionModeName = (session: { mode: string; pace?: unknown; training?: { kind: string } | null }) =>
-  session.training ? ({ review: "Review", weakness: "Weakness Trainer", close_calls: "Close Calls" } as Record<string, string>)[session.training.kind] ?? "Training"
+  session.training ? ({ review: "Review", weakness: "Weakness Trainer", close_calls: "Close Calls", ladder: "Strategy Ladder", switcher: "Pay Table Switcher" } as Record<string, string>)[session.training.kind] ?? "Training"
     : session.pace ? "Casino pace" : modeName(session.mode);
 
 export function Field({ label, full, children }: { label: string; full?: boolean; children: ReactNode }) {

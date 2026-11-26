@@ -1,13 +1,14 @@
 import type { DealTarget } from "./engine-api";
 import {
   analyzeGame, analyzeHandFast, categoryDistribution, clearSubsetCache, computeStatistics,
-  clearTrainingCache, generateHand, registerTrainingAnalysis, standardVariant,
+  clearTrainingCache, generateHand, getCanonicalHands, registerTrainingAnalysis, standardVariant,
 } from "@perfect-draw/engine";
-import type { GameAnalysis, HandAnalysis } from "@perfect-draw/engine";
+import type { GameAnalysis, Hand, HandAnalysis } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import { decisionSchema, recordSchemas, statsQuerySchema } from "@perfect-draw/shared";
 import type { StatsQuery, StatsReportView } from "@perfect-draw/shared";
 import { db, live, requireRecord } from "../data/db";
+import { bestHoldDiffers } from "./strategy-difference";
 
 /** Derived short-coin analyses need no strategy induction or incompatible asset-schema changes. */
 export class StatsEngine {
@@ -130,6 +131,48 @@ export class StatsEngine {
     }
     if (target.strict) throw new Error("This card's category isn't a best hold on this table at this bet.");
     throw lastError instanceof Error ? lastError : new Error("No hand fits this training plan.");
+  }
+  /**
+   * Deal IDs where two tables' best holds differ: no hold is optimal under both. Shares the Strategy Difference check,
+   * which re-solves tied deals exactly (three or more holds can tie).
+   */
+  private readonly differing = new Map<string, number[]>();
+  private canonicalHands?: Map<number, Hand>;
+  private async differIds(paytableId: string, other: string, coins: number) {
+    const a = await this.game(paytableId, coins), b = await this.game(other, coins);
+    if (a.analysis.familyId !== b.analysis.familyId) throw new Error("The Pay Table Switcher compares tables of the same game.");
+    const cacheKey = `${a.key}|${b.key}`;
+    let ids = this.differing.get(cacheKey);
+    if (!ids) {
+      this.canonicalHands ??= new Map(getCanonicalHands().map(hand => [hand.id, hand.hand]));
+      this.prepareFamily(a.analysis.familyId); // tied deals are re-solved
+      ids = [];
+      for (const id of a.analysis.perHand.keys()) if (bestHoldDiffers(id, a.analysis, b.analysis, this.canonicalHands)) ids.push(id);
+      this.differing.set(cacheKey, ids);
+    }
+    return ids;
+  }
+  /** The share of real deals (%) whose best hold differs between this table and each other one, at this bet. */
+  async switcherDiffer(paytableId: string, others: readonly string[], coins: number) {
+    const result: { paytableId: string; differPct: number }[] = [];
+    for (const other of others) {
+      const ids = await this.differIds(paytableId, other, coins);
+      const { analysis } = await this.game(paytableId, coins);
+      result.push({ paytableId: other, differPct: ids.reduce((sum, id) => sum + analysis.perHand.get(id)!.weight, 0) * 100 / 2598960 });
+    }
+    return result;
+  }
+  /** A Pay Table Switcher round's hand on its first table: one whose best hold differs on another table, or any. */
+  async switcherDeal(paytableId: string, others: readonly string[], coins: number, differ: boolean): Promise<HandAnalysis> {
+    const union = new Set<number>();
+    // One table pair at a time: only two full analyses are kept in memory.
+    if (differ) for (const other of others) for (const id of await this.differIds(paytableId, other, coins)) union.add(id);
+    const ids = [...union];
+    const { key, analysis } = await this.game(paytableId, coins);
+    registerTrainingAnalysis(key, analysis);
+    const drill = generateHand({ analysisKey: key, onlyIds: ids.length ? ids : undefined, sampling: "real" });
+    this.prepareFamily(analysis.familyId);
+    return analyzeHandFast(drill.hand, analysis.valueVector, analysis.familyId);
   }
   async validateTraining(paytableId: string, coins: number, label: string) {
     const { key } = await this.game(paytableId, coins);

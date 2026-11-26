@@ -2,14 +2,15 @@ import { rollupDecisions } from "../services/retention";
 import { getCanonicalHands } from "@perfect-draw/engine";
 import { expose } from "comlink";
 import {
-  analyzeGame, analyzeHand, analyzeHandFast, clearSubsetCache, clearTrainingCache, dealRound, ENGINE_VERSION, generateHand, generateStrategyList, registerTrainingAnalysis, resolveRound, standardVariant, STRATEGY_TIERS, strategyChoice,
+  analyzeGame, analyzeHand, analyzeHandFast, chartLineIndex, clearSubsetCache, clearTrainingCache, dealRound, ENGINE_VERSION, generateHand, generateStrategyList, registerTrainingAnalysis, resolveRound, standardVariant, STRATEGY_TIERS, strategyChoice,
 } from "@perfect-draw/engine";
 import { analysisKey, getLibraryPayTable, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { deserializeAnalysis, loadPrecomputedAnalysis, loadPrecomputedManifest, serializeAnalysis } from "@perfect-draw/precomputed";
 import type { PrecomputedGameAnalysis } from "@perfect-draw/precomputed";
+import type { ChartLineIndex, Hand, StrategyList } from "@perfect-draw/engine";
 import { analysisSchema } from "@perfect-draw/shared";
 import { db, stamp } from "../data/db";
-import type { AcrossAnalysis, AnalysisSummary, EngineAPI } from "./engine-api";
+import type { AcrossAnalysis, AnalysisSummary, EngineAPI, LadderTier } from "./engine-api";
 import { StatsEngine } from "./stats-engine";
 import { compareStrategies } from "./strategy-difference";
 import { outcomesFrom, simulateRisk } from "./risk";
@@ -92,16 +93,48 @@ async function tableFigures(paytableId: string, coins: number, withDistribution:
   return { ...base, ...figures, source: "computed" as const };
 }
 
+/** A table's chart for the Strategy Ladder, with which deals each line can practice (kept for the last few charts). */
+const ladders = new Map<string, { list: StrategyList; index: ChartLineIndex }>();
+async function ladderFor(paytableId: string, tier: LadderTier) {
+  const value = await api.loadAnalysis(paytableId);
+  const analysis = loaded.get(value.key);
+  if (!analysis) throw new Error("The strategy charts were unloaded. Try again.");
+  registerTrainingAnalysis(value.key, analysis);
+  const list = value.strategyLists.find(item => item.tier === tier);
+  if (!list) throw new Error(`No ${tier} chart for this table.`);
+  const cacheKey = `${value.key}:${tier}`;
+  let entry = ladders.get(cacheKey);
+  if (!entry) {
+    prepareSolver(analysis.familyId);
+    entry = { list, index: chartLineIndex(list) };
+    ladders.set(cacheKey, entry);
+    while (ladders.size > 3) ladders.delete(ladders.keys().next().value!);
+  }
+  return { key: value.key, value, analysis, ...entry };
+}
+
 const api: EngineAPI = {
   rollupDecisions: timeZone => rollupDecisions(timeZone, (table, coins) => statsEngine.game(table, coins)),
   async statistics(input) { return statsEngine.report(input); },
   async validateTraining(paytableId, coins, label) { return statsEngine.validateTraining(paytableId, coins, label); },
   async trainableLabels(paytableId, coins) { return statsEngine.trainableLabels(paytableId, coins); },
+  async ladderChart(paytableId, tier) {
+    const { value, list, index } = await ladderFor(paytableId, tier);
+    return {
+      familyId: list.familyId, tier, returnPct: list.returnPct, optimalReturnPct: value.returnPct,
+      lines: list.lines.map((line, i) => ({ label: line.label, ...(line.alternatives ? { alternatives: [...line.alternatives] } : {}), freq: line.freq, dealable: index.dealable[i].length > 0 })),
+    };
+  },
+  async switcherDiffer(paytableId, others, coins) { return statsEngine.switcherDiffer(paytableId, others, coins); },
   async prepareRound(paytableId, coins, lines, focus, target) {
     const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
     const dealt = dealRound(lines, random);
     if (focus || target) {
-      const analysis = focus ? await statsEngine.prepareTarget(paytableId, coins, focus.label, focus.analysisKey) : await statsEngine.prepareDeal(paytableId, coins, target!);
+      const analysis = focus ? await statsEngine.prepareTarget(paytableId, coins, focus.label, focus.analysisKey)
+        : target!.hand ? await api.analyzeHand(target!.hand as unknown as Hand, paytableId, coins)
+        : target!.ladder ? await ladderDeal(paytableId, coins, target!.ladder)
+        : target!.switcher ? await statsEngine.switcherDeal(paytableId, target!.switcher.others, coins, target!.switcher.differ)
+        : await statsEngine.prepareDeal(paytableId, coins, target!);
       const remaining = Array.from({ length: 52 }, (_, i) => i).filter(card => !analysis.hand.includes(card));
       // Drills never draw or pay, but keep the same validated persistent round format.
       return { analysis, drawDecks: [remaining] };
@@ -262,6 +295,18 @@ const api: EngineAPI = {
     return generateHand(options);
   },
 };
+/** A Strategy Ladder hand: one the chart line picks, where its hold is a best play. Charts are for max bet. */
+async function ladderDeal(paytableId: string, coins: number, target: { tier: LadderTier; line: number }) {
+  if (coins !== 5) throw new Error("The Strategy Ladder deals at 5 coins: strategy charts are for max bet.");
+  const { key, analysis, index } = await ladderFor(paytableId, target.tier);
+  const ids = index.dealable[target.line];
+  if (!ids?.length) throw new Error("No deal practices this chart line.");
+  registerTrainingAnalysis(key, analysis);
+  const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+  const drill = generateHand({ analysisKey: key, onlyIds: ids, sampling: "real", random });
+  prepareSolver(analysis.familyId);
+  return analyzeHandFast(drill.hand, analysis.valueVector, analysis.familyId);
+}
 const statsEngine = new StatsEngine(async paytableId => {
   const value = await api.loadAnalysis(paytableId);
   const analysis = loaded.get(value.key);

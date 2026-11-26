@@ -5,6 +5,7 @@ import { gradeLabel } from "../table/Feedback";
 import { trainingService } from "../services/training";
 import { betForNextDeal } from "../services/bet";
 import { useFamily, useReview, useTrainingTable } from "./useTraining";
+import { LadderNote, SwitcherNote } from "./RoundB";
 
 const number = (value: number, digits = 0) => value.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
 
@@ -17,7 +18,9 @@ export function TrainingNote({ session, busy, run }: { session: Session; busy: b
   if (!training) return null;
   const queue = review?.queue;
   return <section className="focused-drill-note training-note" aria-label="Training plan">
-    {training.kind === "review" ? <>
+    {training.kind === "ladder" ? <LadderNote session={session} />
+    : training.kind === "switcher" ? <SwitcherNote session={session} />
+    : training.kind === "review" ? <>
       <p className="eyebrow">TODAY'S REVIEW</p>
       {!queue ? <h2>…</h2> : queue.next ? <>
         <h2>{training.keepGoing ? `${number(queue.due.length)} due` : `${number(queue.leftToday)} left today`}</h2>

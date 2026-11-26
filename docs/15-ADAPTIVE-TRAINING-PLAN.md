@@ -1,8 +1,8 @@
 # Adaptive training — plan
 
 Spec: F4.3–F4.7 in `02-PRODUCT-SPEC.md`; Tech Spec §6 (weakness, mix) and §3.8 (drill generator).
-Status: **Round A in progress** (mastery, spaced repetition, Weakness Trainer, Close Calls). Round B: Strategy Ladder
-and Pay Table Switcher.
+Status: **Round A done** (mastery, spaced repetition, Weakness Trainer, Close Calls). Round B (Strategy Ladder and Pay
+Table Switcher): `16-ADAPTIVE-TRAINING-ROUND-B.md`.
 
 Goal: spend practice where mistakes cost the most, and keep what you've learned from fading.
 

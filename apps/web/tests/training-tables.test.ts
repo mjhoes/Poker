@@ -1,7 +1,9 @@
 import "fake-indexeddb/auto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { analyzeHand, analyzeHandFast, canonicalizeHand, cardRank, parseHand, standardVariant } from "@perfect-draw/engine";
+import type { GameHandResult } from "@perfect-draw/engine";
 import { getLibraryPayTable } from "@perfect-draw/paytables";
 import { loadPrecomputedAnalysis, loadPrecomputedManifest } from "@perfect-draw/precomputed";
 import { db, initializeDatabase } from "../src/data/db";
@@ -37,3 +39,47 @@ describe("which review cards a table can deal", () => {
     expect((await engine.prepareDeal(fullPay.id, 5, { labels: ["D0_2P"] })).best.label).not.toBe("D0_2P");
   }, 60_000);
 });
+
+describe("Pay Table Switcher deals", () => {
+  it("measures how often two tables' best holds differ, and deals hands where they do", async () => {
+    const jacks = getLibraryPayTable("jacks-or-better-9-6"), eightFive = getLibraryPayTable("jacks-or-better-8-5");
+    const [{ differPct }] = await engine.switcherDiffer(jacks.id, [eightFive.id], 5);
+    expect(differPct).toBeGreaterThan(0.01);
+    expect(differPct).toBeLessThan(10);
+    expect((await engine.switcherDiffer(nsud.id, [fullPay.id], 5))[0].differPct).toBeGreaterThan(differPct); // deuces tables differ more
+    await expect(engine.switcherDiffer(jacks.id, [nsud.id], 5)).rejects.toThrow("same game");
+    for (let round = 0; round < 5; round++) {
+      const mine = await engine.switcherDeal(jacks.id, [eightFive.id], 5, true);
+      const theirs = analyzeHand(mine.hand, standardVariant.valueVector(eightFive, 5, {}), "jacks_or_better");
+      // The 9/6 best hold is strictly worse on 8/5 (not a tie).
+      expect(theirs.results.find(hold => hold.mask === mine.best.mask)!.ev).toBeLessThan(theirs.best.ev - 1e-9);
+    }
+  }, 120_000);
+});
+
+describe("Pay Table Switcher ties", () => {
+  it("doesn't count a deal as different when a third tied hold is best on both tables (PR #10 review)", async () => {
+    // Double Double Bonus 9/6 against a same-game table that pays only the royal: on Jc Kd Ah 4s 7s the royal-only
+    // table ties J, K and A alone, and its stored result happens to keep J and K; DDB's best is the A alone.
+    const ddb = getLibraryPayTable("double-double-bonus-9-6");
+    const royalOnly = { ...ddb, pays: Object.fromEntries(Object.entries(ddb.pays).map(([rank, row]) => [rank, rank === "ROYAL_FLUSH" ? row : [0, 0, 0, 0, 0]])) };
+    const { id, hand } = canonicalizeHand(parseHand("Jc Kd Ah 4s 7s"));
+    const maskOf = (rank: number) => 1 << hand.findIndex(card => cardRank(card) === rank);
+    const stored = (values: readonly number[], keep?: [number, number]): GameHandResult => {
+      const results = [...analyzeHandFast(hand, values, ddb.familyId).results].sort((a, b) => b.ev - a.ev);
+      const [first, second] = keep ? keep.map(mask => results.find(row => row.mask === mask)!) : results;
+      return { weight: 1, bestMask: first.mask, secondMask: second.mask, bestLabel: first.label, secondLabel: second.label, ev: first.ev, secondEv: second.ev };
+    };
+    const royalValues = standardVariant.valueVector(royalOnly as never, 5, {}), ddbValues = standardVariant.valueVector(ddb, 5, {});
+    const mine = stored(royalValues, [maskOf(9), maskOf(11)]), theirs = stored(ddbValues);
+    expect(theirs.bestMask).toBe(maskOf(12));
+    const fixtures = {
+      royal: { key: "royal", analysis: { familyId: ddb.familyId, valueVector: royalValues, perHand: new Map([[id, mine]]) } },
+      ddb: { key: "ddb", analysis: { familyId: ddb.familyId, valueVector: ddbValues, perHand: new Map([[id, theirs]]) } },
+    };
+    const switcher = new StatsEngine(async () => { throw new Error("unused"); });
+    vi.spyOn(switcher, "game").mockImplementation(async table => fixtures[table as "royal" | "ddb"] as never);
+    expect(await switcher.switcherDiffer("royal", ["ddb"], 5)).toEqual([{ paytableId: "ddb", differPct: 0 }]);
+  });
+});
+

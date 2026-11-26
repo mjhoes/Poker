@@ -9,6 +9,8 @@ import { trainingService } from "../services/training";
 import { graduated, handsSeen, priority, reviewable } from "../training/core";
 import type { Card, ReviewScope, Target } from "../training/core";
 import { useReview, useTrainingTable } from "../training/useTraining";
+import { LadderPanel, SwitcherPanel } from "../training/RoundB";
+import type { RoundBStart } from "../training/RoundB";
 
 const number = (value: number, digits = 0) => value.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const when = (at: number, now: number) => {
@@ -86,6 +88,11 @@ export function TrainPage({ machines, busy, run, onOpenRoom }: { machines: Machi
     const ok = await run(() => trainingService.start({ machineId: machine.id, kind, closeCallPerCoin: gap, keepGoing }));
     if (ok) onOpenRoom();
   }
+  async function startRoundB(input: RoundBStart) {
+    if (!machine) return;
+    const ok = await run(() => trainingService.start({ machineId: machine.id, ...input }));
+    if (ok) onOpenRoom();
+  }
 
   const heading = <div className="page-heading"><div><p className="eyebrow">TRAIN</p><h1>Practice what costs you most.</h1></div>
     <p className="heading-note">Reviews bring back what you're starting to forget; the trainers aim at your costliest mistakes.</p></div>;
@@ -137,6 +144,9 @@ export function TrainPage({ machines, busy, run, onOpenRoom }: { machines: Machi
           <input aria-label="Close-call gap" type="range" min={0.01} max={0.5} step={0.01} value={gap} onChange={event => setGap(Number(event.target.value))} /></label>
         <Button variant="gold" icon="play" disabled={busy} onClick={() => void start("close_calls")}>Start Close Calls</Button>
       </section>
+
+      <LadderPanel machine={machine} busy={busy} onStart={input => void startRoundB(input)} />
+      <SwitcherPanel machine={machine} busy={busy} onStart={input => void startRoundB(input)} />
     </div>
 
     <section className="panel panel-pad cruise-panel" aria-labelledby="cards-title">

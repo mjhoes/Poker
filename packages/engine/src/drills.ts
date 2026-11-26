@@ -10,6 +10,8 @@ export interface DrillOptions {
   /** Total-coin EV gap, inclusive. Zero requests exact ties. */
   readonly closeCallMaxGap?: number;
   readonly excludeRecent?: readonly number[];
+  /** Only these canonical hand IDs (a strategy-ladder line, or the deals where two pay tables differ). */
+  readonly onlyIds?: readonly number[];
   readonly sampling?: "real" | "canonical";
   readonly random?: () => number;
 }
@@ -56,12 +58,13 @@ export function generateHand(options: DrillOptions): DrillHand {
     throw new Error("Target pairs must contain nonempty category labels.");
   }
   if (options.targetLabels && (!options.targetLabels.length || options.targetLabels.some(label => !label))) throw new Error("Target labels must be nonempty.");
+  if (options.onlyIds && options.targetPairs) throw new Error("Choose hand IDs or target pairs, not both.");
   const excluded = new Set(options.excludeRecent ?? []);
   let ids: readonly number[];
   if (options.targetPairs) {
     const index = pairIndex(context);
     ids = [...new Set(options.targetPairs.flatMap(pair => index.get(`${pair.correct}\t${pair.confusedWith}`) ?? []))];
-  } else ids = getCanonicalHands().map(hand => hand.id);
+  } else ids = options.onlyIds ?? getCanonicalHands().map(hand => hand.id);
   const candidates = ids.filter(id => {
     const row = context.analysis.perHand.get(id)!;
     return !excluded.has(id) && (!options.targetLabels || options.targetLabels.includes(row.bestLabel)) &&
