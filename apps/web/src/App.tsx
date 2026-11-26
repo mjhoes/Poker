@@ -30,6 +30,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { SessionPage } from "./pages/SessionPage";
 import { StatsPage } from "./pages/StatsPage";
 import { AnalyzePage } from "./pages/AnalyzePage";
+import { CruisePage } from "./pages/CruisePage";
 
 type Dialog =
   | { kind: "machine"; machine?: Machine }
@@ -158,7 +159,8 @@ function App() {
         onSelect={id => { if (sessions[id]?.status === "closed") setSessionViewId(id); else void play.activate(id); }}
         onHold={play.toggleHeld} onSetMask={play.setHeldMask} onDeal={play.deal} onSubmit={play.submit} onFeedback={play.setFeedback}
         onBet={play.setBet} onBetMax={play.betMax} />}
-      <div className="footer-note">PRACTICE CREDITS ONLY · NO REAL MONEY · YOUR DATA STAYS ON THIS DEVICE</div>
+      {route === "/cruise" && <CruisePage machines={machines} busy={busy} run={run} confirm={confirm} />}
+      <div className="footer-note">{route === "/cruise" ? "REAL-PLAY RECORDS YOU ENTER · NOT FINANCIAL ADVICE · YOUR DATA STAYS ON THIS DEVICE" : "PRACTICE CREDITS ONLY · NO REAL MONEY · YOUR DATA STAYS ON THIS DEVICE"}</div>
     </main>
     <ToastViewport />
     {confirmDialog}

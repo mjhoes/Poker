@@ -19,33 +19,48 @@ export const uploadSchema = z.object({
 export const scoutingSchema = z.object({
   ...entity, paytableId: hash, casino: z.string(), location: z.string(), denominationCents: positiveCents, seenAt: timestamp, notes: z.string(),
 });
+/**
+ * A casino loyalty program. `carryover`: coin-in accumulates across sessions and a point is earned at each full
+ * `dollarsPerPoint` (the remainder carries over); `session_floor`: each session rounds down on its own; `fractional`:
+ * no rounding. Free play earns no points unless `freePlayEarnsPoints`.
+ */
 export const rewardsProgramSchema = z.object({
-  ...entity, name: nameSchema, casinoName: z.string(), dollarsPerPoint: z.number().finite().positive(),
-  rounding: z.enum(["trip_floor", "session_floor", "fractional"]), freePlayEarnsPoints: z.boolean(),
-  tiers: z.array(z.object({ name: nameSchema, points: z.number().nonnegative() })), notes: z.string(), isBuiltIn: z.boolean(),
+  ...entity, name: nameSchema, casinoName: z.string().max(100), dollarsPerPoint: z.number().finite().positive().max(10_000),
+  rounding: z.enum(["carryover", "session_floor", "fractional"]).default("carryover"), freePlayEarnsPoints: z.boolean().default(false),
+  tiers: z.array(z.object({ name: nameSchema, points: z.number().int().nonnegative() })).max(20), notes: z.string().max(2000), isBuiltIn: z.boolean(),
+  createdAt: timestamp,
 });
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const tripDaySchema = z.object({ date: isoDate, type: z.enum(["sea", "port"]), casinoHoursPlanned: z.number().min(0).max(24) });
 export const tripSchema = z.object({
-  ...entity, programId: uuid, shipName: z.string(), sailStart: z.string(), sailEnd: z.string(),
-  days: z.array(z.object({ date: z.string(), type: z.enum(["sea", "port"]), casinoHoursPlanned: z.number().min(0).max(24) })),
-  targetPoints: z.number().nonnegative(), startingPoints: z.number().nonnegative().optional(), notes: z.string(),
-  status: z.enum(["planned", "active", "done"]),
-});
+  ...entity, programId: uuid, shipName: nameSchema, sailStart: isoDate, sailEnd: isoDate,
+  days: z.array(tripDaySchema).max(120),
+  targetPoints: z.number().int().nonnegative(), startingPoints: z.number().int().nonnegative().optional(), notes: z.string().max(2000),
+  status: z.enum(["planned", "active", "done"]), createdAt: timestamp,
+}).refine(trip => trip.sailStart <= trip.sailEnd, "The trip must end on or after the day it starts.");
+export const pauseReasons = ["drink", "break", "hand_pay", "machine_fault", "other"] as const;
+/**
+ * One stretch of real play at one machine. Only readings are stored (cash, points, hands, time); coin-in, points earned
+ * and costs are derived on read, so changing a program's rules recalculates history. `coinInCents` keeps only an
+ * estimated coin-in (source "estimate"), fixed when the session was closed.
+ */
 export const casinoSessionSchema = z.object({
   ...entity, tripId: uuid, machineId: uuid.optional(), paytableId: hash.optional(), familyId: familyIdSchema.optional(),
-  denominationCents: positiveCents, coins: z.number().int().min(1).max(5), lines: z.number().int().positive(),
+  gameName: z.string().max(200).default(""),
+  denominationCents: positiveCents, coins: z.number().int().min(1).max(5), lines: z.number().int().positive().max(100),
   startedAt: timestamp, endedAt: timestamp.nullable(),
-  timeSegments: z.array(z.object({ start: timestamp, end: timestamp.optional(), pauseReason: z.string().optional() })),
+  timeSegments: z.array(z.object({ start: timestamp, end: timestamp.optional(), pauseReason: z.enum(pauseReasons).optional() })).min(1),
   activeMs: z.number().nonnegative(), cashInCents: cents.nonnegative(), cashOutCents: cents.nonnegative(),
-  freePlayUsedCents: cents.nonnegative(), freePlayWonCents: cents.nonnegative(),
-  pointsBefore: z.number().nonnegative().optional(), pointsAfter: z.number().nonnegative().optional(),
+  freePlayUsedCents: cents.nonnegative(), freePlayWonCents: cents.nonnegative().default(0),
+  pointsBefore: z.number().int().nonnegative().optional(), pointsAfter: z.number().int().nonnegative().optional(),
   handsCount: z.number().int().nonnegative().optional(), coinInCents: cents.nonnegative(),
   coinInSource: z.enum(["points", "hands", "estimate"]),
-  jackpots: z.array(z.object({ amountCents: cents.nonnegative(), handRank: z.string().optional(), at: timestamp })), notes: z.string(),
+  jackpots: z.array(z.object({ amountCents: cents.nonnegative(), handRank: z.string().max(100).optional(), at: timestamp })), notes: z.string().max(2000),
 });
 export const rewardSchema = z.object({
-  ...entity, tripId: uuid.optional(), programId: uuid, description: z.string(),
+  ...entity, tripId: uuid.optional(), programId: uuid, description: z.string().trim().min(1).max(200),
   type: z.enum(["cruise", "upgrade", "freeplay", "obc", "discount", "other"]),
-  valueCents: cents.nonnegative(), receivedAt: timestamp, notes: z.string(),
+  valueCents: cents.nonnegative(), receivedAt: timestamp, notes: z.string().max(2000),
 });
 export const dailyAggregateSchema = z.object({
   ...entity, bucketKey: z.string().min(1), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

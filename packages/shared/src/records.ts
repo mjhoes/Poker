@@ -61,6 +61,8 @@ export const aiUsageSchema = z.object({
 export const gameSummarySchema = z.object({
   returnPct: z.number().finite(), hitFreq: z.number().finite().min(0).max(1),
   variance: z.number().finite().nonnegative(), engineVersion: z.string(),
+  /** Chance of each final hand under optimal play (the luck band's distribution); absent on figures saved earlier. */
+  rankProbs: z.array(z.number().finite().min(0).max(1)).max(32).optional(),
 });
 export const paytableSchema = z.object({
   id: hash, ...metadata, familyId: familyIdSchema, name: nameSchema,

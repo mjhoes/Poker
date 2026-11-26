@@ -16,6 +16,7 @@ import "./styles/session.css";
 import "./styles/stats.css";
 import "./styles/analyzer.css";
 import "./styles/ai.css";
+import "./styles/cruise.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

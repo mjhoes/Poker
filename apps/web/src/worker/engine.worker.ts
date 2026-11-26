@@ -12,6 +12,7 @@ import { db, stamp } from "../data/db";
 import type { AcrossAnalysis, AnalysisSummary, EngineAPI } from "./engine-api";
 import { StatsEngine } from "./stats-engine";
 import { compareStrategies } from "./strategy-difference";
+import { outcomesFrom, simulateRisk } from "./risk";
 import { paytableService } from "../services/paytables";
 
 const loaded = new Map<string, PrecomputedGameAnalysis>();
@@ -59,6 +60,38 @@ async function cache(analysis: PrecomputedGameAnalysis, paytableId: string) {
   retain(value.key, analysis);
   return value;
 }
+/**
+ * Return, variance and hit frequency for a table at a bet, and (when `withDistribution`) the chance of each final hand.
+ * Saved figures and the built-in manifest are used when they have what's asked; otherwise the exact game is computed
+ * here (seconds) and its figures saved on a custom table.
+ */
+async function tableFigures(paytableId: string, coins: number, withDistribution: boolean) {
+  if (!Number.isInteger(coins) || coins < 1 || coins > 5) throw new Error("Choose 1–5 coins.");
+  const row = await db.records("paytables").get(paytableId);
+  const library = PAY_TABLE_LIBRARY.find(table => table.id === paytableId);
+  const table = row ?? library;
+  if (!table || row?.deletedAt != null) throw new Error("This pay table is no longer available.");
+  const valueVector = standardVariant.valueVector(table, coins, {});
+  const key = String(coins) as "1" | "2" | "3" | "4" | "5";
+  const saved = row?.summaries?.[key] ?? (coins === 5 ? row?.computed : undefined);
+  const base = { familyId: table.familyId, betCoins: coins, valueVector };
+  if (saved?.engineVersion === ENGINE_VERSION && (!withDistribution || saved.rankProbs)) {
+    return { ...base, returnPct: saved.returnPct, hitFreq: saved.hitFreq, variance: saved.variance, engineVersion: saved.engineVersion, rankProbs: saved.rankProbs, source: "saved" as const };
+  }
+  if (library && coins === 5) {
+    try {
+      const entry = (await loadPrecomputedManifest(download)).entries.find(item => item.paytableId === paytableId);
+      if (entry) return { ...base, returnPct: entry.returnPct, hitFreq: entry.hitFreq, variance: entry.variance, engineVersion: ENGINE_VERSION, rankProbs: entry.rankProbs, source: "library" as const };
+    } catch { /* Fall through to the exact local computation. */ }
+  }
+  prepareSolver(table.familyId);
+  const analysis = analyzeGame(table.familyId, valueVector, undefined, { betCoins: coins });
+  const figures = { returnPct: analysis.returnPct, hitFreq: analysis.hitFreq, variance: analysis.variance, engineVersion: ENGINE_VERSION, rankProbs: [...analysis.rankProbs] };
+  // The computation takes seconds; this writes onto the record as it is then, never the copy read above.
+  if (row) await paytableService.saveSummary(paytableId, coins, figures);
+  return { ...base, ...figures, source: "computed" as const };
+}
+
 const api: EngineAPI = {
   rollupDecisions: timeZone => rollupDecisions(timeZone, (table, coins) => statsEngine.game(table, coins)),
   async statistics(input) { return statsEngine.report(input); },
@@ -141,26 +174,15 @@ const api: EngineAPI = {
     return { returnPct: analysis.returnPct, hitFreq: analysis.hitFreq, variance: analysis.variance, engineVersion: ENGINE_VERSION };
   },
   async tableSummary(paytableId, coins) {
-    if (!Number.isInteger(coins) || coins < 1 || coins > 5) throw new Error("Choose 1–5 coins.");
-    const row = await db.records("paytables").get(paytableId);
-    const library = PAY_TABLE_LIBRARY.find(table => table.id === paytableId);
-    const table = row ?? library;
-    if (!table || row?.deletedAt != null) throw new Error("This pay table is no longer available.");
-    const key = String(coins) as "1" | "2" | "3" | "4" | "5";
-    const saved = row?.summaries?.[key] ?? (coins === 5 ? row?.computed : undefined);
-    if (saved?.engineVersion === ENGINE_VERSION) return { ...saved, familyId: table.familyId, betCoins: coins, source: "saved" };
-    if (library && coins === 5) {
-      try {
-        const entry = (await loadPrecomputedManifest(download)).entries.find(item => item.paytableId === paytableId);
-        if (entry) return { returnPct: entry.returnPct, hitFreq: entry.hitFreq, variance: entry.variance, engineVersion: ENGINE_VERSION, familyId: table.familyId, betCoins: coins, source: "library" };
-      } catch { /* Fall through to the exact local computation. */ }
-    }
-    prepareSolver(table.familyId);
-    const analysis = analyzeGame(table.familyId, standardVariant.valueVector(table, coins, {}), undefined, { betCoins: coins });
-    const summary = { returnPct: analysis.returnPct, hitFreq: analysis.hitFreq, variance: analysis.variance, engineVersion: ENGINE_VERSION };
-    // The computation takes seconds; this writes onto the record as it is then, never the copy read above.
-    if (row) await paytableService.saveSummary(paytableId, coins, summary);
-    return { ...summary, familyId: table.familyId, betCoins: coins, source: "computed" };
+    const { rankProbs: _probs, valueVector: _vector, ...figures } = await tableFigures(paytableId, coins, false);
+    return figures;
+  },
+  async riskBand(input) {
+    const figures = await tableFigures(input.paytableId, input.coins, true);
+    return simulateRisk({
+      outcomes: outcomesFrom(figures.rankProbs!, figures.valueVector, input.coins),
+      hands: input.hands, betCents: input.betCents, mistakePct: input.mistakePct,
+    });
   },
   async warmOffline(paytableId) {
     // Fetch (never parse) a built-in table's analysis file so the service worker keeps it for offline statistics and
