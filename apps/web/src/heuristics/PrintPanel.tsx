@@ -55,7 +55,7 @@ export function PrintPanel({ machine, cardCount, busy }: { machine: Machine; car
         </select></label>
       <Button variant="gold" icon="download" loading={working} loadingLabel="Making your PDF…" disabled={busy} onClick={() => void download()}>Download PDF</Button>
     </div>
-    {working && <p className="status-note" role="status">A table's first chart takes about 20 seconds.</p>}
+    {working && <p className="status-note" role="status">A table's first chart takes a few seconds (longer for a pay table you entered yourself).</p>}
     {result && <p className={result.ok ? "status-note" : "explain-error"} role={result.ok ? "status" : "alert"}>{result.text}</p>}
   </section>;
 }

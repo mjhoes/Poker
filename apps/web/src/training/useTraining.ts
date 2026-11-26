@@ -61,7 +61,7 @@ export function useFamily(paytableId: string | undefined) {
   return familyId;
 }
 
-/** A table's chart for the Strategy Ladder (an engine call: built once for a custom table, about 20 s). */
+/** A table's chart for the Strategy Ladder (an engine call: a few seconds the first time for a table, longer for one you entered yourself). */
 export function useLadderChart(paytableId: string | undefined, tier: LadderTier) {
   const [value, setValue] = useState<{ key: string; chart?: LadderChart; error?: string } | null>(null);
   const key = paytableId ? `${paytableId}:${tier}` : "";

@@ -47,6 +47,12 @@ describe("deterministic hold vocabulary", () => {
     ["HP", "double_double_bonus", "Pair of Jacks, Queens, or Kings"],
     ["HP_A", "bonus_poker", "Pair of Aces"],
     ["D0_LP", "deuces_wild", "Pair of 3s through Tens (no deuces held)"],
+    // A count of one is singular, whichever kind of draw it describes.
+    ["D1_4SF_g1_w1_d1", "deuces_wild", "4 to a Straight Flush (1 gap; 1 straight pattern; low-end draw; one deuce held)"],
+    ["D0_4RF_w1_d0", "deuces_wild", "4 to a Royal Flush (1 straight pattern; no low-end pattern; no deuces held)"],
+    ["D1_3RF_h0_w1_d0", "deuces_wild", "3 to a Royal Flush (0 high cards; 1 straight pattern; no low-end pattern; one deuce held)"],
+    ["4ST_g0_h1_w1", "jacks_or_better", "4 to a Straight (no flush) (0 gaps; 1 high card; 1 straight pattern)"],
+    ["D0_4RF_w2_d0", "deuces_wild", "4 to a Royal Flush (2 straight patterns; no low-end pattern; no deuces held)"],
   ] as const)("describes %s without exposing its label syntax", (label, family, expected) => {
     expect(describeLabel(label, family)).toBe(expected);
   });
