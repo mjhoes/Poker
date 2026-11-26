@@ -5,7 +5,7 @@ import type { Card, CategoryLabel, GameFamilyId, HandRankId } from "./types";
 
 const RANK_NAMES = "23456789TJQKA";
 const ROYAL_BITS = 31 << 8;
-const WINDOWS = [0x100f, ...Array.from({ length: 9 }, (_, i) => 31 << i)];
+export const STRAIGHT_WINDOWS = [0x100f, ...Array.from({ length: 9 }, (_, i) => 31 << i)];
 const MADE: Record<HandRankId, string> = {
   ROYAL_FLUSH: "RF", NATURAL_ROYAL: "RF", FOUR_DEUCES: "4D", WILD_ROYAL: "WRF",
   FIVE_KIND: "5K", STRAIGHT_FLUSH: "SF", FOUR_ACES_W_234: "4K_A_w234",
@@ -77,7 +77,7 @@ export function describeHoldUnchecked(cards: readonly Card[], mask: number, fami
     if (counts[rank] === 2) { pairCount++; pairRank = rank; }
   }
   const unique = bitsCount(bits) === n - wilds;
-  const straightWindows = unique ? WINDOWS.filter(window => (bits & ~window) === 0) : [];
+  const straightWindows = unique ? STRAIGHT_WINDOWS.filter(window => (bits & ~window) === 0) : [];
   const wheelAce = ranks.includes(12) && ranks.some(rank => rank < 4);
   const spanRanks = wheelAce ? ranks.map(rank => rank === 12 ? -1 : rank) : ranks;
   const gaps = spanRanks.length ? Math.max(...spanRanks) - Math.min(...spanRanks) + 1 - spanRanks.length : 0;

@@ -20,6 +20,7 @@ const NAMES: Record<string, string> = {
 const RANK_NAMES: Record<string, string> = { A: "Ace", K: "King", Q: "Queen", J: "Jack", T: "Ten" };
 const ranks = (text: string) => [...text].map(rank => RANK_NAMES[rank] ?? rank).join("–");
 const highCards = (count: string) => `${count} high card${count === "1" ? "" : "s"}`;
+const patterns = (count: string) => `${count} straight pattern${count === "1" ? "" : "s"}`;
 
 /** Human-readable names for atomic, penalty-refined, and grouped chart labels. */
 export function describeLabel(label: string, familyId: GameFamilyId): string {
@@ -39,9 +40,9 @@ export function describeLabel(label: string, familyId: GameFamilyId): string {
     name = `${["", "One deuce", "Two deuces", "Three deuces", "Four deuces"][count]} only`;
   } else if ((match = base.match(/^3RF_h([0-3])(?:_w([1-9])_d([01]))?$/))) {
     name = "3 to a Royal Flush"; details.push(highCards(match[1]));
-    if (match[2]) details.push(`${match[2]} straight patterns`, match[3] === "1" ? "low-end draw" : "no low-end pattern");
+    if (match[2]) details.push(patterns(match[2]), match[3] === "1" ? "low-end draw" : "no low-end pattern");
   } else if ((match = base.match(/^([34])RF_w([1-9])_d([01])$/))) {
-    name = `${match[1]} to a Royal Flush`; details.push(`${match[2]} straight patterns`, match[3] === "1" ? "low-end draw" : "no low-end pattern");
+    name = `${match[1]} to a Royal Flush`; details.push(patterns(match[2]), match[3] === "1" ? "low-end draw" : "no low-end pattern");
   } else if ((match = base.match(/^2RF_([2-9TJQKA]{1,2})$/))) {
     name = "2 to a Royal Flush"; details.push(ranks(match[1]));
   } else if ((match = base.match(/^4(SF|ST)_(open|inside)(?:_h([0-4]))?$/))) {
@@ -51,11 +52,11 @@ export function describeLabel(label: string, familyId: GameFamilyId): string {
     name = "3 to a Straight Flush"; details.push(`type ${match[1]}`);
   } else if ((match = base.match(/^([234])(SF|ST)_g([0-4])_h([0-4])_w([1-9]|10)(?:_d([01]))?$/))) {
     name = `${match[1]} to a ${match[2] === "SF" ? "Straight Flush" : "Straight (no flush)"}`;
-    details.push(`${match[3]} gap${match[3] === "1" ? "" : "s"}`, highCards(match[4]), `${match[5]} straight pattern${match[5] === "1" ? "" : "s"}`);
+    details.push(`${match[3]} gap${match[3] === "1" ? "" : "s"}`, highCards(match[4]), patterns(match[5]));
     if (match[6]) details.push(match[6] === "1" ? "low-end draw" : "no low-end pattern");
   } else if ((match = base.match(/^([34])(SF|ST)_g([0-4])_w([1-9])_d([01])$/))) {
     name = `${match[1]} to a ${match[2] === "SF" ? "Straight Flush" : "Straight (no flush)"}`;
-    details.push(`${match[3]} gap${match[3] === "1" ? "" : "s"}`, `${match[4]} straight patterns`,
+    details.push(`${match[3]} gap${match[3] === "1" ? "" : "s"}`, patterns(match[4]),
       match[5] === "1" ? "low-end draw" : "no low-end pattern");
   } else if ((match = base.match(/^3FL_h([0-3])$/))) {
     name = "3 to a Flush"; details.push(highCards(match[1]));

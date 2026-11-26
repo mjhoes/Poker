@@ -2,14 +2,23 @@ import { useEffect, useRef } from "react";
 import { IconButton } from "./ui/Button";
 import type { ReactNode } from "react";
 
-export const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
-export const credits = (value: number) =>
-  new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.floor(value));
+// Formatters are made once: building an Intl formatter costs far more than using one, and these run on every render.
+const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const WHOLE = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const STAMP = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+const fixedDigits = new Map<number, Intl.NumberFormat>();
+/** A number with US grouping ("4,000"), rounded to `digits` decimals (shown in full). */
+export function grouped(value: number, digits = 0) {
+  if (digits === 0) return WHOLE.format(value);
+  let format = fixedDigits.get(digits);
+  if (!format) { format = new Intl.NumberFormat("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }); fixedDigits.set(digits, format); }
+  return format.format(value);
+}
+export const money = (cents: number) => USD.format(cents / 100);
+export const credits = (value: number) => WHOLE.format(Math.floor(value));
 export const creditLabel = (state: { credits: number; creditRemainderCents?: number }) =>
   `${credits(state.credits)} credits${state.creditRemainderCents ? ` + ${money(state.creditRemainderCents)}` : ""}`;
-export const dateTime = (value: number) =>
-  new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(value);
+export const dateTime = (value: number) => STAMP.format(value);
 const FAMILY_NAMES: Record<string, string> = {
   jacks_or_better: "Jacks or Better", bonus_poker: "Bonus Poker", bonus_poker_deluxe: "Bonus Poker Deluxe",
   double_bonus: "Double Bonus", double_double_bonus: "Double Double Bonus", deuces_wild: "Deuces Wild",
@@ -25,7 +34,8 @@ const HAND_RANK_NAMES: Record<string, string> = {
   TWO_PAIR: "Two Pair", JACKS_OR_BETTER: "Jacks or Better", NOTHING: "No win",
 };
 export const handRankName = (id: string) => HAND_RANK_NAMES[id] ?? titleCase(id);
-export const plural = (count: number, noun: string) => `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`;
+const COUNT = new Intl.NumberFormat();
+export const plural = (count: number, noun: string) => `${COUNT.format(count)} ${noun}${count === 1 ? "" : "s"}`;
 export const modeName = (mode: string) => ({ drill: "Rapid Drill", free_play: "Free Play" } as Record<string, string>)[mode] ?? mode.replaceAll("_", " ");
 /** A session's mode as players know it: a Free Play session with pace settings is a Casino pace session. */
 export const sessionModeName = (session: { mode: string; pace?: unknown; training?: { kind: string } | null }) =>

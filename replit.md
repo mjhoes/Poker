@@ -576,3 +576,18 @@ R3 — why one hold beats another:
   browser don't skew its measurement. If an `e2e` test fails, it is reported as "did not run"; run it alone with
   `pnpm --filter @perfect-draw/web exec playwright test --project=timing --no-deps` (without `--no-deps`, Playwright
   runs the whole `e2e` project first). The visual and offline configs declare their own single project.
+
+## Performance notes
+
+- **Formatters are made once.** `Intl.NumberFormat`/`DateTimeFormat` objects are module constants (`money`, `credits`,
+  `dateTime`, `plural`, `grouped` in `components/UiHelpers.tsx`); building one costs far more than using it. Don't
+  call `toLocaleString()` or `new Intl.*` in code that renders on every hand. The pay table (`table/PayTable.tsx`) is
+  memoized on its table, bet and lit rows. Together these took Rapid Drill feedback from about 50–64 ms to about
+  20–35 ms here.
+- **Training data** (`getTrainingContext(key).getData()`: every deal's hold categories at three levels, preferences
+  and EVs) describes each held set once (`trainingShape` in `packages/engine/src/training.ts`). The penalties are
+  counted per deal, exactly as `describeHoldUnchecked` counts them; `tests/training-shape.test.ts` checks this
+  against the full description in every family. A table's first Train charts went from about 12 s to about 4 s.
+- Hold names say "1 straight pattern" and "2 straight patterns" (singular for one).
+- Leaving a page clears error toasts in an effect after the route changes (`hooks/useRoute.ts`), never inside a state
+  update: React can run updaters during render.

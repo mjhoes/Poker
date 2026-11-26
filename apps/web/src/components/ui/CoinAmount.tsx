@@ -1,9 +1,9 @@
-import { money } from "../UiHelpers";
+import { grouped, money } from "../UiHelpers";
 
 const credits = (value: number, digits: number) => {
-  if (digits === 0) return Math.round(value).toLocaleString("en-US");
+  if (digits === 0) return grouped(Math.round(value));
   if (value !== 0 && Math.abs(value) < 10 ** -digits) return value.toExponential(1);
-  return value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return grouped(value, digits);
 };
 
 /** Dollar value of a credit amount. Sub-cent amounts read "<$0.01" rather than rounding to a misleading $0.00. */

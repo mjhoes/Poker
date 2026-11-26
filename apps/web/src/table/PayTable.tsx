@@ -1,4 +1,6 @@
+import { memo } from "react";
 import { getGameFamily } from "@perfect-draw/engine";
+import { grouped } from "../components/UiHelpers";
 import { findPaytable } from "../paytables/catalog";
 
 const SHORT_NAMES: Record<string, string> = {
@@ -14,7 +16,11 @@ export const shortRankName = (rank: string) => SHORT_NAMES[rank] ?? rank.replace
  * The machine's pay table, as printed on the glass: one row per paying hand, one column per coin bet. The column for
  * the current bet is lit, and rows hit by the last draw glow. Split into two panels so it stays short.
  */
-export function PayTable({ paytableId, coins, hits }: { paytableId: string; coins: number; hits: ReadonlySet<string> }) {
+type PayTableProps = { paytableId: string; coins: number; hits: ReadonlySet<string> };
+const sameHits = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every(rank => b.has(rank));
+/** Re-renders only when the table, the bet or the lit rows change: not on every hold, deal or answer. */
+export const PayTable = memo(PayTableView, (a, b) => a.paytableId === b.paytableId && a.coins === b.coins && sameHits(a.hits, b.hits));
+function PayTableView({ paytableId, coins, hits }: PayTableProps) {
   const table = findPaytable(paytableId);
   if (!table) return null;
   const ranks = getGameFamily(table.familyId).handRanks.filter(rank => rank !== "NOTHING");
@@ -26,7 +32,7 @@ export function PayTable({ paytableId, coins, hits }: { paytableId: string; coin
       <thead><tr><th scope="col">Hand</th>{[1, 2, 3, 4, 5].map(column => <th key={column} scope="col" className={column === coins ? "is-bet" : ""}>{column}<span className="visually-hidden"> coin{column === 1 ? "" : "s"}</span></th>)}</tr></thead>
       <tbody>{rows.map(rank => <tr key={rank} className={hits.has(rank) ? "is-hit" : ""}>
         <th scope="row">{shortRankName(rank)}</th>
-        {[1, 2, 3, 4, 5].map(column => <td key={column} className={column === coins ? "is-bet" : ""}>{(table.pays[rank]?.[column - 1] ?? 0).toLocaleString("en-US")}</td>)}
+        {[1, 2, 3, 4, 5].map(column => <td key={column} className={column === coins ? "is-bet" : ""}>{grouped(table.pays[rank]?.[column - 1] ?? 0)}</td>)}
       </tr>)}</tbody>
     </table>)}
   </div>;

@@ -36,8 +36,9 @@ function labelFor(label: string, familyId: string) {
   catch { return label; }
 }
 
+const FULL_DAY = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" });
 function fullDay(value: number) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(value);
+  return FULL_DAY.format(value);
 }
 
 export function TrendChart({ report, metric }: { report: StatsReport; metric: TrendMetric }) {

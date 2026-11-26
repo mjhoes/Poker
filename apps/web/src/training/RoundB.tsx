@@ -38,7 +38,7 @@ export function LadderPanel({ machine, busy, onStart }: { machine: Machine; busy
     <p className="eyebrow">STRATEGY LADDER</p><h2 id="ladder-title">Climb a strategy chart</h2>
     <p className="train-copy">One line at a time, top-down. {LADDER_STREAK} right in a row on the newest line unlocks the next, with earlier lines mixed in. Charts are for max bet, so the ladder deals at 5 coins.</p>
     <Segmented label="Chart" value={tier} onChange={setTier} options={TIERS.map(value => ({ value, label: value }))} />
-    {!info || (!chart && !info.error) ? <p className="status-note" role="status">Loading the {tier} chart… A table's first charts take about 20 seconds.</p>
+    {!info || (!chart && !info.error) ? <p className="status-note" role="status">Loading the {tier} chart… A table's first charts take a few seconds (longer for a pay table you entered yourself).</p>
       : info.error ? <p className="status-note" role="alert">Couldn't load the chart: {info.error}</p>
       : chart && <>
         <div className="ladder-progress" role="group" aria-label="Ladder progress">

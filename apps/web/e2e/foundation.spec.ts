@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { createPlayTable } from "./play-helpers";
 
 async function createWallet(page: Page, name = "Cruise practice", amount = "100.00") {
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
@@ -177,4 +178,23 @@ test("unavailable workers do not prevent wallet management", async ({ page }) =>
   await expect(page.getByRole("alert").filter({ hasText: "Table analysis unavailable" })).toBeVisible();
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
   await expect(page.getByRole("button", { name: "Select wallet Cruise practice", exact: true })).toContainText("$100.00");
+});
+
+test("changing page clears error toasts, without updating the toasts during a render", async ({ page }) => {
+  const warnings: string[] = [];
+  page.on("console", message => { if (message.type() === "error" || message.type() === "warning") warnings.push(message.text()); });
+  // Setting up a play table changes page while toasts and other updates are pending: where React ran the old
+  // updater-time clearing during App's render.
+  await createPlayTable(page);
+  await page.evaluate(async () => {
+    const { toast } = await import("/src/components/Toasts.tsx" as string) as typeof import("../src/components/Toasts");
+    toast.error("Something went wrong on this page.");
+    toast.info("This one stays.");
+  });
+  await expect(page.getByRole("alert").filter({ hasText: "Something went wrong on this page." })).toBeVisible();
+  await page.getByRole("link", { name: "Train", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Something went wrong on this page." })).toHaveCount(0);
+  await expect(page.getByText("This one stays.")).toBeVisible();
+  await page.getByRole("link", { name: "Machines", exact: true }).click();
+  expect(warnings.filter(text => text.includes("Cannot update a component"))).toEqual([]);
 });

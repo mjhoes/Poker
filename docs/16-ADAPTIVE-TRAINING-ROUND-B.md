@@ -12,7 +12,7 @@ started from the Train page, like round A's.
 Learn a strategy chart top-down, one line at a time, then mixed review.
 
 - **Chart.** The machine's pay table, at the chosen tier. Charts are built for max bet, so a ladder session always deals
-  at 5 coins (the bet is fixed, like a focused drill's). A custom table's charts are built the first time (about 20 s).
+  at 5 coins (the bet is fixed, like a focused drill's). A table's training data is built the first time (a few seconds), and a custom table's charts too (longer).
 - **Hands.** For each line, the deals where that line picks the hold *and* the chart's hold is the best play. The
   grade then agrees with the chart, so the ladder never marks a chart-correct hold wrong. A line with no such deal
   can't be practiced and is skipped (shown as "no deal to practice").

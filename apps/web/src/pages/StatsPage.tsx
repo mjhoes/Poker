@@ -22,13 +22,15 @@ const creditsFormatter = (denominationCents: number | null) => (value: number | 
   const amount = value !== 0 && Math.abs(value) < 0.001 ? `${value.toExponential(2)} credits` : `${value.toFixed(digits)} credits`;
   return denominationCents ? `${amount} (${dollarsFor(value, denominationCents)})` : amount;
 };
-const count = (value: number) => new Intl.NumberFormat().format(value);
+const COUNT = new Intl.NumberFormat();
+const count = (value: number) => COUNT.format(value);
 const dateEpoch = (value: string, end = false) => {
   if (!value) return undefined;
   const bounds = localDayBounds(value, Intl.DateTimeFormat().resolvedOptions().timeZone);
   return end ? bounds.until : bounds.since;
 };
-const fullDay = (value: number) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(value);
+const FULL_DAY = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" });
+const fullDay = (value: number) => FULL_DAY.format(value);
 
 function Metric({ label, value, note, emphasis = false }: { label: string; value: string; note: string; emphasis?: boolean }) {
   return <div className={`stats-metric ${emphasis ? "is-emphasis" : ""}`}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;

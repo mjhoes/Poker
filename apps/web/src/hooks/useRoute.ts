@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { clearToasts } from "../components/Toasts";
 
 export const ROUTES = ["/", "/wallets", "/settings", "/session", "/analyze", "/stats", "/cruise", "/train", "/heuristics"] as const;
@@ -14,12 +14,18 @@ export function parseHash(hash: string): { route: Route; search: string } {
 /** Hash routing. Leaving a page clears its error toasts, which no longer apply; a change of search alone does not. */
 export function useRoute() {
   const [location, setLocation] = useState(() => parseHash(window.location.hash));
+  // Cleared after the route changes, never inside the state update: React runs updaters while rendering, and the
+  // toast list would then change during App's render.
+  const shown = useRef(location.route);
   useEffect(() => {
-    const sync = () => setLocation(previous => {
+    if (shown.current !== location.route) clearToasts("error");
+    shown.current = location.route;
+  }, [location.route]);
+  useEffect(() => {
+    const sync = () => {
       const next = parseHash(window.location.hash);
-      if (next.route !== previous.route) clearToasts("error");
-      return next.route === previous.route && next.search === previous.search ? previous : next;
-    });
+      setLocation(previous => next.route === previous.route && next.search === previous.search ? previous : next);
+    };
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);
