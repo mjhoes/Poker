@@ -1,9 +1,10 @@
 import type { DealTarget } from "./engine-api";
 import {
   analyzeGame, analyzeHandFast, categoryDistribution, clearSubsetCache, computeStatistics,
-  clearTrainingCache, generateHand, getCanonicalHands, registerTrainingAnalysis, standardVariant,
+  clearTrainingCache, generateHand, getCanonicalHands, getTrainingContext, registerTrainingAnalysis, scoreHeuristic, standardVariant,
+  suggestExceptions,
 } from "@perfect-draw/engine";
-import type { GameAnalysis, Hand, HandAnalysis } from "@perfect-draw/engine";
+import type { GameAnalysis, Hand, HandAnalysis, HoldSelector, RuleAST } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import { decisionSchema, recordSchemas, statsQuerySchema } from "@perfect-draw/shared";
 import type { StatsQuery, StatsReportView } from "@perfect-draw/shared";
@@ -173,6 +174,24 @@ export class StatsEngine {
     const drill = generateHand({ analysisKey: key, onlyIds: ids.length ? ids : undefined, sampling: "real" });
     this.prepareFamily(analysis.familyId);
     return analyzeHandFast(drill.hand, analysis.valueVector, analysis.familyId);
+  }
+  /** A table at a bet ready for heuristic scoring: its analysis registered for the engine. */
+  private async heuristicKey(paytableId: string, coins: number) {
+    const { key, analysis } = await this.game(paytableId, coins);
+    registerTrainingAnalysis(key, analysis);
+    this.prepareFamily(analysis.familyId);
+    return key;
+  }
+  /** The hold categories a heuristic can name on this table (every category that can be held, best or not). */
+  async heuristicCategories(paytableId: string, coins: number) {
+    const key = await this.heuristicKey(paytableId, coins);
+    return [...new Set(getTrainingContext(key).getData().names[1].map(name => name.split("|")[0]))].sort();
+  }
+  async scoreHeuristic(paytableId: string, coins: number, rule: RuleAST) {
+    return scoreHeuristic(rule, await this.heuristicKey(paytableId, coins));
+  }
+  async suggestHeuristic(paytableId: string, coins: number, prefer: HoldSelector, over: HoldSelector) {
+    return suggestExceptions({ prefer, over }, await this.heuristicKey(paytableId, coins));
   }
   async validateTraining(paytableId: string, coins: number, label: string) {
     const { key } = await this.game(paytableId, coins);

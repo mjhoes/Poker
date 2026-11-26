@@ -13,10 +13,26 @@ export const masterySchema = z.object({
   evLostTotal: z.number().finite().nonnegative().default(0), reps: z.number().int().nonnegative().default(0),
   lapses: z.number().int().nonnegative().default(0), lastReviewedAt: timestamp.nullable().default(null),
 });
+/** A deal shown on a heuristic card: the cards, the card's hold and a best hold (masks over `hand`). */
+export const heuristicExampleSchema = z.object({
+  hand: z.array(z.number().int().min(0).max(51)).length(5), mask: z.number().int().min(0).max(31), bestMask: z.number().int().min(0).max(31),
+  evLoss: z.number().finite().nonnegative(), weight: z.number().int().positive(), exception: z.boolean(),
+});
+/**
+ * A personal heuristic card (docs/17-HEURISTICS-PLAN.md): a rule "hold A over B, unless …" on one pay table at one bet,
+ * scored by the engine over every deal (costs in percentage points of return). `source`: engine-written from your
+ * mistakes, or saved from the Rule Lab. Words may be polished by AI (`aiModel`), the rule never is.
+ */
 export const heuristicSchema = z.object({
-  ...entity, paytableId: hash, targetLabelPair: z.tuple([z.string(), z.string()]), ruleAst: z.record(z.unknown()),
-  ruleText: z.string(), mnemonic: z.string(), exceptions: z.array(z.string()), examples: z.array(z.unknown()),
-  costPct: z.number().finite(), status: z.enum(["active", "mastered", "archived"]), createdAt: timestamp,
+  ...entity, paytableId: hash, coins: z.number().int().min(1).max(5).default(5),
+  source: z.enum(["engine", "lab"]).default("engine"),
+  targetLabelPair: z.tuple([z.string(), z.string()]), ruleAst: z.record(z.unknown()),
+  ruleText: z.string().max(600), mnemonic: z.string().max(300), exceptions: z.array(z.string().max(400)).max(5),
+  examples: z.array(heuristicExampleSchema).max(8), counterexamples: z.array(heuristicExampleSchema).max(8).default([]),
+  costPct: z.number().finite(), costWithoutExceptionsPct: z.number().finite().nonnegative().default(0),
+  appliesFreq: z.number().min(0).max(1).default(0), rightFreq: z.number().min(0).max(1).default(0),
+  aiModel: z.string().nullable().default(null), mnemonicStyle: z.string().nullable().default(null),
+  status: z.enum(["active", "mastered", "archived"]), createdAt: timestamp,
 });
 export const uploadSchema = z.object({
   ...entity, kind: z.enum(["paytable", "hand"]), imageBlob: z.instanceof(Blob).optional(),

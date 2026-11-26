@@ -32,6 +32,7 @@ import { StatsPage } from "./pages/StatsPage";
 import { AnalyzePage } from "./pages/AnalyzePage";
 import { CruisePage } from "./pages/CruisePage";
 import { TrainPage } from "./pages/TrainPage";
+import { HeuristicsPage } from "./pages/HeuristicsPage";
 
 type Dialog =
   | { kind: "machine"; machine?: Machine }
@@ -153,6 +154,7 @@ function App() {
       {route === "/analyze" && <AnalyzePage search={search} replaceSearch={replaceSearch} machines={machines}
         sessions={Object.values(sessions)} activeSession={activeSession} busy={busy} run={run} />}
       {route === "/stats" && <StatsPage machines={machines} decisionCount={decisionCount} onTrainStarted={() => { setSessionViewId(null); openRoom(); }} onGoMachines={() => navigate("/")} />}
+      {route === "/heuristics" && <HeuristicsPage machines={machines} busy={busy} run={run} />}
       {route === "/train" && <TrainPage machines={machines} busy={busy} run={run} onOpenRoom={() => { setSessionViewId(null); openRoom(); }} />}
       {route === "/session" && <SessionPage session={shownSession} felt={roomFelt ?? "felt"} sessions={historySessions} run={run}
         analysis={tableAnalysis.analysis} analysisError={tableAnalysis.error} analysisLoading={tableAnalysis.loading} onRetry={tableAnalysis.request}

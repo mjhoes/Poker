@@ -10,6 +10,7 @@ const NAV: { route: Route; label: string }[] = [
   { route: "/session", label: "Session room" },
   { route: "/analyze", label: "Analyze" },
   { route: "/train", label: "Train" },
+  { route: "/heuristics", label: "Heuristics" },
   { route: "/stats", label: "Statistics" },
   { route: "/cruise", label: "Cruise" },
   { route: "/settings", label: "Settings" },

@@ -18,6 +18,7 @@ import "./styles/analyzer.css";
 import "./styles/ai.css";
 import "./styles/cruise.css";
 import "./styles/train.css";
+import "./styles/heuristics.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

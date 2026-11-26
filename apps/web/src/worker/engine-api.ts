@@ -3,6 +3,7 @@ import type { GameAnalysis } from "@perfect-draw/engine";
 import type { HandAnalysis, DrillHand } from "@perfect-draw/engine";
 import type { StrategyList, StrategyTier } from "@perfect-draw/engine";
 import type { RoundOutcome } from "@perfect-draw/engine";
+import type { HeuristicScore, HoldSelector, RuleAST } from "@perfect-draw/engine";
 import type { StatsQuery, StatsReportView, Session } from "@perfect-draw/shared";
 import type { RiskBand } from "./risk";
 
@@ -56,6 +57,12 @@ export interface EngineAPI {
   trainableLabels(paytableId: string, coins: number): Promise<string[]>;
   /** A table's Beginner, Intermediate or Expert chart, line by line, for the Strategy Ladder. */
   ladderChart(paytableId: string, tier: LadderTier): Promise<LadderChart>;
+  /** Heuristics: the hold categories a rule can name on this table at this bet. */
+  heuristicCategories(paytableId: string, coins: number): Promise<string[]>;
+  /** Heuristics: a card's exact score over every deal (an exception means "hold the other one"). */
+  scoreHeuristic(paytableId: string, coins: number, rule: RuleAST): Promise<HeuristicScore>;
+  /** Heuristics: "hold A over B" with up to two exceptions found by the engine, scored, and the bare rule's score. */
+  suggestHeuristic(paytableId: string, coins: number, prefer: HoldSelector, over: HoldSelector): Promise<{ rule: RuleAST; score: HeuristicScore; bare: HeuristicScore }>;
   /** For the Pay Table Switcher: the share of deals (%) whose best hold differs between `paytableId` and each other table. */
   switcherDiffer(paytableId: string, others: string[], coins: number): Promise<{ paytableId: string; differPct: number }[]>;
   resolveRound(hand: Hand, mask: number, decks: number[][], paytableId: string, coins: number): Promise<RoundOutcome>;

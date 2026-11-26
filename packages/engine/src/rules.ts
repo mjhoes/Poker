@@ -83,7 +83,7 @@ export function validateRuleAST(value: unknown): asserts value is RuleAST {
   if (value.unless !== undefined) condition(value.unless, 0);
 }
 
-function unlessMatches(condition: RuleCondition, preferred: HoldPattern, over: HoldPattern): boolean {
+export function unlessMatches(condition: RuleCondition, preferred: HoldPattern, over: HoldPattern): boolean {
   if (condition.kind === "and") return condition.conditions.every(child => unlessMatches(child, preferred, over));
   if (condition.kind === "or") return condition.conditions.some(child => unlessMatches(child, preferred, over));
   if (condition.kind === "not") return !unlessMatches(condition.condition, preferred, over);
@@ -105,9 +105,18 @@ export function matchesHoldSelector(pattern: HoldPattern, wanted: HoldSelector):
     (wanted.heldRanks === undefined || wanted.heldRanks === pattern.heldRanks);
 }
 
-/** All-deal scoring of a local precedence rule; higher unrelated plays remain optimal. */
-export function evaluateRule(rule: RuleAST, analysisKey: string): RuleEvaluation {
-  validateRuleAST(rule);
+/**
+ * The deals a local rule decides: both a hold matching `prefer` and one matching `over` exist (the preferred hold of
+ * each kind when several match) and one of the two is a best play. Any other best play is left alone.
+ */
+export interface RuleDeal {
+  readonly h: number;
+  readonly preferredMask: number; readonly overMask: number;
+  readonly preferredEv: number; readonly overEv: number;
+  readonly bestEv: number; readonly bestMask: number; readonly weight: number;
+  readonly preferred: HoldPattern; readonly over: HoldPattern;
+}
+export function ruleDeals(rule: Pick<RuleAST, "prefer" | "over">, analysisKey: string): RuleDeal[] {
   const context = getTrainingContext(analysisKey), data = context.getData(), hands = getCanonicalHands();
   const known = (wanted: HoldSelector) => data.names[1].some(name => {
     const raw = name.split("|r:")[0].split("|p:")[0];
@@ -120,8 +129,7 @@ export function evaluateRule(rule: RuleAST, analysisKey: string): RuleEvaluation
   const rawNames = data.names[1].map(name => name.split("|r:")[0].split("|p:")[0]);
   const canPreferLabel = rawNames.map(name => possible(name, rule.prefer));
   const canOverLabel = rawNames.map(name => possible(name, rule.over));
-  let totalLoss = 0, handsAffected = 0, canonicalHandsAffected = 0, mistakeHands = 0;
-  const counterexamples: RuleCounterexample[] = [];
+  const deals: RuleDeal[] = [];
   for (let h = 0; h < hands.length; h++) {
     let preferredMask = -1, overMask = -1, preferredEv = -Infinity, overEv = -Infinity;
     for (let mask = 0; mask < 32; mask++) {
@@ -139,20 +147,34 @@ export function evaluateRule(rule: RuleAST, analysisKey: string): RuleEvaluation
         overMask = mask; overEv = data.evs[index];
       }
     }
-    if (preferredMask < 0 || overMask < 0) continue;
+    if (preferredMask < 0 || overMask < 0 || preferredMask === overMask) continue;
     const optimal = context.analysis.perHand.get(hands[h].id)!;
     if (Math.max(preferredEv, overEv) < optimal.ev - 1e-10) continue;
-    if (rule.unless && unlessMatches(rule.unless,
-      describeHoldUnchecked(hands[h].hand, preferredMask, context.analysis.familyId),
-      describeHoldUnchecked(hands[h].hand, overMask, context.analysis.familyId))) continue;
-    const loss = Math.max(0, optimal.ev - preferredEv);
-    handsAffected += hands[h].weight; canonicalHandsAffected++;
-    totalLoss += loss * hands[h].weight / 2598960;
+    deals.push({
+      h, preferredMask, overMask, preferredEv, overEv, bestEv: optimal.ev, bestMask: optimal.bestMask, weight: hands[h].weight,
+      preferred: describeHoldUnchecked(hands[h].hand, preferredMask, context.analysis.familyId),
+      over: describeHoldUnchecked(hands[h].hand, overMask, context.analysis.familyId),
+    });
+  }
+  return deals;
+}
+
+/** All-deal scoring of a local precedence rule; higher unrelated plays remain optimal. */
+export function evaluateRule(rule: RuleAST, analysisKey: string): RuleEvaluation {
+  validateRuleAST(rule);
+  const context = getTrainingContext(analysisKey), hands = getCanonicalHands();
+  let totalLoss = 0, handsAffected = 0, canonicalHandsAffected = 0, mistakeHands = 0;
+  const counterexamples: RuleCounterexample[] = [];
+  for (const deal of ruleDeals(rule, analysisKey)) {
+    if (rule.unless && unlessMatches(rule.unless, deal.preferred, deal.over)) continue;
+    const loss = Math.max(0, deal.bestEv - deal.preferredEv);
+    handsAffected += deal.weight; canonicalHandsAffected++;
+    totalLoss += loss * deal.weight / 2598960;
     if (loss > 1e-10) {
-      mistakeHands += hands[h].weight;
+      mistakeHands += deal.weight;
       counterexamples.push({
-        canonicalHandId: hands[h].id, hand: [...hands[h].hand] as unknown as Hand,
-        chosenMask: preferredMask, bestMask: optimal.bestMask, evLoss: loss, weight: hands[h].weight,
+        canonicalHandId: hands[deal.h].id, hand: [...hands[deal.h].hand] as unknown as Hand,
+        chosenMask: deal.preferredMask, bestMask: deal.bestMask, evLoss: loss, weight: deal.weight,
       });
     }
   }
@@ -164,4 +186,3 @@ export function evaluateRule(rule: RuleAST, analysisKey: string): RuleEvaluation
     counterexamples: counterexamples.slice(0, 20),
   };
 }
-
