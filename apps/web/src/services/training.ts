@@ -6,6 +6,7 @@ import { getLibraryPayTable, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { db, live, requireRecord } from "../data/db";
 import { applyAnswer, graduated, reviewQueue, startOfDay, weaknessPick } from "../training/core";
 import type { Answer, Card, Target } from "../training/core";
+import { engineClient } from "../worker/client";
 import type { DealTarget } from "../worker/engine-api";
 import { sessionService } from "./sessions";
 import { statsService } from "./statistics";
@@ -17,7 +18,7 @@ import { statsService } from "./statistics";
 
 export class ReviewsDoneError extends Error {
   constructor(capReached: boolean) {
-    super(capReached ? "That's today's reviews. Keep going for the rest that are due, or come back tomorrow." : "Nothing else is due for review on this game right now.");
+    super(capReached ? "That's today's reviews. Keep going for the rest that are due, or come back tomorrow." : "Nothing else is due for review on this table right now.");
   }
 }
 
@@ -40,6 +41,20 @@ async function reviewsToday(now: number) {
   return db.records("decisions").where("sessionId").anyOf(reviewSessions)
     .filter(row => live(row) && !row.isCorrection && row.createdAt >= startOfDay(now)).count();
 }
+/**
+ * A game's categories answered in sessions still open with quiet feedback. Their cards already hold those answers, so
+ * they stay out of sight (and out of review) until the session closes and its report shows the results.
+ */
+async function quietLabels(familyId: string) {
+  const open = (await db.records("sessions").toArray()).filter(session => live(session) && session.status !== "closed" && session.state.feedbackMode === "silent_report");
+  const ids: string[] = [];
+  for (const session of open) if (await familyOf(session.machineSnapshot.paytableId) === familyId) ids.push(session.id);
+  if (!ids.length) return new Set<string>();
+  const rows = await db.records("decisions").where("sessionId").anyOf(ids).filter(live).toArray();
+  return new Set(rows.map(row => row.bestLabel));
+}
+/** A table at a bet, for review: its game and the categories it can deal. */
+export type TrainingTable = { familyId: string; available: ReadonlySet<string> };
 
 /** Call inside the decision's transaction (it must include categoryMastery): a first decision updates its card. */
 export async function recordAnswer(answer: Answer) {
@@ -53,9 +68,19 @@ export async function recordAnswer(answer: Answer) {
 export const trainingService = {
   cards: allCards,
   familyOf,
-  /** Today's review for a game. */
-  async queue(familyId: string, keepGoing = false, now = Date.now()) {
-    return reviewQueue(await allCards(), familyId, now, await dailyCap(), await reviewsToday(now), keepGoing);
+  /** The categories that are a best hold on a table at a bet: the only cards it can review. */
+  labelsOn: (paytableId: string, coins: number) => engineClient().trainableLabels(paytableId, coins),
+  async table(paytableId: string, coins: number): Promise<TrainingTable> {
+    return { familyId: await familyOf(paytableId), available: new Set(await trainingService.labelsOn(paytableId, coins)) };
+  },
+  /**
+   * Today's review on a table: its game's due cards that it can deal, leaving out cards hidden by an open quiet
+   * session (`hidden`).
+   */
+  async queue(table: TrainingTable, keepGoing = false, now = Date.now()) {
+    const hidden = await quietLabels(table.familyId);
+    const queue = reviewQueue(await allCards(), table.familyId, now, await dailyCap(), await reviewsToday(now), keepGoing, { available: table.available, hidden });
+    return { ...queue, hidden };
   },
   /**
    * The Weakness Trainer's targets on a table: Statistics' costliest confusion pairs (recency-weighted EV lost),
@@ -84,12 +109,15 @@ export const trainingService = {
   async nextDeal(session: Session, coins: number, random: () => number = Math.random): Promise<DealTarget> {
     const training = session.training!;
     if (training.kind === "close_calls") return { closeCallMaxGap: (training.closeCallPerCoin ?? 0.1) * coins };
-    const queue = await trainingService.queue(await familyOf(session.machineSnapshot.paytableId), training.kind === "review" && training.keepGoing);
+    const table = await trainingService.table(session.machineSnapshot.paytableId, coins);
     if (training.kind === "review") {
+      const queue = await trainingService.queue(table, training.keepGoing);
       if (!queue.next) throw new ReviewsDoneError(queue.capReached);
-      return { labels: [queue.next.label] };
+      // Strict: the card's own category or nothing, so an answer always reviews the card that was due.
+      return { labels: [queue.next.label], strict: true };
     }
-    const pick = weaknessPick(training.targets ?? [], queue.next, random);
+    // The daily cap governs Today's Review only: the Weakness Trainer's share of due cards goes on past it.
+    const pick = weaknessPick(training.targets ?? [], (await trainingService.queue(table, true)).next, random);
     return { labels: pick.labels, pairs: pick.pairs };
   },
   /** Lets a review session go past the daily cap. */

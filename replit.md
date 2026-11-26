@@ -491,7 +491,18 @@ R3 — why one hold beats another:
   worker's `prepareRound(…, target)` → `StatsEngine.prepareDeal` generates a matching hand (pair, else category, else
   any real hand; always within a close-call gap). Weakness targets = Statistics' top 5 confusion pairs by recency-weighted
   EV lost, minus graduated cards; each deal is 70% a target (by weight), 20% a due card, 10% any hand.
-- Tests: `tests/training-core.test.ts`, `tests/training-services.test.ts`, `e2e/train.spec.ts`.
+- A table reviews only the cards it can deal (PR #9 review). Cards are family-wide, but a category that is a best
+  hold on one pay table need not be on another (NSUD's `D0_2P` never is on Full-Pay Deuces Wild):
+  `EngineAPI.trainableLabels(paytableId, coins)` lists a table's best-hold categories, `reviewQueue(…, scope)` keeps
+  only those, and Train marks the rest "Not on this table". Review deals are `strict` (`DealTarget.strict`): the card's
+  category or an error, never an unrelated hand that would update another card and leave the review due. The Weakness
+  Trainer's targets still fall back to a real hand, and its 20% due-card share ignores the daily cap (which governs
+  Today's Review only).
+- Quiet feedback stays quiet on Train: cards whose categories were answered in a session still open with
+  `silent_report` (`quietLabels`) are left out of review and shown as "Hidden" until it closes. The card update itself
+  still happens atomically with the decision.
+- Tests: `tests/training-core.test.ts`, `tests/training-services.test.ts`, `tests/training-tables.test.ts` (real NSUD
+  and Full-Pay analyses from `packages/precomputed/assets`), `e2e/train.spec.ts`.
 
 ## Test acknowledgments instead of sleeps
 

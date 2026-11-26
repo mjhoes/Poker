@@ -53,7 +53,7 @@ test("adaptive training: cards from play, today's review to all caught up, the c
   await expect(note).toContainText("All caught up");
   await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Deal hand", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Nothing else is due for review on this game right now.");
+  await expect(page.getByRole("alert")).toContainText("Nothing else is due for review on this table right now.");
 
   await page.getByRole("link", { name: "Train", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Nothing due now" })).toBeVisible();
@@ -78,5 +78,42 @@ test("adaptive training: cards from play, today's review to all caught up, the c
   await expect(page.getByRole("region", { name: "Training plan" })).toContainText("Your costliest mistakes");
   await drillHand(page, true);
   expect((await openSession(page)).training?.targets?.length).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
+test("quiet feedback stays quiet on Train: an open quiet session's cards show no results until it closes", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await createPlayTable(page);
+  await page.getByRole("button", { name: "Table settings", exact: true }).click();
+  await page.getByRole("button", { name: "Silent report", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Silent report", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // One hand, held wrong on purpose.
+  await page.getByRole("button", { name: "Deal hand", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Draw", exact: true })).toBeEnabled();
+  const analysis = (await openSession(page)).state.analysis!;
+  await chooseMask(page, analysis.results.find(result => result.ev < analysis.best.ev - 1e-9)!.mask);
+  await page.getByRole("button", { name: "Draw", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Deal hand", exact: true })).toBeEnabled();
+  expect((await openSession(page)).state.feedbackMode).toBe("silent_report");
+
+  // Before closing: the card is there, but not its result or its 10-minute relearn (PR #9 review).
+  await page.getByRole("link", { name: "Train", exact: true }).click();
+  const cards = page.getByRole("region", { name: "Every best-hold category you've played" });
+  await expect(cards).toContainText("1 card holds hands from an open session with quiet feedback. Its results show here when you close it.");
+  const row = cards.getByRole("row").nth(1);
+  await expect(row).toContainText("Hidden");
+  await expect(row).toContainText("After your quiet session");
+  await expect(row).not.toContainText("0 of 1");
+  await expect(row).not.toContainText("In 10 min");
+
+  // After closing, the results show.
+  await page.getByRole("link", { name: "Session room", exact: true }).click();
+  await page.getByRole("button", { name: "Close session" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Close session" }).click();
+  await expect(page.getByRole("button", { name: "Close session" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Train", exact: true }).click();
+  await expect(row).toContainText("0 of 1");
+  await expect(row).toContainText("In 10 min");
+  await expect(cards).not.toContainText("open session with quiet feedback");
   expect(errors).toEqual([]);
 });

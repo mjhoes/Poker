@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { analyzeHandFast, parseHand, standardVariant } from "@perfect-draw/engine";
 import { getLibraryPayTable } from "@perfect-draw/paytables";
+import { newId } from "@perfect-draw/shared";
 import { db, initializeDatabase } from "../src/data/db";
 import { machineService } from "../src/services/machines";
 import { walletService } from "../src/services/wallets";
@@ -11,8 +12,12 @@ import { ReviewsDoneError, trainingService } from "../src/services/training";
 
 const table = getLibraryPayTable("jacks-or-better-9-6");
 let clock = new Date("2026-12-01T09:00:00").getTime();
+/** The categories the (fake) engine says a table can deal: every card's by default. */
+let onTable: string[] | null = null;
 beforeEach(async () => {
   vi.spyOn(Date, "now").mockImplementation(() => clock);
+  onTable = null;
+  vi.spyOn(trainingService, "labelsOn").mockImplementation(async () => onTable ?? (await trainingService.cards()).map(card => card.label));
   await db.transaction("rw", db.tables, async () => { for (const item of db.tables) await item.clear(); });
   await initializeDatabase();
 });
@@ -67,7 +72,7 @@ describe("today's review", () => {
     clock += 11 * 60_000;
     const label = (await trainingService.cards())[0].label;
     await answer(play, review.id, 0b01111);
-    expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { labels: [label] });
+    expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { labels: [label], strict: true });
     // Make it due again after each answer until 5 reviews are done today: the cap.
     for (let count = 1; count < 5; count++) {
       const [card] = await trainingService.cards();
@@ -76,11 +81,35 @@ describe("today's review", () => {
     }
     const [card] = await trainingService.cards();
     await db.table("categoryMastery").put({ ...card, dueAt: clock - 1 });
-    expect(await trainingService.queue("jacks_or_better")).toMatchObject({ done: 5, capReached: true, next: null });
+    expect(await trainingService.queue(await trainingService.table(table.id, 5))).toMatchObject({ done: 5, capReached: true, next: null });
+    // The cap is Today's Review's alone: the Weakness Trainer still gives due cards their 20% share.
+    vi.spyOn(trainingService, "weaknessTargets").mockResolvedValue([{ bestLabel: "Two pair", chosenLabel: "One pair", weight: 1 }]);
+    const weakness = await trainingService.start({ machineId: machine.id, kind: "weakness" });
+    expect(await trainingService.nextDeal(weakness, 5, () => 0.8)).toEqual({ labels: [label], pairs: undefined });
     await expect(play.deal(review.id, (await sessionService.list()).find(row => row.id === review.id)!.state.handId)).rejects.toThrow("Keep going");
     await trainingService.keepGoing(review.id);
     await answer(play, review.id, 0b01111);
-    expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { labels: [label] });
+    expect(api.prepareRound).toHaveBeenLastCalledWith(table.id, 5, 1, null, { labels: [label], strict: true });
+  });
+  it("only reviews cards the table can deal: a family-wide card from another pay table is never served there", async () => {
+    const { play, api } = await setup();
+    const nsud = getLibraryPayTable("deuces-wild-nsud"), fullPay = getLibraryPayTable("deuces-wild-full-pay");
+    const wallet = await walletService.create({ name: "Deuces", initialCents: 10_000 });
+    const onNsud = await machineService.save({ name: "NSUD", paytableId: nsud.id, defaultWalletId: wallet.id, denominationCents: 25 });
+    const onFullPay = await machineService.save({ name: "Full Pay", paytableId: fullPay.id, defaultWalletId: wallet.id, denominationCents: 25 });
+    // An overdue card for a category that is a best hold on NSUD but never on Full-Pay Deuces Wild (see training-tables.test).
+    await db.table("categoryMastery").put({
+      id: newId(), updatedAt: clock, deletedAt: null, familyId: "deuces_wild", label: "D0_2P", alpha: 1, beta: 2, lastSeenAt: clock - 86_400_000,
+      fsrsStability: 0.5, fsrsDifficulty: 6, dueAt: clock - 3_600_000, evLostTotal: 0.4, reps: 1, lapses: 1, lastReviewedAt: clock - 86_400_000,
+    });
+    vi.mocked(trainingService.labelsOn).mockImplementation(async id => id === nsud.id ? ["D0_2P", "D0_HP"] : ["D0_HP"]);
+    const there = await trainingService.start({ machineId: onNsud.id, kind: "review" });
+    expect(await trainingService.nextDeal(there, 5)).toEqual({ labels: ["D0_2P"], strict: true });
+    const here = await trainingService.start({ machineId: onFullPay.id, kind: "review" });
+    expect(await trainingService.queue(await trainingService.table(fullPay.id, 5))).toMatchObject({ due: [], next: null, leftToday: 0, done: 0 });
+    // Nothing is dealt, so no unrelated hand can use up the cap or leave the review due forever.
+    await expect(play.deal(here.id, null)).rejects.toThrow(ReviewsDoneError);
+    expect(api.prepareRound).not.toHaveBeenCalled();
   });
 });
 

@@ -41,5 +41,14 @@ Goal: spend practice where mistakes cost the most, and keep what you've learned 
   going), Weakness Trainer (top patterns with their cost), Close Calls (slider, Start), and your cards (mastery, next
   review). The session room shows the training plan and the review count.
 
+## Review fixes (PR #9)
+
+- **Cards a table can't deal.** A family-wide card whose category is never a best hold on the chosen table at its bet
+  is left out of that table's review and marked "Not on this table". Review deals are strict, never an unrelated hand.
+- **The cap and the Weakness Trainer.** The daily cap limits Today's Review only; the Weakness Trainer keeps its 20%
+  share of due cards past it.
+- **Quiet sessions.** While a session with quiet feedback is open, the cards it answered show no results or schedule on
+  Train and stay out of review until it closes.
+
 ## Out of scope this round
 Strategy Ladder and Pay Table Switcher (Round B), heuristic cards (F6), recency decay inside the mastery counts.

@@ -78,12 +78,20 @@ export function applyAnswer(card: Card | undefined, answer: Answer, newId: () =>
 /* ---------- Today's review ---------- */
 export const startOfDay = (at: number) => { const date = new Date(at); date.setHours(0, 0, 0, 0); return date.getTime(); };
 /**
- * Today's review for one game: cards due now, most costly first (then the longest overdue). `done` = reviews answered
- * today (all games); within the cap it offers the first, past it only with Keep going. `dueToday` also counts cards
- * coming due later today.
+ * Which of a game's cards a table can review. `available`: the categories that are a best hold on the table at its bet
+ * (a family-wide card for any other can't be dealt there). `hidden`: categories holding answers from an open session
+ * with quiet feedback, kept out of sight (and out of review) until it closes.
  */
-export function reviewQueue(cards: readonly Card[], familyId: string, now: number, cap: number, done: number, keepGoing: boolean) {
-  const mine = cards.filter(card => card.familyId === familyId && card.deletedAt == null);
+export type ReviewScope = { available?: ReadonlySet<string>; hidden?: ReadonlySet<string> };
+export const reviewable = (card: Card, scope: ReviewScope) =>
+  (!scope.available || scope.available.has(card.label)) && !scope.hidden?.has(card.label);
+/**
+ * Today's review for one game on one table: cards due now, most costly first (then the longest overdue). `done` =
+ * reviews answered today (all games); within the cap it offers the first, past it only with Keep going. `dueToday` also
+ * counts cards coming due later today.
+ */
+export function reviewQueue(cards: readonly Card[], familyId: string, now: number, cap: number, done: number, keepGoing: boolean, scope: ReviewScope = {}) {
+  const mine = cards.filter(card => card.familyId === familyId && card.deletedAt == null && reviewable(card, scope));
   const due = mine.filter(card => card.dueAt <= now).sort((a, b) => priority(b) - priority(a) || a.dueAt - b.dueAt || a.label.localeCompare(b.label));
   const capReached = done >= cap;
   const endOfDay = startOfDay(now) + DAY_MS;

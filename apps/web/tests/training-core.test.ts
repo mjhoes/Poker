@@ -79,6 +79,13 @@ describe("today's review", () => {
     expect(reviewQueue(cards, "jacks_or_better", T0, 2, 2, true).next?.label).toBe("costly");
     expect(reviewQueue(cards, "jacks_or_better", T0, 5, 4, false).leftToday).toBe(1);
   });
+  it("leaves out cards the table can't deal and cards hidden by an open quiet session", () => {
+    const cards = [card("here", T0 - DAY), card("other table", T0 - DAY, { evLostTotal: 3 }), card("quiet", T0 - DAY, { evLostTotal: 2 })];
+    const scope = { available: new Set(["here", "quiet"]), hidden: new Set(["quiet"]) };
+    const queue = reviewQueue(cards, "jacks_or_better", T0, 50, 0, false, scope);
+    expect([queue.due.map(item => item.label), queue.next?.label, queue.leftToday, queue.dueToday]).toEqual([["here"], "here", 1, 1]);
+    expect(reviewQueue(cards, "jacks_or_better", T0, 50, 0, false).due).toHaveLength(3);
+  });
 });
 
 describe("Weakness Trainer mix", () => {

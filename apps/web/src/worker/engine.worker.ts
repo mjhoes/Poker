@@ -96,6 +96,7 @@ const api: EngineAPI = {
   rollupDecisions: timeZone => rollupDecisions(timeZone, (table, coins) => statsEngine.game(table, coins)),
   async statistics(input) { return statsEngine.report(input); },
   async validateTraining(paytableId, coins, label) { return statsEngine.validateTraining(paytableId, coins, label); },
+  async trainableLabels(paytableId, coins) { return statsEngine.trainableLabels(paytableId, coins); },
   async prepareRound(paytableId, coins, lines, focus, target) {
     const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
     const dealt = dealRound(lines, random);
