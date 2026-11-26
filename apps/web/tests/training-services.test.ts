@@ -172,7 +172,7 @@ describe("round B", () => {
     const machine = await machineService.save({ name: "One coin", paytableId: table.id, coins: 1, defaultWalletId: wallet.id, denominationCents: 25 });
     vi.spyOn(trainingService, "ladderChart").mockResolvedValue({
       familyId: "jacks_or_better", tier: "Expert", returnPct: 99.5, optimalReturnPct: 99.54,
-      lines: [{ label: "RF4", freq: 0.01, dealable: true }, { label: "rare", freq: 0, dealable: false }, { label: "2P", freq: 0.02, dealable: true }],
+      lines: [{ label: "RF4", freq: 0.01, dealable: true }, { label: "rare", freq: 0, dealable: false }, { label: "2P", freq: 0.02, dealable: true }], tieBreakRule: "Fewest penalty cards.",
     });
     const ladder = await trainingService.start({ machineId: machine.id, kind: "ladder", tier: "Expert" });
     expect(ladder.training?.ladder).toEqual({ tier: "Expert", lines: [0, 2], step: 1, streak: 0, pending: null, progressAt: clock });

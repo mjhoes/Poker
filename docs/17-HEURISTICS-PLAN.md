@@ -1,7 +1,7 @@
 # Heuristics: personal cards and the Rule Lab
 
 Spec: F6.1–F6.2 in `02-PRODUCT-SPEC.md`; Tech Spec §3.7 (heuristic validator), `heuristicCards`, `heuristic_generate`.
-Status: **built**. The printable PDF (F6.3) is a later round.
+Status: **built**. The printable PDF (F6.3) followed: `18-PRINTABLE-STRATEGY-PLAN.md`.
 
 ## Decisions (from the owner)
 

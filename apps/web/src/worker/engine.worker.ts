@@ -123,6 +123,8 @@ const api: EngineAPI = {
     return {
       familyId: list.familyId, tier, returnPct: list.returnPct, optimalReturnPct: value.returnPct,
       lines: list.lines.map((line, i) => ({ label: line.label, ...(line.alternatives ? { alternatives: [...line.alternatives] } : {}), freq: line.freq, dealable: index.dealable[i].length > 0 })),
+      ...(list.sections ? { sections: list.sections.map(section => ({ title: section.title, startRank: section.startRank, endRank: section.endRank })) } : {}),
+      tieBreakRule: list.tieBreakRule,
     };
   },
   async switcherDiffer(paytableId, others, coins) { return statsEngine.switcherDiffer(paytableId, others, coins); },
