@@ -5,10 +5,11 @@ import { createPlayTable } from "./play-helpers";
 /*
  * Heuristics: cards from your mistakes, the Rule Lab, and AI polish and plain English against an intercepted Anthropic
  * API (no real key, no real call). The fake model reads the request: it rewords a card keeping one sentence per
- * exception, and turns any plain-English rule into "4 to a flush over a low pair".
+ * exception; reading its own rewording back, it gives the Rule Lab card's rule; and it turns any other plain-English rule
+ * into "4 to a flush over a low pair". `gate`, when given, holds each plain-English reading until it resolves.
  */
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
-async function mockAnthropic(page: Page) {
+async function mockAnthropic(page: Page, gate?: () => Promise<void>) {
   const calls: string[] = [];
   await page.route("https://api.anthropic.com/**", async (route: Route) => {
     const request = route.request();
@@ -21,7 +22,10 @@ async function mockAnthropic(page: Page) {
     let reply: object;
     if (system.includes("rule builder")) {
       calls.push("parse");
-      reply = { understood: true, prefer: "4FL", over: "LP", unless: [], note: null };
+      reply = prompt.includes("Take the stronger draw")
+        ? { understood: true, prefer: "LP", over: "4FL", unless: [{ type: "rank_held", on: "other", rank: "2" }], note: null }
+        : { understood: true, prefer: "4FL", over: "LP", unless: [], note: null };
+      if (gate) await gate();
     } else {
       calls.push("polish");
       const facts = JSON.parse(prompt.slice(prompt.indexOf("{"))) as { exceptions: string[] };
@@ -50,7 +54,7 @@ test("heuristics: cards from your mistakes, the Rule Lab's exact cost, AI polish
   await page.getByRole("link", { name: "Heuristics", exact: true }).click();
   await page.getByRole("button", { name: "Make cards from my mistakes" }).click();
   const cards = page.getByRole("article");
-  await expect(cards.first()).toBeVisible();
+  await expect(cards.first()).toBeVisible({ timeout: 60_000 }); // the engine scores each card over every deal
   await expect(page.getByRole("status").filter({ hasText: /from your \d+ costliest mistake/ })).toBeVisible();
   const first = cards.first();
   await expect(first).toContainText("FROM YOUR MISTAKES");
@@ -91,13 +95,70 @@ test("heuristics: cards from your mistakes, the Rule Lab's exact cost, AI polish
   await expect(labCard).toContainText("“Strong draw, sure score”");
   await expect(labCard).toContainText("In the exception, take the other hold.");
   await expect(labCard.locator(".heuristic-cost")).toHaveText(cost!);
-  await expect(labCard).toContainText("checked against the engine's numbers");
+  await expect(labCard).toContainText("read back into a rule and checked against the engine's rule and numbers");
+  // The engine's own words stay in view under the AI's.
+  await expect(labCard.getByLabel("The engine's rule")).toContainText("Hold low pair (Tens or lower) over 4 to a Flush. When 4 to a Flush includes a 2, hold 4 to a Flush instead.");
 
   await lab.getByLabel("Rule in plain English").fill("A four-card flush draw beats a little pair");
   await lab.getByRole("button", { name: /^Fill in with AI · about / }).click();
   await expect(lab.getByLabel("Prefer")).toHaveValue("4FL");
   await expect(lab.getByLabel("Over")).toHaveValue("LP");
   await expect(result).toContainText("Hold 4 to a Flush over low pair (Tens or lower).");
-  expect(calls).toEqual(["polish", "parse"]);
+  expect(calls).toEqual(["polish", "parse", "parse"]); // the polish is read back before it's saved
+  expect(errors).toEqual([]);
+});
+
+test("Rule Lab: an AI reading that comes back after you changed the rule or the machine isn't filled in", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  let release = () => {};
+  const calls = await mockAnthropic(page, () => new Promise<void>(resolve => { release = resolve; }));
+  await createPlayTable(page, { mode: "drill" });
+  await page.evaluate(async () => {
+    const { useAppStore } = await import("/src/state/app-store.ts" as string) as typeof import("../src/state/app-store");
+    const { machineService } = await import("/src/services/machines.ts" as string) as typeof import("../src/services/machines");
+    const [first] = Object.values(useAppStore.getState().machines);
+    await machineService.save({ name: "Second table", paytableId: first.paytableId, defaultWalletId: first.defaultWalletId, denominationCents: 25 });
+  });
+  await page.goto("/#/settings?section=ai");
+  const provider = page.getByRole("group", { name: "Anthropic (Claude)" });
+  await provider.getByRole("textbox", { name: "Anthropic (Claude) API key" }).fill("sk-ant-test-key");
+  await provider.getByRole("button", { name: "Add key" }).click();
+  await expect(provider.getByText("Key added")).toBeVisible();
+  await page.getByRole("link", { name: "Heuristics", exact: true }).click();
+  const lab = page.getByRole("region", { name: "Write a rule, see its exact cost" });
+  const fillIn = lab.getByRole("button", { name: /^Fill in with AI · about / });
+  const stale = lab.getByRole("alert").filter({ hasText: "changed while the AI was reading" });
+
+  await expect(lab.getByLabel("Prefer")).toBeVisible({ timeout: 60_000 }); // the table's holds are loaded
+
+  // You edit the rule while the AI reads: its answer (4 to a Flush over a low pair) doesn't replace your edits.
+  await lab.getByLabel("Rule in plain English").fill("A four-card flush draw beats a little pair");
+  await fillIn.click();
+  await expect.poll(() => calls.length).toBe(1);
+  await lab.getByLabel("Prefer").selectOption("HP");
+  await lab.getByLabel("Over").selectOption("LP");
+  release();
+  await expect(stale).toBeVisible();
+  await expect(lab.getByLabel("Prefer")).toHaveValue("HP");
+  await expect(lab.getByLabel("Over")).toHaveValue("LP");
+
+  // You switch machines while the AI reads: the answer for the last table isn't filled in on this one.
+  await fillIn.click();
+  await expect.poll(() => calls.length).toBe(2);
+  const machines = page.getByLabel("Heuristics machine");
+  await machines.selectOption({ label: "Second table" });
+  release();
+  await expect(stale).toBeVisible();
+  await expect(lab.getByLabel("Prefer")).toHaveValue("");
+  await expect(lab.getByLabel("Over")).toHaveValue("");
+
+  // Left alone, the reading fills in the builder.
+  await expect(lab.getByLabel("Prefer")).toBeVisible({ timeout: 60_000 });
+  await lab.getByLabel("Rule in plain English").fill("A four-card flush draw beats a little pair");
+  await fillIn.click();
+  await expect.poll(() => calls.length).toBe(3);
+  release();
+  await expect(lab.getByLabel("Prefer")).toHaveValue("4FL");
+  await expect(lab.getByLabel("Over")).toHaveValue("LP");
   expect(errors).toEqual([]);
 });

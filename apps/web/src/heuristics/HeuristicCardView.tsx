@@ -5,6 +5,8 @@ import { familyName } from "../components/UiHelpers";
 import { errorMessage } from "../hooks/useActionRunner";
 import { formatCost, modelFor, modelInfo } from "../ai/models";
 import { heuristicsAi, polishFacts } from "../ai/heuristics-ai";
+import type { RuleAST } from "@perfect-draw/engine";
+import { ruleWords } from "./rules";
 import type { MnemonicStyle } from "../ai/heuristics-ai";
 import { findPaytable } from "../paytables/catalog";
 import type { HeuristicCard } from "../services/heuristics";
@@ -37,8 +39,8 @@ export function CostLine({ costPct, costWithoutExceptionsPct, appliesFreq, right
   </p>;
 }
 
-export function HeuristicCardView({ card, mastered, busy, ai, onOpenInLab, run }: {
-  card: HeuristicCard; mastered: boolean; busy: boolean; ai: { provider: AiProvider | null; tier: AiTier; style: MnemonicStyle };
+export function HeuristicCardView({ card, mastery, busy, ai, onOpenInLab, run }: {
+  card: HeuristicCard; mastery: "mastered" | "hidden" | null; busy: boolean; ai: { provider: AiProvider | null; tier: AiTier; style: MnemonicStyle };
   onOpenInLab: (card: HeuristicCard) => void; run: (action: () => Promise<unknown>, options?: { success?: string }) => Promise<boolean>;
 }) {
   const [polishing, setPolishing] = useState(false);
@@ -54,11 +56,15 @@ export function HeuristicCardView({ card, mastered, busy, ai, onOpenInLab, run }
     finally { setPolishing(false); }
   };
   const archived = card.status === "archived";
+  const exact = Object.values(ruleWords(card.ruleAst as unknown as RuleAST, familyId)).flat();
   return <article className={`panel panel-pad heuristic-card ${archived ? "is-archived" : ""}`} aria-label={`Heuristic: ${card.ruleText}`}>
-    <p className="eyebrow">{card.source === "lab" ? "FROM THE RULE LAB" : "FROM YOUR MISTAKES"}{mastered && <> <Badge tone="success">Mastered</Badge></>}</p>
+    <p className="eyebrow">{card.source === "lab" ? "FROM THE RULE LAB" : "FROM YOUR MISTAKES"}{mastery === "mastered" && <> <Badge tone="success">Mastered</Badge></>}</p>
     <h3 className="heuristic-rule">{card.ruleText}</h3>
     {card.exceptions.length > 0 && <ul className="heuristic-exceptions" aria-label="Exceptions">{card.exceptions.map((text, index) => <li key={index}>{text}</li>)}</ul>}
     {card.mnemonic && <p className="heuristic-mnemonic">“{card.mnemonic}”</p>}
+    {/* The engine's own words stay in view under AI wording: they're the rule the costs describe. */}
+    {card.aiModel && <p className="heuristic-exact" aria-label="The engine's rule"><span className="field-label">The engine's rule</span> {exact.join(" ")}</p>}
+    {mastery === "hidden" && <p className="status-note">Mastery shows after your quiet session closes.</p>}
     <CostLine costPct={card.costPct} costWithoutExceptionsPct={card.costWithoutExceptionsPct} appliesFreq={card.appliesFreq} rightFreq={card.rightFreq} hasExceptions={card.exceptions.length > 0} />
     {card.examples.length > 0 && <div className="heuristic-examples" aria-label="Examples"><p className="field-label">Examples</p>{card.examples.map((example, index) => <ExampleHand key={index} example={example} />)}</div>}
     {card.counterexamples.length > 0 && <details className="heuristic-wrong"><summary>Where it's wrong ({card.counterexamples.length} costliest)</summary>
@@ -71,6 +77,6 @@ export function HeuristicCardView({ card, mastered, busy, ai, onOpenInLab, run }
       <Button variant="secondary" size="sm" disabled={busy} onClick={() => void run(() => heuristicService.setStatus(card.id, archived ? "active" : "archived"))}>{archived ? "Restore" : "Archive"}</Button>
     </div>
     {failure && <p className="explain-error" role="alert">{failure}</p>}
-    {card.aiModel && <p className="ai-note">Words by {modelInfo(card.aiModel)?.name ?? card.aiModel}, checked against the engine's numbers. The rule and its costs are the engine's.</p>}
+    {card.aiModel && <p className="ai-note">Words by {modelInfo(card.aiModel)?.name ?? card.aiModel}, read back into a rule and checked against the engine's rule and numbers. The rule and its costs are the engine's.</p>}
   </article>;
 }

@@ -32,8 +32,8 @@ export function HeuristicsPage({ machines, busy, run }: { machines: Machine[]; b
   const familyId = table?.familyId ?? "jacks_or_better";
   const mine = (data?.cards ?? []).filter(card => card.paytableId === machine.paytableId && card.coins === machine.coins)
     .sort((a, b) => b.updatedAt - a.updatedAt);
-  const active = mine.filter(card => card.status !== "archived" && !data?.mastered.has(card.id));
-  const mastered = mine.filter(card => card.status !== "archived" && data?.mastered.has(card.id));
+  const active = mine.filter(card => card.status !== "archived" && data?.mastery.get(card.id) !== "mastered");
+  const mastered = mine.filter(card => card.status !== "archived" && data?.mastery.get(card.id) === "mastered");
   const archived = mine.filter(card => card.status === "archived");
   const make = () => run(async () => {
     const result = await heuristicService.fromMistakes(machine.id);
@@ -44,7 +44,7 @@ export function HeuristicsPage({ machines, busy, run }: { machines: Machine[]; b
     const loaded = astToDraft(card.ruleAst as unknown as RuleAST);
     if (loaded) { setDraft(loaded); document.getElementById("lab-title")?.scrollIntoView({ behavior: "smooth", block: "start" }); }
   };
-  const view = (card: HeuristicCard) => <HeuristicCardView key={card.id} card={card} mastered={!!data?.mastered.has(card.id)} busy={busy} ai={ai} onOpenInLab={openInLab} run={run} />;
+  const view = (card: HeuristicCard) => <HeuristicCardView key={card.id} card={card} mastery={data?.mastery.get(card.id) ?? null} busy={busy} ai={ai} onOpenInLab={openInLab} run={run} />;
 
   return <>
     {heading}

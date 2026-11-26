@@ -8,6 +8,8 @@
 .heuristic-rule { margin: 0; font-size: var(--text-lg); line-height: 1.35; letter-spacing: -.01em; }
 .heuristic-exceptions { display: grid; gap: 4px; margin: 0; padding-left: 18px; font-size: var(--text-sm); color: var(--ink); }
 .heuristic-mnemonic { margin: 0; padding: 8px 12px; border-left: 3px solid var(--signal); background: var(--soft); font-style: italic; }
+.heuristic-exact { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.heuristic-exact .field-label { display: block; margin-bottom: 2px; }
 .heuristic-cost { display: grid; gap: 2px; margin: 0; font-size: var(--text-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 .heuristic-cost strong { color: var(--ink); }
 .heuristic-examples { display: grid; gap: 6px; }

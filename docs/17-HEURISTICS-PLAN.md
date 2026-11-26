@@ -34,14 +34,19 @@ Engine: `scoreHeuristic(rule, analysisKey)` (new; `evaluateRule` keeps its skip 
 - **Exception search** (`suggestExceptions`): greedily adds up to two conditions (a flush or straight penalty on either
   hold, a rank held or discarded) that most reduce the cost, while each removes more loss than a small threshold.
 - Cards are saved (`heuristicCards`) with the rule, its words, exceptions, examples and costs; making cards again
-  updates the same pair's card. A card whose best-hold category is mastered (round A) shows as mastered; you can archive
-  any card.
+  updates the engine's card for the pair (a Rule Lab card for the same holds is yours and is never touched). A card
+  shows as mastered when every Train card of its best hold's kind in the card's own game has graduated (round A); while
+  an open quiet session holds answers for that kind, it shows neither, as Train hides them, until the session closes.
+  You can archive any card.
 
 ## H3: AI polish (optional)
 
 The AI gets the engine's rule in words, its costs and example hands, and the chosen mnemonic style, and returns
-`{ ruleText, mnemonic, exceptions[] }`. Checks: every number must come from the facts (as Explain does); an exception
-must still be stated when the rule has one. One retry, then the card keeps the engine's words.
+`{ ruleText, mnemonic, exceptions[] }`. Checks: one sentence per exception; every number must come from the facts (as
+Explain does); every rank named must be one of the rule's or in the holds' or game's names. Then a second call reads
+the words back into a rule (the Rule Lab's plain-English reader) and it must be the card's own: the same holds the same
+way round and the same conditions on the same holds. A reply that fails gets one more try, then the card keeps its
+words. Under AI words the card still shows the engine's rule, which is what its costs describe.
 
 ## H4: Rule Lab
 

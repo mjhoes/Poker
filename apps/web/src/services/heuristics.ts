@@ -5,6 +5,7 @@ import { db, live, requireRecord } from "../data/db";
 import { draftToAst, ruleWords } from "../heuristics/rules";
 import type { RuleDraft } from "../heuristics/rules";
 import { engineClient } from "../worker/client";
+import { graduated } from "../training/core";
 import { trainingService } from "./training";
 
 /*
@@ -13,6 +14,8 @@ import { trainingService } from "./training";
  */
 
 export type HeuristicCard = z.infer<typeof heuristicSchema>;
+/** "mastered": every Train card of the best hold's kind in this game has graduated; "hidden": an open quiet session holds answers for it. */
+export type HeuristicMastery = "mastered" | "hidden";
 const base = (label: string) => label.split("|")[0];
 /** The pay table and bet of a machine, which a card is scored at. */
 async function terms(machineId: string) {
@@ -63,12 +66,35 @@ export const heuristicService = {
       if (made.some(card => card.targetLabelPair[0] === prefer && card.targetLabelPair[1] === over)) continue;
       const bare = draftToAst({ prefer, over, unless: [] });
       const suggestion = await engineClient().suggestHeuristic(paytableId, coins, bare.prefer, bare.over);
-      const existing = (await heuristicService.cards()).find(card => sameCard(card, paytableId, coins, pair));
+      // Only the engine's own card for the pair: a Rule Lab card for the same holds is yours and stays as you wrote it.
+      const existing = (await heuristicService.cards()).find(card => sameCard(card, paytableId, coins, pair) && card.source === "engine");
       const card = record({ paytableId, coins, source: "engine", pair, rule: suggestion.rule, score: suggestion.score, familyId, existing });
       await db.records("heuristicCards").put(card);
       made.push(card);
     }
     return { made, skipped, targets: targets.length };
+  },
+  /**
+   * Each card's mastery, from Train's cards of its game only. A card's best hold is a category or one variant of it;
+   * it's mastered when every Train card of that kind in the game has graduated. While an open quiet session holds
+   * answers for that kind, the card shows neither (as Train hides those cards) until the session's report.
+   * Reads only the database, so it can run inside a live query.
+   */
+  async mastery(cards: readonly HeuristicCard[]) {
+    const rows = await trainingService.cards();
+    const families = new Map<string, string>(), quiet = new Map<string, ReadonlySet<string>>();
+    const result = new Map<string, HeuristicMastery>();
+    for (const card of cards) {
+      if (!families.has(card.paytableId)) families.set(card.paytableId, await trainingService.familyOf(card.paytableId));
+      const familyId = families.get(card.paytableId)!;
+      if (!quiet.has(familyId)) quiet.set(familyId, await trainingService.quietLabels(familyId));
+      const label = card.targetLabelPair[0];
+      const ofKind = (other: string) => other === label || base(other) === label;
+      if ([...quiet.get(familyId)!].some(ofKind)) { result.set(card.id, "hidden"); continue; }
+      const mine = rows.filter(row => row.familyId === familyId && ofKind(row.label));
+      if (mine.length > 0 && mine.every(graduated)) result.set(card.id, "mastered");
+    }
+    return result;
   },
   /** Saves a Rule Lab rule as a card, scored again by the engine. */
   async saveFromLab(machineId: string, draft: RuleDraft) {

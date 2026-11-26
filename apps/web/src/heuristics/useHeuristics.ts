@@ -4,25 +4,16 @@ import type { AiProvider } from "@perfect-draw/shared";
 import { useAiStore } from "../ai/store";
 import type { MnemonicStyle } from "../ai/heuristics-ai";
 import { heuristicService } from "../services/heuristics";
-import type { HeuristicCard } from "../services/heuristics";
-import { trainingService } from "../services/training";
-import { graduated } from "../training/core";
+import type { HeuristicCard, HeuristicMastery } from "../services/heuristics";
 
-/** Every live heuristic card, and which ones' best-hold category you've mastered (round A cards), kept current. */
+/** Every live heuristic card, and which ones' best-hold category you've mastered in Train (or can't see yet), kept current. */
 export function useHeuristicCards() {
-  const [value, setValue] = useState<{ cards: HeuristicCard[]; mastered: Set<string> } | null>(null);
+  const [value, setValue] = useState<{ cards: HeuristicCard[]; mastery: Map<string, HeuristicMastery> } | null>(null);
   useEffect(() => {
     const subscription = liveQuery(async () => {
-      const [cards, mastery] = await Promise.all([heuristicService.cards(), trainingService.cards()]);
-      const graduatedLabels = mastery.filter(graduated).map(card => card.label);
-      // A card's best hold is a category or one variant of it; it's mastered when every card of that kind you have is.
-      const mastered = new Set(cards.filter(card => {
-        const label = card.targetLabelPair[0];
-        const mine = mastery.filter(row => row.label === label || row.label.split("|")[0] === label);
-        return mine.length > 0 && mine.every(row => graduatedLabels.includes(row.label));
-      }).map(card => card.id));
-      return { cards, mastered };
-    }).subscribe({ next: setValue, error: () => setValue({ cards: [], mastered: new Set() }) });
+      const cards = await heuristicService.cards();
+      return { cards, mastery: await heuristicService.mastery(cards) };
+    }).subscribe({ next: setValue, error: () => setValue({ cards: [], mastery: new Map() }) });
     return () => subscription.unsubscribe();
   }, []);
   return value;

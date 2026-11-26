@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { HeuristicScore } from "@perfect-draw/engine";
 import type { Machine } from "@perfect-draw/shared";
 import { Button } from "../components/ui";
@@ -50,11 +50,21 @@ export function RuleLab({ machine, familyId, draft, onDraft, busy, run }: { mach
   const [sentence, setSentence] = useState("");
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
+  // What a reading was asked about: the table, the rule as it stood and the sentence. An answer that arrives after any
+  // of them changed is about something else, so it isn't applied over your newer edits.
+  const context = JSON.stringify([machine.id, machine.paytableId, machine.coins, draft, sentence]);
+  const latest = useRef(context);
+  latest.current = context;
   const fillIn = async () => {
     if (!ai.provider) return;
+    const asked = context;
     setParsing(true); setParseError("");
-    try { onDraft((await heuristicsAi.parse(sentence, named, { provider: ai.provider, tier: ai.tier })).draft); }
-    catch (reason) { setParseError(errorMessage(reason)); }
+    try {
+      const { draft: read } = await heuristicsAi.parse(sentence, named, { provider: ai.provider, tier: ai.tier });
+      if (latest.current === asked) onDraft(read);
+      else setParseError("The rule or table changed while the AI was reading, so its answer wasn't filled in. Try again.");
+    }
+    catch (reason) { if (latest.current === asked) setParseError(errorMessage(reason)); }
     finally { setParsing(false); }
   };
 

@@ -535,12 +535,15 @@ R3 — why one hold beats another:
 - Make cards from my mistakes: the Weakness Trainer's targets become "hold <best> over <what you held>" (same-category
   pairs skipped); `suggestExceptions` greedily adds up to two conditions (penalty or rank, on either hold) that save at
   least 0.0005 pp and 10% of the remaining cost. Cards live in `heuristicCards` (schema in `future-records.ts`); making
-  them again updates the same pair's card and keeps an archived card archived. A card shows as mastered when its
-  best-hold review cards (round A) have graduated.
+  them again updates the engine's card for the pair (never a Rule Lab card) and keeps an archived card archived. A
+  card shows as mastered when its best-hold review cards (round A) in its own game have graduated; while an open quiet
+  session holds answers for them it shows neither until the session closes (`heuristicService.mastery`).
 - AI (optional, Settings → AI key): Polish with AI rewords a card and adds a mnemonic in the chosen style
   (`aiSettings.mnemonicStyle`: phrase, acronym, rhyme, story). Replies are checked: one sentence per engine exception,
-  every number from the facts (Explain's `checkNumbers`); the rule and its costs stay the engine's. In the Rule Lab,
-  plain English fills the builder (`heuristic_parse`, only the table's category codes).
+  every number from the facts (Explain's `checkNumbers`), ranks only from the rule; then the words are read back into a
+  rule (`heuristic_parse`) that must equal the card's, or nothing is saved. The engine's rule stays shown under AI
+  words; the rule and its costs stay the engine's. In the Rule Lab, plain English fills the builder (only the table's
+  category codes), and an answer that arrives after you changed the rule, sentence or machine isn't applied.
 - Tests: `tests/heuristics-engine.test.ts` (real 9/6 Jacks), `tests/heuristics-services.test.ts` (real engine in
   process, fake AI provider), `e2e/heuristics.spec.ts` (intercepted Anthropic API).
 
