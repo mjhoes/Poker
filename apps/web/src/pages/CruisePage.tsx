@@ -150,7 +150,8 @@ export function CruisePage({ machines, wallets, practiceSessions, busy, run, con
   confirm: (options: ConfirmOptions) => Promise<boolean>; onOpenRoom: () => void;
 }) {
   const data = useCruiseData();
-  const bands = usePaceBands();
+  const paceData = usePaceBands();
+  const bands = paceData?.bands ?? null;
   // The accuracy bar and feedback start from your last pace session (99.9% and quiet the first time).
   const lastPace = [...practiceSessions].filter(session => session.pace).sort((a, b) => b.startedAt - a.startedAt)[0];
   const [accuracy, setAccuracy] = useState<number | null>(null);
@@ -196,7 +197,7 @@ export function CruisePage({ machines, wallets, practiceSessions, busy, run, con
     betCents: lastSession ? betCents(lastSession) : 125,
   } : null;
   const best = bands ? bestPace(bands, accuracyPct) : null;
-  const pacePanel = <PacePanel bands={bands} program={program} need={need} accuracyPct={accuracyPct} onAccuracy={setAccuracy} onTrain={() => setDialog({ kind: "pace" })} />;
+  const pacePanel = <PacePanel bands={bands} withheld={paceData?.withheld ?? 0} program={program} need={need} accuracyPct={accuracyPct} onAccuracy={setAccuracy} onTrain={() => setDialog({ kind: "pace" })} />;
 
   async function deleteTrip(value: Trip) {
     if (!await confirm({ title: `Delete “${value.shipName}”?`, tone: "danger", icon: "trash", confirmLabel: "Delete trip",

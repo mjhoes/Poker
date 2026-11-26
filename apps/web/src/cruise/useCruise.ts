@@ -128,14 +128,20 @@ export function usePracticePace() {
   return pace;
 }
 
-/** The speed/accuracy trade-off from your Free Play, kept current as you play. */
+/**
+ * The speed/accuracy trade-off from your Free Play, kept current as you play; `withheld` counts the hands of open
+ * quiet sessions, which join once those sessions close.
+ */
 export function usePaceBands() {
-  const [bands, setBands] = useState<ReturnType<typeof paceBands> | null>(null);
+  const [value, setValue] = useState<{ bands: ReturnType<typeof paceBands>; withheld: number } | null>(null);
   useEffect(() => {
-    const subscription = liveQuery(async () => paceBands(await freePlayDecisions())).subscribe({ next: setBands, error: () => setBands(null) });
+    const subscription = liveQuery(async () => {
+      const { decisions, withheld } = await freePlayDecisions();
+      return { bands: paceBands(decisions), withheld };
+    }).subscribe({ next: setValue, error: () => setValue(null) });
     return () => subscription.unsubscribe();
   }, []);
-  return bands;
+  return value;
 }
 /** A session's pace and accuracy, updated after every hand. */
 export function useSessionPace(sessionId: string) {

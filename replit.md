@@ -462,9 +462,13 @@ R3 — why one hold beats another:
   bar and feedback start from your last pace session.
 - Arithmetic in `cruise/pace.ts`: a hand's pace = time since the previous hand in the session (gaps over 60 s aren't a
   pace); EV kept = Σ chosen EV ÷ Σ best EV; mistakes' cost = mean EV lost per coin bet, as % of return, and × $/point.
-  `paceBands` groups Free Play hands (last 5,000) into under 500 / 500–700 / 700–900 / 900–1,100 / 1,100+ hands/hr;
+  `paceBands` groups Free Play hands into under 500 / 500–700 / 700–900 / 900–1,100 / 1,100+ hands/hr;
   `bestPace` = the fastest band with ≥ 50 hands that keeps the bar. Archived decisions have no timing, so the bands
   cover the raw-decision window.
+- `freePlayDecisions` (services/cruise.ts) scans decisions newest first, keeping only first decisions (no corrections)
+  from Free Play sessions until it has 5,000, so drill history can't crowd them out. Sessions still open with quiet
+  feedback (`silent_report`) are left out until they close, with a note of how many hands that holds back, so their
+  accuracy isn't revealed on the Cruise page either (PR #8 review).
 - Session room: `PaceMeter` (last-20-hands pace vs target, session pace; accuracy hidden until close with quiet
   feedback) and `PaceChip` on the table's top line. Cruise page: `PacePanel` (bands, EV kept, cost, hours to the
   trip's target, best pace, the speed/cost sentence); the planner offers "Use your best accurate pace".

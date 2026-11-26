@@ -27,8 +27,8 @@ export type TripNeed = { pointsNeeded: number; hoursLeft: number; dollarsPerPoin
  * The speed/accuracy trade-off from your Free Play hands, grouped by the pace they were played at, with your best
  * pace at the chosen accuracy bar and the hours each pace would take for this trip's remaining target.
  */
-export function PacePanel({ bands, program, need, accuracyPct, onAccuracy, onTrain }: {
-  bands: PaceBand[] | null; program: Program; need: TripNeed | null; accuracyPct: number;
+export function PacePanel({ bands, withheld, program, need, accuracyPct, onAccuracy, onTrain }: {
+  bands: PaceBand[] | null; withheld: number; program: Program; need: TripNeed | null; accuracyPct: number;
   onAccuracy: (value: number) => void; onTrain: () => void;
 }) {
   const played = (bands ?? []).filter(band => band.hands > 0);
@@ -45,6 +45,7 @@ export function PacePanel({ bands, program, need, accuracyPct, onAccuracy, onTra
     <div className="pace-bar-choice"><span className="field-label">Accuracy bar (EV kept)</span>
       <ChoiceChips label="Accuracy bar" value={String(accuracyPct)} onChange={value => onAccuracy(Number(value))}
         choices={ACCURACY_CHOICES.map(value => ({ value: String(value), label: accuracyLabel(value) }))} /></div>
+    {withheld > 0 && <p className="status-note pace-withheld">{number(withheld)} {withheld === 1 ? "hand" : "hands"} from an open session with quiet feedback {withheld === 1 ? "joins" : "join"} these figures when you close it, so its accuracy stays hidden until then.</p>}
     {!bands ? <p className="status-note">Reading your hands…</p> : !played.length ? <p className="status-note">Play Free Play or a pace session; your hands will be grouped by speed here.</p> : <>
       <p className="pace-summary">
         {best ? <>Your best pace keeping {accuracyLabel(accuracyPct)}: <strong>about {number(best.meanHandsPerHour ?? 0)} hands/hr</strong>.</>

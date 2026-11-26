@@ -49,6 +49,13 @@ test("Casino-Pace Mode: the trip's needed pace as the target, a quiet timed sess
   await expect(page.locator(".play-topline .pace-chip")).toHaveAttribute("aria-label", /^Pace [\d,]+ hands per hour; target 1,250$/); // in view while playing
   await expect(meter).not.toContainText("EV kept");
 
+  // Quiet means quiet everywhere: before the session closes, the Cruise page shows none of its accuracy (PR #8 review).
+  await page.getByRole("link", { name: "Cruise", exact: true }).click();
+  await expect(panel).toContainText("7 hands from an open session with quiet feedback join these figures when you close it");
+  await expect(panel).toContainText("Play Free Play or a pace session");
+  await expect(panel.getByRole("table")).toHaveCount(0);
+  await page.getByRole("link", { name: "Session room", exact: true }).click();
+
   await page.getByRole("button", { name: "Close session" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Close session" }).click();
   await expect(meter).toContainText("hands/hr this session");
