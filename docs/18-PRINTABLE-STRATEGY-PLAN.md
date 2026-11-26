@@ -13,9 +13,14 @@ Status: **built**. Follows the heuristics round (`17-HEURISTICS-PLAN.md`).
 ## What's printed
 
 - **Full pages** (letter where it's the usual size, else A4; you can switch):
-  - Title: pay table and tier.
+  - Title: pay table and tier, wrapped to the page (a custom pay table's name can be 100 characters).
   - The chart's bet (max bet, 5 coins) and its return against perfect play.
   - How to read it: top to bottom, draws don't overlap, and the tie-break rule.
+  - **Grouped lines keep the engine's order.** A chart line can group several holds. Each has its own priority, in
+    order: the engine plays the first one the hand has, and uses the tie-break rule only between holds of that very
+    same name. So they're printed joined by "else", with a note saying to hold the first one your hand has; the wallet
+    card has the note in short. The Strategy Ladder's chart on Train uses the same wording
+    (`training/chart-text.ts`).
   - The chart in two balanced columns, numbered through. Deuces Wild charts come in sections by deuces held, and lines
     under a section don't repeat the count.
   - "Your heuristics": each card's rule, exceptions, mnemonic and the engine's figures. Under AI wording, the engine's
@@ -50,6 +55,11 @@ Status: **built**. Follows the heuristics round (`17-HEURISTICS-PLAN.md`).
     sizes. It checks that every chart line is printed, numbered, on the full pages and on the wallet card; that all text
     stays inside its page and its wallet panel; and that the PDF opens with the right page count, size and title. Set
     `PRINT_SAMPLES=<dir>` to keep sample files.
+  - The same file plays hands from the printed content alone (lines from the top, "else" in order, then the tie-break)
+    and checks each against the engine's `strategyChoice`. It covers one deal in every 3 for 9/6 Jacks or Better and one
+    in every 7 for Double Double Bonus and NSUD, at every tier. It also checks Replit's case: Jc Qs Ah 3d 5c on the
+    Beginner chart holds QJ, not AQ. Another test checks that a 100-character custom name wraps inside the page on
+    both paper sizes.
   - `e2e/heuristics.spec.ts` "print": saves a Rule Lab card, downloads a Beginner A4 PDF and opens it.
 
 ## Later

@@ -2,13 +2,17 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import { describeHold, getCanonicalHands, isChartLabel, parseHand, preferHold, refinementKey, registerTrainingAnalysis, strategyChoice } from "@perfect-draw/engine";
+import type { Card, HandAnalysis } from "@perfect-draw/engine";
 import { PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
 import { loadPrecomputedAnalysis, loadPrecomputedManifest } from "@perfect-draw/precomputed";
 import type { PrecomputedGameAnalysis, PrecomputedManifest } from "@perfect-draw/precomputed";
 import { heuristicSchema, newId } from "@perfect-draw/shared";
 import { buildStrategyPdf, layout, PAPER_SIZE, printable, WALLET_PANEL, wrap } from "../src/print/strategy-pdf";
-import type { Layout, Paper } from "../src/print/strategy-pdf";
+import type { Layout, Paper, PrintContent } from "../src/print/strategy-pdf";
 import { PRINT_TIERS, printContent, printHeuristic, slug, withoutDeuceCount } from "../src/services/print";
+import { ALTERNATIVES_JOIN } from "../src/training/chart-text";
+import { gradeLabel } from "../src/table/Feedback";
 import type { LadderChart, LadderTier } from "../src/worker/engine-api";
 
 /*
@@ -143,4 +147,96 @@ describe("the strategy PDF on every library table", () => {
       }
     }, 120_000);
   }
+});
+
+/*
+ * The printed chart has to play like the chart whose return it prints. `playPrinted` holds a hand by reading only the
+ * PDF's content: lines from the top, a line's holds joined by "else" in order, and the printed tie-break (the engine's
+ * hold preference) only among holds of that very same name. A hold answers to its chart category's printed name (and,
+ * for the most detailed charts, its general category's too), under its Deuces Wild section's title.
+ */
+function playPrinted(content: PrintContent, hand: readonly Card[], familyId: string, refinement: number) {
+  const section = (label: string) => { const held = Number(label.match(/^D([0-4])_/)?.[1] ?? -1); return held < 0 ? "" : `${held} ${held === 1 ? "deuce" : "deuces"} held`; };
+  const name = (label: string) => `${section(label)}|${familyId === "deuces_wild" ? withoutDeuceCount(gradeLabel(label, familyId)) : gradeLabel(label, familyId)}`;
+  const names = new Map<number, Set<string>>();
+  for (let mask = 0; mask < 32; mask++) {
+    const pattern = describeHold(hand as Card[], mask, familyId as never);
+    if (!isChartLabel(pattern.base)) continue;
+    names.set(mask, new Set([refinementKey(pattern, refinement), ...(refinement === 2 ? [pattern.base] : [])].map(name)));
+  }
+  for (const part of content.sections) for (const line of part.lines) for (const item of line.split(ALTERNATIVES_JOIN)) {
+    const wanted = `${part.title?.toLowerCase() ?? ""}|${item}`;
+    const holds = [...names].filter(([, mine]) => mine.has(wanted)).map(([mask]) => mask);
+    if (holds.length) return holds.reduce((best, mask) => preferHold(hand as Card[], mask, best, familyId as never) ? mask : best, -1);
+  }
+  return 0; // no line matches: draw five
+}
+
+describe("the printed chart plays like the engine's chart", () => {
+  it("9/6 Jacks or Better Beginner: Jc Qs Ah 3d 5c holds QJ, the earlier hold of its line, not AQ", async () => {
+    const value = await analysis(jacks.id);
+    const list = value.strategyLists.find(item => item.tier === "Beginner")!;
+    registerTrainingAnalysis(list.analysisKey, value);
+    const content = printContent({ title: jacks.name, chart: await chartFor(jacks.id, "Beginner"), coins: 5, cards: [], date: new Date() });
+    const line = content.sections[0].lines.find(text => text.startsWith("Unsuited KQJ"))!;
+    expect(line).toBe("Unsuited KQJ, else Unsuited QJ, else Unsuited KJ, else Unsuited KQ, else Unsuited AK, else Unsuited AQ, else Unsuited AJ");
+    expect(content.howTo).toContain("Where a line lists holds joined by “else”, they're in order: hold the first one your hand has.");
+    expect(content.walletNote).toBe("Hold the first match from the top. With “else”, the first one your hand has.");
+    const hand = parseHand("Jc Qs Ah 3d 5c");
+    const engine = strategyChoice({ hand, familyId: value.familyId, valueVector: value.valueVector, results: Array.from({ length: 32 }, (_, mask) => ({ mask })) } as unknown as HandAnalysis, list);
+    const held = (mask: number) => hand.filter((_, index) => mask & (1 << index));
+    expect(held(engine.mask)).toEqual(hand.slice(0, 2)); // Jc Qs
+    expect(playPrinted(content, hand, value.familyId, list.refinement)).toBe(engine.mask);
+  });
+  for (const [slugName, tiers, stride] of [["jacks-or-better-9-6", PRINT_TIERS, 3], ["double-double-bonus-9-6", PRINT_TIERS, 7], ["deuces-wild-nsud", PRINT_TIERS, 7]] as const) {
+    it(`${slugName}: ${stride === 1 ? "every deal" : `one deal in every ${stride}`} is held as the engine's chart holds it, at every tier`, async () => {
+      const table = PAY_TABLE_LIBRARY.find(item => item.slug === slugName)!;
+      const value = await analysis(table.id);
+      const hands = getCanonicalHands();
+      for (const tier of tiers) {
+        const list = value.strategyLists.find(item => item.tier === tier)!;
+        registerTrainingAnalysis(list.analysisKey, value);
+        const content = printContent({ title: table.name, chart: await chartFor(table.id, tier), coins: 5, cards: [], date: new Date() });
+        let checked = 0;
+        const wrong: string[] = [];
+        for (let h = 0; h < hands.length; h += stride) {
+          const hand = hands[h].hand;
+          const engine = strategyChoice({ hand, familyId: value.familyId, valueVector: value.valueVector, results: Array.from({ length: 32 }, (_, mask) => ({ mask })) } as unknown as HandAnalysis, list);
+          if (playPrinted(content, hand, value.familyId, list.refinement) !== engine.mask && wrong.length < 5) wrong.push(`${tier} hand ${h}`);
+          checked++;
+        }
+        expect(wrong).toEqual([]);
+        expect(checked).toBeGreaterThan(10_000);
+      }
+    }, 600_000);
+  }
+});
+
+describe("long titles", () => {
+  it("a custom pay table's 100-character name wraps inside the page, on both papers, in the PDF too", async () => {
+    const font = await fonts();
+    const chart = await chartFor(jacks.id, "Expert");
+    for (const title of ["W".repeat(100), `My favourite downtown casino's ${"very ".repeat(14)}good table`.slice(0, 100)]) {
+      const content = printContent({ title, chart, coins: 5, cards: [card()], date: new Date() });
+      for (const paper of ["letter", "a4"] as Paper[]) {
+        const result = layout(font, content, paper);
+        const [width, height] = PAPER_SIZE[paper];
+        for (const step of result.steps) {
+          if (step.kind !== "text") continue;
+          expect(step.x).toBeGreaterThanOrEqual(39);
+          expect(step.x + font[step.font].widthOfTextAtSize(step.text, step.size)).toBeLessThanOrEqual(width - 39);
+          expect(step.y).toBeLessThan(height - 30);
+        }
+        const heading = result.steps.filter(step => step.kind === "text" && step.page === 0 && step.font === "bold" && step.size === 16).map(step => step.kind === "text" ? step.text : "");
+        expect(heading.length).toBeGreaterThan(1);
+        expect(heading.join(" ").replace(/\s+/g, "")).toBe(`${title} · Expert strategy`.replace(/\s+/g, ""));
+        // The chart starts below the title.
+        const lowest = Math.min(...result.steps.filter(step => step.kind === "text" && step.page === 0 && step.size === 16).map(step => step.kind === "text" ? step.y : 0));
+        expect(result.steps.some(step => step.kind === "text" && step.page === 0 && step.text === "Strategy chart" && step.y < lowest)).toBe(true);
+        const { bytes } = await buildStrategyPdf(content, paper);
+        expect((await PDFDocument.load(bytes)).getPageCount()).toBe(result.pages);
+        if (process.env.PRINT_SAMPLES && paper === "letter") await writeFile(`${process.env.PRINT_SAMPLES}/long-title-${title.length}-${title.charAt(0)}.pdf`, bytes);
+      }
+    }
+  });
 });

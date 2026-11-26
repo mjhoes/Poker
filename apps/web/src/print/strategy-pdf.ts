@@ -20,6 +20,8 @@ export type PrintContent = {
   subtitle: string;
   /** How to read the chart: printed under the title. */
   howTo: string[];
+  /** How to read the chart, in a line, under the wallet card's title. */
+  walletNote: string;
   /** The chart's lines, numbered on through every section (Deuces Wild charts come by deuces held). */
   sections: { title?: string; lines: string[] }[];
   heuristics: PrintHeuristic[];
@@ -122,7 +124,8 @@ export function layout(fonts: Fonts, content: PrintContent, paper: Paper): Layou
   };
 
   // Title, bet and return, how to read it.
-  y -= 18; text(`${content.title} · ${content.tier} strategy`, MARGIN, "bold", 16);
+  // A custom pay table's name can be long (up to 100 characters): the title wraps to the page's width.
+  y -= 2; for (const row of wrap(fonts.bold, `${content.title} · ${content.tier} strategy`, 16, width)) { y -= 19; text(row, MARGIN, "bold", 16); }
   y -= 4; paragraph(content.subtitle, "regular", 9.5, "muted");
   y -= 4; for (const note of content.howTo) paragraph(note, "regular", 8, "muted");
   y -= 14; text("Strategy chart", MARGIN, "bold", 11); y -= 6;
@@ -221,6 +224,9 @@ function walletAttempt(fonts: Fonts, content: PrintContent, size: number, panels
   for (const row of wrap(fonts.bold, `${content.title} · ${content.tier}`, size + 0.5, PANEL_WIDTH)) {
     used += leading; steps.push({ panel, x: 0, y: used - (leading - size), text: row, font: "bold", size: size + 0.5, tone: "ink" });
   }
+  for (const row of wrap(fonts.regular, content.walletNote, size, PANEL_WIDTH)) {
+    used += leading; steps.push({ panel, x: 0, y: used - (leading - size), text: row, font: "regular", size, tone: "muted" });
+  }
   used += leading * 0.3;
   for (const item of chartItems(fonts, content, size, PANEL_WIDTH)) {
     if (used + (used ? item.gapBefore : 0) + item.rows.length * leading > PANEL_HEIGHT) {
@@ -266,7 +272,7 @@ export async function buildStrategyPdf(content: PrintContent, paper: Paper, crea
   };
   const clean = (value: string) => printable(fonts.regular, value);
   const safe: PrintContent = {
-    ...content, title: clean(content.title), tier: clean(content.tier), subtitle: clean(content.subtitle), howTo: content.howTo.map(clean),
+    ...content, title: clean(content.title), tier: clean(content.tier), subtitle: clean(content.subtitle), howTo: content.howTo.map(clean), walletNote: clean(content.walletNote),
     sections: content.sections.map(section => ({ ...(section.title ? { title: clean(section.title) } : {}), lines: section.lines.map(clean) })),
     heuristics: content.heuristics.map(card => ({ rule: clean(card.rule), exceptions: card.exceptions.map(clean), mnemonic: clean(card.mnemonic), cost: clean(card.cost) })),
     heuristicsNote: clean(content.heuristicsNote), footer: clean(content.footer),

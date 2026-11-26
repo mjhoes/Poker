@@ -17,13 +17,13 @@ export { canonicalizeHand, getCanonicalHands, packHand, unpackHand, restoreHoldM
 export type { CanonicalHand, CanonicalizedHand } from "./canonical";
 export { analyzeGame, ENGINE_VERSION } from "./game-analysis";
 export type { GameAnalysis, GameHandResult, AnalysisProgress } from "./game-analysis";
-export { describeHold, labelHold } from "./labels";
+export { describeHold, labelHold, refinementKey } from "./labels";
 export type { HoldPattern } from "./labels";
 export { registerTrainingAnalysis, clearTrainingCache, getTrainingContext } from "./training";
 export { generateStrategyList, selectStrategyHold, strategyChoice, STRATEGY_TIERS, MEMORIZABLE_STRATEGY_TIERS } from "./strategies";
 export type { StrategyList, StrategyLine, StrategyTier, StrategyException, StrategyChoice } from "./strategies";
 export { strategyExceptionCount, strategyMeetsTarget, strategyTarget } from "./strategy-targets";
-export { CHART_TIE_RULE, isChartLabel, holdPreference } from "./hold-policy";
+export { CHART_TIE_RULE, isChartLabel, holdPreference, preferHold } from "./hold-policy";
 export { formatStrategyChart } from "./chart-sections";
 export type { StrategySection } from "./chart-sections";
 export { describeLabel } from "./label-descriptions";

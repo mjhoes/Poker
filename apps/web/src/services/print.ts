@@ -4,7 +4,7 @@ import type { RuleAST } from "@perfect-draw/engine";
 import { db, requireRecord } from "../data/db";
 import { ruleWords } from "../heuristics/rules";
 import type { PrintContent, PrintHeuristic } from "../print/strategy-pdf";
-import { gradeLabel } from "../table/Feedback";
+import { ALTERNATIVES_NOTE, chartLineText } from "../training/chart-text";
 import type { LadderChart, LadderTier } from "../worker/engine-api";
 import { heuristicService } from "./heuristics";
 import type { HeuristicCard } from "./heuristics";
@@ -24,8 +24,6 @@ async function tableName(paytableId: string) {
   if (library) return library.name;
   return (await db.records("paytables").get(paytableId))?.name ?? "Custom pay table";
 }
-const lineText = (line: LadderChart["lines"][number], familyId: string) =>
-  (line.alternatives ?? [line.label]).map(label => gradeLabel(label, familyId)).join(" or ");
 /** A Deuces Wild line under its section's title ("1 deuce held") doesn't need to say the deuces held again. */
 export const withoutDeuceCount = (text: string) =>
   text.replace(/ \((?:no deuces|one deuce|[2-4] deuces) held\)/g, "").replace(/; (?:no deuces|one deuce|[2-4] deuces) held\)/g, ")");
@@ -43,7 +41,8 @@ export function printHeuristic(card: HeuristicCard, familyId: string): PrintHeur
 /** The chart and cards to print for a machine, laid out as content for the PDF. */
 export function printContent(input: { title: string; chart: LadderChart; coins: number; cards: readonly HeuristicCard[]; date: Date }): PrintContent {
   const { chart } = input;
-  const lines = chart.lines.map(line => lineText(line, chart.familyId));
+  const lines = chart.lines.map(line => chartLineText(line, chart.familyId));
+  const grouped = chart.lines.some(line => line.alternatives?.length);
   const sections = chart.sections?.length
     ? chart.sections.map(section => ({ title: section.title.charAt(0).toUpperCase() + section.title.slice(1), lines: lines.slice(section.startRank, section.endRank).map(withoutDeuceCount) }))
     : [{ lines }];
@@ -52,9 +51,11 @@ export function printContent(input: { title: string; chart: LadderChart; coins: 
     subtitle: `For a max bet of 5 coins. Played exactly, this chart returns ${chart.returnPct.toFixed(2)}% (perfect play ${chart.optimalReturnPct.toFixed(2)}%).`,
     howTo: [
       "Read from the top: hold the cards of the first line your hand matches.",
+      ...(grouped ? [ALTERNATIVES_NOTE] : []),
       "Draws don't overlap: royal draws are separate from other straight-flush and flush draws, and straight-flush draws from flush and straight draws.",
-      `When two holds match the same line: ${chart.tieBreakRule}`,
+      `Only when your hand has two holds of that very same name: ${chart.tieBreakRule}`,
     ],
+    walletNote: grouped ? "Hold the first match from the top. With “else”, the first one your hand has." : "Hold the first match from the top.",
     sections,
     heuristics: input.cards.map(card => printHeuristic(card, chart.familyId)),
     heuristicsNote: `Scored at ${input.coins} ${input.coins === 1 ? "coin" : "coins"} on this pay table over every deal. Cost is the share of return you give up by following a card instead of perfect play.`,
