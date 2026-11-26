@@ -1,3 +1,4 @@
+import type { DealTarget } from "./engine-api";
 import {
   analyzeGame, analyzeHandFast, categoryDistribution, clearSubsetCache, computeStatistics,
   clearTrainingCache, generateHand, registerTrainingAnalysis, standardVariant,
@@ -91,9 +92,48 @@ export class StatsEngine {
       denominations: [...denominations].sort((a, b) => a - b), undenominatedArchived,
     };
   }
-  async validateTraining(paytableId: string, coins: number, label: string) {
+  private readonly bestLabels = new Map<string, string[]>();
+  /**
+   * The categories that are a best hold somewhere on this table at this bet. Review cards are kept per game family, and
+   * a category that is best on one table of a family need not be on another: only these can be dealt here.
+   */
+  async trainableLabels(paytableId: string, coins: number) {
     const { key, analysis } = await this.game(paytableId, coins);
-    if (![...analysis.perHand.values()].some(row => row.bestLabel === label)) throw new Error("No hands have this optimal category at the selected bet.");
+    let labels = this.bestLabels.get(key);
+    if (!labels) {
+      labels = [...new Set([...analysis.perHand.values()].map(row => row.bestLabel))].sort();
+      this.bestLabels.set(key, labels);
+    }
+    return labels;
+  }
+  /**
+   * A hand for adaptive training: the target's confused pair, else its categories, else any real hand, always within
+   * the close-call gap when one is asked for (a gap no hand meets is an error). A `strict` target (a review card) never
+   * falls back to an unrelated hand: answering one would update another card and leave the review due.
+   */
+  async prepareDeal(paytableId: string, coins: number, target: DealTarget): Promise<HandAnalysis> {
+    const { key, analysis } = await this.game(paytableId, coins);
+    registerTrainingAnalysis(key, analysis);
+    const gap = target.closeCallMaxGap;
+    const attempts: Parameters<typeof generateHand>[0][] = [
+      ...(target.pairs?.length ? [{ analysisKey: key, targetPairs: target.pairs, closeCallMaxGap: gap }] : []),
+      ...(target.labels?.length ? [{ analysisKey: key, targetLabels: target.labels, closeCallMaxGap: gap }] : []),
+      ...(target.strict ? [] : [{ analysisKey: key, closeCallMaxGap: gap }]),
+    ];
+    let lastError: unknown;
+    for (const options of attempts) {
+      try {
+        const drill = generateHand({ ...options, sampling: "real" });
+        this.prepareFamily(analysis.familyId);
+        return analyzeHandFast(drill.hand, analysis.valueVector, analysis.familyId);
+      } catch (error) { lastError = error; }
+    }
+    if (target.strict) throw new Error("This card's category isn't a best hold on this table at this bet.");
+    throw lastError instanceof Error ? lastError : new Error("No hand fits this training plan.");
+  }
+  async validateTraining(paytableId: string, coins: number, label: string) {
+    const { key } = await this.game(paytableId, coins);
+    if (!(await this.trainableLabels(paytableId, coins)).includes(label)) throw new Error("No hands have this optimal category at the selected bet.");
     return key;
   }
   async prepareTarget(paytableId: string, coins: number, label: string, expectedKey: string): Promise<HandAnalysis> {

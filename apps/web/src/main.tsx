@@ -17,6 +17,7 @@ import "./styles/stats.css";
 import "./styles/analyzer.css";
 import "./styles/ai.css";
 import "./styles/cruise.css";
+import "./styles/train.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

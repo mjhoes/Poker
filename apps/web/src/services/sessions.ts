@@ -20,7 +20,7 @@ export const sessionService: SessionService = {
       const session = sessionSchema.parse({
         id: newId(), ...stamp(), machineId: machine.id, walletId: wallet.id, mode: parsed.mode,
         machineSnapshot: machineDraftSchema.parse(machine), variant: machine.variant, startedAt: Date.now(),
-        trainingFocus: parsed.trainingFocus ?? null, pace: parsed.pace ?? null,
+        trainingFocus: parsed.trainingFocus ?? null, pace: parsed.pace ?? null, training: parsed.training ?? null,
         state: { ...creditState(wallet.balanceCents, machine.denominationCents), ...(parsed.feedbackMode ? { feedbackMode: parsed.feedbackMode } : {}) },
       });
       await db.records("sessions").add(session);

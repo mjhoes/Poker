@@ -50,6 +50,7 @@ export function engineClient() {
       resolveRound: (...args) => call(() => remote.resolveRound(...args)),
       statistics: (...args) => call(() => remote.statistics(...args)),
       validateTraining: (...args) => call(() => remote.validateTraining(...args)),
+      trainableLabels: (...args) => call(() => remote.trainableLabels(...args)),
     };
   }
   return instance;

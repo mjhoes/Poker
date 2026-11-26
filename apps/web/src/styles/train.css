@@ -1,0 +1,19 @@
+/* Train page: today's review, the trainers, and your cards. */
+.train-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; margin-bottom: 16px; }
+.train-bar .muted { margin: 0 0 11px; color: var(--muted); font-size: var(--text-sm); }
+.train-machine { flex: 1 1 260px; max-width: 420px; }
+.train-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+.train-panel { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.train-panel .eyebrow { margin: 0; }
+.train-panel h2 { margin: 0; font-size: var(--text-xl); letter-spacing: -.03em; }
+.train-copy { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.55; }
+.train-panel .field { width: 100%; }
+.train-panel input[type="range"] { width: 100%; accent-color: var(--felt); }
+.cap-field { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
+.cap-row { display: flex; gap: 8px; align-items: center; }
+.cap-row input { max-width: 90px; }
+.weakness-list { display: grid; gap: 6px; margin: 0; padding-left: 18px; font-size: var(--text-sm); }
+.weakness-list li span { display: block; color: var(--muted); font-size: var(--text-xs); }
+.train-cards { min-width: 520px; }
+.training-note .btn { margin-top: 8px; }
+@media (max-width: 960px) { .train-grid { grid-template-columns: 1fr; } }

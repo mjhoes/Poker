@@ -474,6 +474,38 @@ R3 — why one hold beats another:
   trip's target, best pace, the speed/cost sentence); the planner offers "Use your best accurate pace".
 - Tests: `tests/pace.test.ts`, the pace-session case in `tests/services.test.ts`, `e2e/pace.spec.ts`.
 
+## Adaptive training, round A (docs/15-ADAPTIVE-TRAINING-PLAN.md)
+
+- Route `#/train` (`pages/TrainPage.tsx`): machine picker (its game and pay table), Today's review, Weakness Trainer,
+  Close Calls (slider 0.01–0.50 credits per coin, default 0.10), your cards, and the daily cap (5–500, default 50,
+  `profile.prefs.dailyReviewCap`). Round B (Strategy Ladder, Pay Table Switcher) is next.
+- Cards = `categoryMastery` rows, one per (family, best-hold category). `services/play.ts` updates the card of every
+  first decision inside the decision's transaction (`recordAnswer`): Beta(1,1) counts, EV lost per coin, and FSRS v4.5
+  (default weights, 90% recall; Good when right, Again when wrong). A due or new card is scheduled; a right answer
+  before it's due only counts; a wrong one is a lapse, due again in 10 minutes. Pure arithmetic in `training/core.ts`.
+- Today's review (`reviewQueue`): due cards for the machine's game, most costly first (mistake rate × EV lost per
+  mistake). The cap counts reviews answered today in review sessions (any game), not ordinary play or the trainers;
+  past it, Keep going (`training.keepGoing`) serves the rest. Graduated = under 2% mistakes (posterior) over 30+ hands.
+- Training sessions are Rapid Drill sessions with `sessions.training = { kind: review | weakness | close_calls,
+  keepGoing, closeCallPerCoin?, targets? }`. Before each deal, `trainingService.nextDeal` picks the target and the
+  worker's `prepareRound(…, target)` → `StatsEngine.prepareDeal` generates a matching hand (pair, else category, else
+  any real hand; always within a close-call gap). Weakness targets = Statistics' top 5 confusion pairs by recency-weighted
+  EV lost, minus graduated cards; each deal is 70% a target (by weight), 20% a due card, 10% any hand.
+- A table reviews only the cards it can deal (PR #9 review). Cards are family-wide, but a category that is a best
+  hold on one pay table need not be on another (NSUD's `D0_2P` never is on Full-Pay Deuces Wild):
+  `EngineAPI.trainableLabels(paytableId, coins)` lists a table's best-hold categories, `reviewQueue(…, scope)` keeps
+  only those, and Train marks the rest "Not on this table". Review deals are `strict` (`DealTarget.strict`): the card's
+  category or an error, never an unrelated hand that would update another card and leave the review due. The Weakness
+  Trainer's targets still fall back to a real hand, and its 20% due-card share ignores the daily cap (which governs
+  Today's Review only).
+- Quiet feedback stays quiet on Train: categories answered in a Free Play session still open with `silent_report`
+  (`quietLabels`; Rapid Drill always grades, so it is never quiet) are left out of review and of the Weakness
+  Trainer's targets, and their cards show as "Hidden" until it closes. The card update itself still happens atomically
+  with the decision. Train re-ranks the weakness list whenever a card changes or a quiet session closes
+  (`useReview().version`).
+- Tests: `tests/training-core.test.ts`, `tests/training-services.test.ts`, `tests/training-tables.test.ts` (real NSUD
+  and Full-Pay analyses from `packages/precomputed/assets`), `e2e/train.spec.ts`.
+
 ## Test acknowledgments instead of sleeps
 
 - `apps/web/src/diagnostics.ts` `signal(name)` counts outcomes that leave nothing on screen in

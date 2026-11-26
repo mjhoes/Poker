@@ -32,7 +32,7 @@ Build the engine first and prove it correct; everything else (training, mistake 
 
 ## Phase 3 — Adaptive Training & Heuristics (weeks 6–9)
 - Weakness Trainer, Close Calls, Pay Table Switcher, Strategy Ladder.
-- Mastery model + FSRS scheduling.
+- Mastery model + FSRS scheduling. ✅ — `15-ADAPTIVE-TRAINING-PLAN.md` (round A: with Weakness Trainer and Close Calls).
 - Heuristic card generation with engine validation; rule lab.
 - Printable strategy/heuristic PDF.
 - Context analysis (speed/fatigue/switch effects); AI coach report.

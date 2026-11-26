@@ -11,9 +11,10 @@ import { postLedger } from "./wallets";
 import { decisionService } from "./decisions";
 import { creditState } from "./money";
 import { betForNextDeal } from "./bet";
+import { recordAnswer, trainingService } from "./training";
 
 type PlayEngine = Pick<EngineAPI, "prepareRound" | "resolveRound">;
-const transactionTables = () => [db.records("sessions"), db.records("wallets"), db.records("walletLedger"), db.records("decisions")];
+const transactionTables = () => [db.records("sessions"), db.records("wallets"), db.records("walletLedger"), db.records("decisions"), db.records("categoryMastery")];
 const active = (session: Session) => {
   if (session.status !== "active") throw new Error("Resume this session before playing.");
   if (!["free_play", "drill"].includes(session.mode)) throw new Error("Unsupported play mode.");
@@ -23,8 +24,8 @@ const safeCents = (value: number) => {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error("This payout or bet cannot be represented as whole safe cents.");
   return value;
 };
-/** Dependency injection is for deterministic tests; production always uses the real worker. */
-export function createPlayService(getEngine: () => PlayEngine = engineClient): PlayService {
+/** Dependency injection is for deterministic tests; production always uses the real worker and training plans. */
+export function createPlayService(getEngine: () => PlayEngine = engineClient, plan: Pick<typeof trainingService, "nextDeal"> = trainingService): PlayService {
   return {
     async deal(id: string, expectedHandId: string | null) {
       uuid.parse(id); if (expectedHandId !== null) uuid.parse(expectedHandId);
@@ -34,7 +35,12 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
       const config = initial.machineSnapshot;
       // The bet chosen at the table (or the machine's default) is locked for this hand.
       const coins = betForNextDeal(initial);
-      const prepared = await getEngine().prepareRound(config.paytableId, coins, initial.mode === "drill" ? 1 : config.lines, initial.trainingFocus);
+      // An adaptive-training session asks its plan what the next hand should be (a due card, a weakness, a close call).
+      const target = initial.training ? await plan.nextDeal(initial, coins) : undefined;
+      const lines = initial.mode === "drill" ? 1 : config.lines;
+      const prepared = target
+        ? await getEngine().prepareRound(config.paytableId, coins, lines, initial.trainingFocus, target)
+        : await getEngine().prepareRound(config.paytableId, coins, lines, initial.trainingFocus);
       const analysis = handAnalysisSchema.parse(prepared.analysis);
       const drawDecks = drawDecksSchema.parse(prepared.drawDecks);
       if (drawDecks.length !== (initial.mode === "drill" ? 1 : config.lines) ||
@@ -102,7 +108,10 @@ export function createPlayService(getEngine: () => PlayEngine = engineClient): P
             isCorrection: attempts > 0, coins, lines: initial.mode === "drill" ? 1 : config.lines,
             denominationCents: config.denominationCents,
           });
-          await decisionService.record(decision); attempts++;
+          await decisionService.record(decision);
+          // Every first decision updates the review card of the hand's best-hold category.
+          if (attempts === 0) await recordAnswer({ familyId: analysis.familyId, label: grade.bestLabel, correct: grade.correct, evLossPerCoin: grade.evLoss / coins, at: submittedAt });
+          attempts++;
         }
         if (shouldWarn) {
           const next = sessionSchema.parse({ ...session, updatedAt: Date.now(), state: { ...session.state, warning: grade, attempts, primaryGrade: session.state.primaryGrade ?? grade } });

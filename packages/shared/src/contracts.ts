@@ -9,8 +9,9 @@ export const walletTransferSchema = z.object({ fromId: r.uuid, toId: r.uuid, amo
 export const sessionStartSchema = z.object({
   machineId: r.uuid, walletId: r.uuid.optional(), mode: r.sessionSchema.shape.mode,
   trainingFocus: r.sessionSchema.shape.trainingFocus.optional(),
-  pace: r.paceSchema.optional(), feedbackMode: feedbackModeSchema.optional(),
+  pace: r.paceSchema.optional(), feedbackMode: feedbackModeSchema.optional(), training: r.trainingSchema.optional(),
 }).refine(x => !x.trainingFocus || x.mode === "drill", "Targeted categories require Rapid Drill")
+  .refine(x => !x.training || (x.mode === "drill" && !x.trainingFocus), "Training plans run in Rapid Drill")
   .refine(x => !x.pace || x.mode === "free_play", "Pace training plays full Free Play hands");
 export const sessionActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hold"), heldMask: z.number().int().min(0).max(31), handId: r.uuid.nullable().optional() }),
