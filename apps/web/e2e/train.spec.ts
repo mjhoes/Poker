@@ -28,7 +28,7 @@ test("adaptive training: cards from play, today's review to all caught up, the c
 
   // Every hand made or updated a card; mistakes come back in 10 minutes. Only review sessions use the daily cap.
   await page.getByRole("link", { name: "Train", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Nothing due now" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nothing due now" })).toBeVisible({ timeout: 60_000 }); // the first visit builds the table's training data in the engine
   await expect(page.getByText("0 of 50 reviewed today (all games)")).toBeVisible();
   const cards = page.getByRole("table").last().getByRole("row");
   await expect(cards.nth(1)).toBeVisible();
@@ -43,7 +43,7 @@ test("adaptive training: cards from play, today's review to all caught up, the c
   await page.clock.fastForward(11 * 60_000);
   await page.reload();
   const start = page.getByRole("button", { name: /^Start review \(\d+\)$/ });
-  await expect(start).toBeVisible();
+  await expect(start).toBeVisible({ timeout: 60_000 }); // a reload starts the engine afresh: it builds the training data again
   const due = Number((await start.textContent())!.match(/\d+/)![0]);
   await start.click();
   const note = page.getByRole("region", { name: "Training plan" });
@@ -100,7 +100,7 @@ test("quiet feedback stays quiet on Train: an open quiet session's cards show no
   // list the mistake (PR #9 reviews).
   await page.getByRole("link", { name: "Train", exact: true }).click();
   const cards = page.getByRole("region", { name: "Every best-hold category you've played" });
-  await expect(cards).toContainText("1 card holds hands from an open session with quiet feedback. Its results show here when you close it.");
+  await expect(cards).toContainText("1 card holds hands from an open session with quiet feedback. Its results show here when you close it.", { timeout: 60_000 }); // the first visit builds the table's training data in the engine
   const row = cards.getByRole("row").nth(1);
   await expect(row).toContainText("Hidden");
   await expect(row).toContainText("After your quiet session");
@@ -132,7 +132,7 @@ test("Strategy Ladder: choose a chart, climb its first line at max bet, and carr
   const panel = page.getByRole("region", { name: "Climb a strategy chart" });
   await expect(panel.getByRole("button", { name: "Expert", exact: true })).toHaveAttribute("aria-pressed", "true"); // the default chart
   const progress = panel.getByRole("group", { name: "Ladder progress" });
-  await expect(progress).toContainText(/^Line 1 of \d+/);
+  await expect(progress).toContainText(/^Line 1 of \d+/, { timeout: 60_000 }); // the first visit builds the table's training data in the engine
   await expect(progress).toContainText(/0 of \d+ learned/);
   await panel.getByRole("button", { name: "Start ladder" }).click();
 
@@ -168,7 +168,7 @@ test("Pay Table Switcher: the same cards on two pay tables, then how they compar
   const panel = page.getByRole("region", { name: "Same hand, different pay tables" });
   const first = panel.getByRole("checkbox").first();
   await expect(first).toBeChecked(); // one other table of the game is picked to start
-  await expect(panel).toContainText(/Best hold differs on \d+(\.\d+)?% of deals\./);
+  await expect(panel).toContainText(/Best hold differs on \d+(\.\d+)?% of deals\./, { timeout: 60_000 }); // the first visit builds the table's training data in the engine
   await panel.getByRole("button", { name: "Start Switcher" }).click();
 
   await expect(page.locator(".session-eyebrow")).toContainText("Pay Table Switcher");

@@ -525,6 +525,28 @@ R3 — why one hold beats another:
 - Tests: `tests/ladder-index.test.ts` (line frequencies match the real charts), `tests/training-plans.test.ts`,
   `tests/training-services.test.ts` (round B), `tests/training-tables.test.ts` (real 9/6 vs 8/5), `e2e/train.spec.ts`.
 
+## Heuristics (docs/17-HEURISTICS-PLAN.md)
+
+- Route `#/heuristics` (nav after Train): personal cards for a machine's table and bet, and the Rule Lab.
+- A rule is local: "hold A over B, unless any of these — then hold B", deciding only deals where both holds exist and
+  one is a best play (`ruleDeals` in `packages/engine/src/rules.ts`). `scoreHeuristic` gives the cost if followed
+  (exceptions mean "hold B"), the cost without exceptions, how often it decides, how often it's right, and varied
+  examples/counterexamples. `evaluateRule` keeps its original skip-the-exception meaning.
+- Make cards from my mistakes: the Weakness Trainer's targets become "hold <best> over <what you held>" (same-category
+  pairs skipped); `suggestExceptions` greedily adds up to two conditions (penalty or rank, on either hold) that save at
+  least 0.0005 pp and 10% of the remaining cost. Cards live in `heuristicCards` (schema in `future-records.ts`); making
+  them again updates the engine's card for the pair (never a Rule Lab card) and keeps an archived card archived. A
+  card shows as mastered when its best-hold review cards (round A) in its own game have graduated; while an open quiet
+  session holds answers for them it shows neither until the session closes (`heuristicService.mastery`).
+- AI (optional, Settings → AI key): Polish with AI rewords a card and adds a mnemonic in the chosen style
+  (`aiSettings.mnemonicStyle`: phrase, acronym, rhyme, story). Replies are checked: one sentence per engine exception,
+  every number from the facts (Explain's `checkNumbers`), ranks only from the rule; then the words are read back into a
+  rule (`heuristic_parse`) that must equal the card's, or nothing is saved. The engine's rule stays shown under AI
+  words; the rule and its costs stay the engine's. In the Rule Lab, plain English fills the builder (only the table's
+  category codes), and an answer that arrives after you changed the rule, sentence or machine isn't applied.
+- Tests: `tests/heuristics-engine.test.ts` (real 9/6 Jacks), `tests/heuristics-services.test.ts` (real engine in
+  process, fake AI provider), `e2e/heuristics.spec.ts` (intercepted Anthropic API).
+
 ## Test acknowledgments instead of sleeps
 
 - `apps/web/src/diagnostics.ts` `signal(name)` counts outcomes that leave nothing on screen in

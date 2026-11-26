@@ -126,6 +126,9 @@ const api: EngineAPI = {
     };
   },
   async switcherDiffer(paytableId, others, coins) { return statsEngine.switcherDiffer(paytableId, others, coins); },
+  async heuristicCategories(paytableId, coins) { return statsEngine.heuristicCategories(paytableId, coins); },
+  async scoreHeuristic(paytableId, coins, rule) { return statsEngine.scoreHeuristic(paytableId, coins, rule); },
+  async suggestHeuristic(paytableId, coins, prefer, over) { return statsEngine.suggestHeuristic(paytableId, coins, prefer, over); },
   async prepareRound(paytableId, coins, lines, focus, target) {
     const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
     const dealt = dealRound(lines, random);

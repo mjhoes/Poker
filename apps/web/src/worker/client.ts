@@ -53,6 +53,9 @@ export function engineClient() {
       trainableLabels: (...args) => call(() => remote.trainableLabels(...args)),
       ladderChart: (...args) => call(() => remote.ladderChart(...args)),
       switcherDiffer: (...args) => call(() => remote.switcherDiffer(...args)),
+      heuristicCategories: (...args) => call(() => remote.heuristicCategories(...args)),
+      scoreHeuristic: (...args) => call(() => remote.scoreHeuristic(...args)),
+      suggestHeuristic: (...args) => call(() => remote.suggestHeuristic(...args)),
     };
   }
   return instance;

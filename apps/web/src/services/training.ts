@@ -71,6 +71,7 @@ export async function recordAnswer(answer: Answer) {
 export const trainingService = {
   cards: allCards,
   familyOf,
+  quietLabels,
   /** The categories that are a best hold on a table at a bet: the only cards it can review. */
   labelsOn: (paytableId: string, coins: number) => engineClient().trainableLabels(paytableId, coins),
   async table(paytableId: string, coins: number): Promise<TrainingTable> {

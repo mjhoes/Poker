@@ -1,0 +1,33 @@
+/* Heuristics page: personal cards and the Rule Lab. */
+.heuristics-intro { margin-bottom: 16px; }
+.heuristics-intro .train-actions { margin-top: 4px; }
+.heuristic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.heuristic-card { display: flex; flex-direction: column; gap: 10px; }
+.heuristic-card.is-archived { opacity: .72; }
+.heuristic-card .eyebrow { margin: 0; display: flex; align-items: center; gap: 8px; }
+.heuristic-rule { margin: 0; font-size: var(--text-lg); line-height: 1.35; letter-spacing: -.01em; }
+.heuristic-exceptions { display: grid; gap: 4px; margin: 0; padding-left: 18px; font-size: var(--text-sm); color: var(--ink); }
+.heuristic-mnemonic { margin: 0; padding: 8px 12px; border-left: 3px solid var(--signal); background: var(--soft); font-style: italic; }
+.heuristic-exact { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.heuristic-exact .field-label { display: block; margin-bottom: 2px; }
+.heuristic-cost { display: grid; gap: 2px; margin: 0; font-size: var(--text-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.heuristic-cost strong { color: var(--ink); }
+.heuristic-examples { display: grid; gap: 6px; }
+.heuristic-examples .field-label { margin: 0; }
+.heuristic-example { display: flex; align-items: center; gap: 10px; font-size: var(--text-sm); }
+.heuristic-example-text { display: grid; gap: 1px; }
+.heuristic-example-text span { color: var(--muted); font-size: var(--text-xs); }
+.heuristic-example.is-wrong .heuristic-example-text strong { color: var(--danger); }
+.heuristic-wrong summary, .heuristic-group > summary { cursor: pointer; color: var(--muted); font-size: var(--text-sm); }
+.heuristic-wrong { display: grid; gap: 6px; }
+.heuristic-group { margin-bottom: 16px; }
+.heuristic-group > summary { margin-bottom: 10px; font-weight: 650; }
+.rule-lab { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.rule-lab .eyebrow, .rule-lab h2 { margin: 0; }
+.lab-english { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.lab-english textarea { width: 100%; resize: vertical; }
+.lab-holds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.lab-exceptions { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.lab-condition { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lab-result { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); justify-items: start; }
+@media (max-width: 960px) { .heuristic-grid, .lab-holds { grid-template-columns: 1fr; } }
