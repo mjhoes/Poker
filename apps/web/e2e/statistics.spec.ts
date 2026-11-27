@@ -225,8 +225,9 @@ test("when mistakes happen, and a saved AI coach report written from the statist
     coachCalls++;
     const body = request.postDataJSON() as { model: string; messages: { content: string | { text?: string }[] }[] };
     const content = body.messages[0].content, prompt = typeof content === "string" ? content : content.map(part => part.text ?? "").join("");
+    // Quick and slow decisions are about equally clear here, so either can be listed first: quote the quick one by name.
     const facts = JSON.parse(prompt.slice(prompt.indexOf("{"))) as { firstAnswers: number; whenMistakesHappen: string[] | string };
-    const reply = { headline: `A report on your ${facts.firstAnswers} first answers.`, wins: [], focus: [Array.isArray(facts.whenMistakesHappen) ? facts.whenMistakesHappen[0] : facts.whenMistakesHappen], plan: ["Slow down and run the Weakness Trainer."] };
+    const reply = { headline: `A report on your ${facts.firstAnswers} first answers.`, wins: [], focus: [Array.isArray(facts.whenMistakesHappen) ? facts.whenMistakesHappen.find(text => text.includes("under 2 seconds")) ?? facts.whenMistakesHappen[0] : facts.whenMistakesHappen], plan: ["Slow down and run the Weakness Trainer."] };
     return route.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({
       id: `msg_${coachCalls}`, type: "message", role: "assistant", model: body.model, content: [{ type: "text", text: JSON.stringify(reply) }],
       stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 2500, output_tokens: 600, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
