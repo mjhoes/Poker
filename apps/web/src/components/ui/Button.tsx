@@ -3,7 +3,8 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Icon } from "../Icons";
 import type { IconName } from "../Icons";
 
-export type ButtonVariant = "primary" | "secondary" | "gold" | "danger" | "danger-solid";
+/** "draw": finishing a hand in progress (Draw, Check answer), a different color and shape from dealing's "gold". */
+export type ButtonVariant = "primary" | "secondary" | "gold" | "danger" | "danger-solid" | "draw";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;

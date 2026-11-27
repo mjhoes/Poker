@@ -82,13 +82,10 @@
 .card-face.suit-clubs { color: var(--suit-clubs, var(--suit-black)); }
 .card-face.suit-spades { color: var(--suit-spades, var(--suit-black)); }
 .card-face path, .card-face circle, .card-face text { fill: currentColor; }
-.card-rank { font: 780 22px var(--font-ui); }
-.card-rank.is-ten { font-size: 19px; letter-spacing: -1.5px; }
+.card-rank { font: 800 40px var(--font-ui); letter-spacing: -1px; }
+.card-rank.is-ten { font-size: 34px; letter-spacing: -3.5px; }
 .card-rank-compact { font: 800 52px var(--font-ui); letter-spacing: -2px; }
 .card-rank-compact.is-ten { font-size: 44px; letter-spacing: -4px; }
-.card-face .court-panel { fill: currentColor; fill-opacity: .07; stroke: currentColor; stroke-opacity: .45; stroke-width: 1.2; }
-.card-face .court-line { fill: none !important; stroke: currentColor; stroke-opacity: .25; stroke-width: .8; }
-.card-face .court-letter { font: 700 40px var(--display); }
 .card-back .back-edge { fill: #fffdf7; stroke: #e2dccb; stroke-width: 1.2; }
 .card-back .back-field { fill: var(--felt-mid); }
 .card-back .back-lattice { stroke: var(--felt-accent); stroke-opacity: .35; stroke-width: 1; }
@@ -118,6 +115,9 @@
 .hand-cards.is-empty .hand-card-slot svg { border-radius: 8px; box-shadow: 0 10px 22px color-mix(in srgb, var(--felt-shadow) 45%, transparent); }
 .hand-banner { position: absolute; z-index: 2; top: 42%; left: 50%; padding: 7px 16px; border: 1px solid #fff1bd; border-radius: var(--radius-pill); background: var(--felt-accent); color: #2a2208; box-shadow: 0 10px 24px color-mix(in srgb, var(--felt-shadow) 50%, transparent); font: 800 13px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; transform: translate(-50%, -50%); animation: banner-in .35s var(--ease-out) backwards; animation-delay: calc(5 * var(--deal-step)); }
 .hand-banner .coin-amount-dollars { opacity: .75; }
+/* A draw that pays nothing: a quiet slate banner and a faded hand, so it reads as finished and lost at a glance. */
+.hand-banner.is-no-win { border-color: color-mix(in srgb, #fff 35%, transparent); background: #3b4250; color: #f1f3f6; }
+.hand-zone.is-no-win .hand-card .card-shell { opacity: .62; filter: grayscale(.45); transition: opacity .3s ease, filter .3s ease; transition-delay: calc(5 * var(--deal-step)); }
 @keyframes banner-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.8); } }
 .optimal-stamp { position: absolute; z-index: 3; top: 38%; left: 50%; display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border: 2px solid #fff4c9; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--felt-lo) 70%, transparent); color: #fff4c9; font: 800 18px var(--display); letter-spacing: .02em; pointer-events: none; transform: translate(-50%, -50%); animation: stamp 1.3s var(--ease-out) forwards; }
 @keyframes stamp { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.5) rotate(-6deg); } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-4deg); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(.96) rotate(-4deg); } }
@@ -235,6 +235,7 @@
 .meter-value { color: var(--felt-ink); font: 750 20px var(--font-ui); letter-spacing: -.01em; }
 .meter-dollars { color: var(--felt-muted); font-size: var(--text-xs); font-weight: 600; }
 .meter.is-win .meter-value { color: var(--felt-accent); }
+.meter.is-no-win .meter-value, .meter.is-no-win .meter-dollars { opacity: .7; }
 
 /* Side panels */
 .session-stats .eyebrow { margin-bottom: 4px; }

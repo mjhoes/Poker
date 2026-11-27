@@ -148,6 +148,9 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
   const mainLine = outcome?.lines[0];
   const mainWinning = mainLine && mainLine.payoutCoins > 0 ? winningMask(mainLine.hand, mainLine.rank, familyId) : 0;
   const hits = new Set(outcome?.lines.filter(line => line.payoutCoins > 0).map(line => line.rank) ?? []);
+  // A draw that pays nothing says so, with what the hand cost: the table shouldn't look the same as before a deal.
+  const noWin = !!outcome && outcome.totalPayoutCoins === 0;
+  const handBet = (state?.handCoins ?? config.coins) * config.lines;
   const suggestedMask = reviewing && warning ? warning.bestMask : 0;
   const handKey = state?.handId ?? "preview";
   const bet = currentBet(session).coins;
@@ -188,7 +191,7 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
           <PayTable paytableId={handPaytableId(session)} coins={bet} hits={hits} />
           <LineRows session={session} familyId={familyId} />
 
-          <div className="hand-zone">
+          <div className={`hand-zone ${noWin ? "is-no-win" : ""}`}>
             {cardSet.length === 5 ? <>
               <div className="hand-cards" role="group" aria-label={complete && freePlay ? "First final line outcome." : "Current poker hand. Select cards to hold."}>
                 {cardSet.map((card, index) => {
@@ -202,6 +205,10 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
               {mainLine && mainLine.payoutCoins > 0 && <div className="hand-banner" role="status">
                 {config.lines > 1 ? "Line 1 · " : ""}{shortRankName(mainLine.rank)} · <CoinAmount amount={mainLine.payoutCoins} denominationCents={config.denominationCents} />
               </div>}
+              {noWin && <div className="hand-banner is-no-win" role="status">
+                No win · <CoinAmount amount={-handBet} denominationCents={config.denominationCents} signed />
+              </div>}
+              {mainLine && mainLine.payoutCoins === 0 && !noWin && <div className="hand-banner is-no-win" role="status">Line 1 · No win</div>}
               {finalGrade?.correct && <div className="optimal-stamp" aria-hidden="true"><Icon name="check" size={18} />Optimal</div>}
             </> : <>
               <div className="hand-cards is-empty" aria-hidden="true">{[0, 1, 2, 3, 4].map(index => <span key={index} className="hand-card-slot"><CardBack /></span>)}</div>
@@ -221,8 +228,8 @@ export function SessionPage({ session, felt, sessions, analysis, analysisError, 
               <Button variant="secondary" className="bet-button" disabled={!canPlay} onClick={() => onBetMax(session)} title="Bet 5 credits per line and deal (M)">Bet Max</Button></>}
               <Button variant="gold" icon="cards" data-play-action="deal" disabled={!canPlay} loading={busy} loadingLabel="Dealing…" onClick={() => onDeal(session)}>Deal hand</Button>
             </>}
-            {state?.phase === "holding" && state.handId && freePlay && <Button variant="gold" icon="draw" data-play-action="submit" disabled={!canSubmit} loading={busy} loadingLabel="Drawing…" onClick={() => onSubmit(session)}>Draw</Button>}
-            {state?.phase === "holding" && state.handId && !freePlay && <Button variant="gold" icon="check" data-play-action="submit" disabled={!canSubmit} loading={busy} loadingLabel="Checking…" onClick={() => onSubmit(session)}>Check answer</Button>}
+            {state?.phase === "holding" && state.handId && freePlay && <Button variant="draw" icon="draw" data-play-action="submit" disabled={!canSubmit} loading={busy} loadingLabel="Drawing…" onClick={() => onSubmit(session)}>Draw</Button>}
+            {state?.phase === "holding" && state.handId && !freePlay && <Button variant="draw" icon="check" data-play-action="submit" disabled={!canSubmit} loading={busy} loadingLabel="Checking…" onClick={() => onSubmit(session)}>Check answer</Button>}
           </div>}
           {active && !reviewing && cardSet.length === 5 && state?.phase === "holding" && <p className="keyboard-hint">1–5 hold cards · Space or Enter {freePlay ? "draws" : "checks"}</p>}
           {active && (state?.phase === "ready" || complete) && <p className="keyboard-hint">Space or Enter deals · B bet one · M bet max</p>}

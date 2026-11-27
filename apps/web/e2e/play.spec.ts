@@ -164,6 +164,37 @@ test("warnings survive reload, corrections keep the mistake, and silent play rep
   await expect(page.getByText("EV lost · all lines", { exact: true })).toBeVisible();
 });
 
+test("a draw that pays nothing says so, and Deal and Draw look different", async ({ page }) => {
+  await createPlayTable(page, { amount: "500" });
+  const deal = page.getByRole("button", { name: "Deal hand", exact: true });
+  const draw = page.getByRole("button", { name: "Draw", exact: true });
+  const noWin = page.locator(".hand-banner.is-no-win");
+  // Play the best hold until a hand pays nothing (about half of them do).
+  for (let hand = 0; hand < 20 && !(await noWin.count()); hand++) {
+    await deal.click();
+    await expect(draw).toBeEnabled();
+    await chooseMask(page, (await readPlayState(page)).sessions[0].state.analysis!.best.mask);
+    // Gold and square-cornered to deal; blue and pill-shaped while a hand is in progress.
+    await expect(draw).toHaveClass(/\bdraw\b/);
+    await expect(deal).toHaveCount(0);
+    await draw.click();
+    await expect(deal).toBeVisible();
+    await expect(deal).toHaveClass(/\bgold\b/);
+  }
+  await expect(noWin).toHaveText(/^No win · −5 credits\s*\(−\$1\.25\)$/); // the dollars sit apart by CSS
+  await expect(noWin).toHaveAttribute("role", "status");
+  await expect(page.locator(".hand-zone")).toHaveClass(/\bis-no-win\b/);
+  const winMeter = page.getByLabel("Credit meter").locator(".meter").nth(1);
+  await expect(winMeter).toHaveClass(/\bis-no-win\b/);
+  await expect(winMeter).toContainText("0");
+  await expect(winMeter).toContainText("No win");
+  // Dealing again clears it.
+  await deal.click();
+  await expect(draw).toBeEnabled();
+  await expect(noWin).toHaveCount(0);
+  await expect(winMeter).toContainText("—");
+});
+
 // Tagged @timing: runs on its own after the suite (see playwright.config.ts), since it measures responsiveness.
 test("mobile Rapid Drill saves immediate keyboard feedback without wallet movements", { tag: "@timing" }, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
