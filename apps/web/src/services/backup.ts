@@ -9,6 +9,8 @@ import { creditState } from "./money";
 import { countDecisions } from "./retention";
 
 export const backupTables = (Object.keys(recordSchemas) as TableName[]).filter(x => x !== "aiKeys" && x !== "analyses" && x !== "aiExplanations");
+/** Tables a backup from before they existed doesn't have (it restores them empty). */
+const ADDED_LATER: readonly TableName[] = ["coachReports"];
 const envelopeSchema = z.object({
   format: z.literal("perfect-draw-backup"), version: z.literal(1),
   exportedAt: z.number().int().nonnegative(), tables: z.record(z.array(z.unknown())),
@@ -118,6 +120,8 @@ export const backupService = {
   async import(text: string) {
     if (text.length > 100_000_000) throw new Error("Backup exceeds the 100 MB import limit.");
     const envelope = envelopeSchema.parse(JSON.parse(text));
+    // Tables added after a backup was made restore empty; any other gap or unknown table is refused.
+    for (const name of ADDED_LATER) envelope.tables[name] ??= [];
     if (Object.keys(envelope.tables).length !== backupTables.length || backupTables.some(name => !envelope.tables[name])) {
       throw new Error("Backup is incomplete or uses an unsupported table set.");
     }

@@ -35,7 +35,7 @@ Build the engine first and prove it correct; everything else (training, mistake 
 - Mastery model + FSRS scheduling. ✅ — `15-ADAPTIVE-TRAINING-PLAN.md` (round A: with Weakness Trainer and Close Calls).
 - Heuristic card generation with engine validation; rule lab. ✅ — `17-HEURISTICS-PLAN.md` (engine-written cards, AI polish, Rule Lab).
 - Printable strategy/heuristic PDF. ✅ — `18-PRINTABLE-STRATEGY-PLAN.md` (full pages and a wallet card, made in the browser).
-- Context analysis (speed/fatigue/switch effects); AI coach report.
+- Context analysis (speed/fatigue/switch effects); AI coach report. ✅ — `19-CONTEXT-ANALYSIS-PLAN.md` (difficulty-adjusted, on Statistics; saved coach reports).
 
 ## Phase 4 — iOS (weeks 9–11)
 - Capacitor shell, native camera, haptics, Keychain key storage, SQLite if needed.

@@ -7,6 +7,8 @@ import { dollarsFor } from "../components/ui";
 import { denominationLabel } from "../machines/machine-info";
 import { TrendChart, WeaknessRankingChart } from "../components/StatisticsCharts";
 import { localCount } from "../components/UiHelpers";
+import { StatsContext } from "../components/StatsContext";
+import { CoachReportPanel } from "../components/CoachReportPanel";
 import { statsService } from "../services/statistics";
 
 type TrendMetric = "accuracyPct" | "evLostPer1000" | "asDrilledReturnPct";
@@ -48,6 +50,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
   const [report, setReport] = useState<StatsReportView | null>(null);
+  const [reportQuery, setReportQuery] = useState<StatsQuery | null>(null);
   const [denomination, setDenomination] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -99,7 +102,7 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
     setError("");
     setReport(null);
     statsService.report(query).then(result => {
-      if (requestId.current === thisRequest) setReport(result);
+      if (requestId.current === thisRequest) { setReport(result); setReportQuery(query); }
     }).catch(reason => {
       if (requestId.current === thisRequest) setError(reason instanceof Error ? reason.message : String(reason));
     }).finally(() => {
@@ -251,6 +254,9 @@ export function StatsPage({ machines, decisionCount, onTrainStarted, onGoMachine
         {matchedMachines.length ? <div className="stats-training-machine"><label className="field"><span className="field-label">Training machine · matching paytable and coins only</span><select value={selectedMachine?.id ?? ""} onChange={event => setSelectedMachineId(event.target.value)} aria-label="Training machine">{matchedMachines.map(machine => <option key={machine.id} value={machine.id}>{machine.name} · {machine.coins} coins</option>)}</select></label><p>Training opens a persistent, no-wager Rapid Drill targeted to the selected category.</p></div> : <div className="stats-no-machine"><p><strong>No matching live machine.</strong> Create or edit a machine with this exact paytable and coin count before training a category.</p><button className="text-button" type="button" onClick={onGoMachines}>Go to Machines</button></div>}
         {trainingError && <div className="error-banner" role="alert">{trainingError}<button className="text-button" type="button" onClick={() => setTrainingError("")}>Dismiss</button></div>}
       </section>
+
+      <StatsContext context={report.context} />
+      {reportQuery && <CoachReportPanel report={report} query={reportQuery} payTable={selectedTable?.name ?? "this pay table"} scopeSummary={`${filterSummary}${since || until ? ` · ${since || "the start"} to ${until || "today"}` : ""}${denomination ? ` · ${denominationLabel(Number(denomination))} only` : ""}`} />}
 
       <section className="panel panel-pad stats-confusion">
         <div className="panel-title"><div><p className="eyebrow">RECORDED HOLD PAIRS</p><h2>Confusion matrix</h2><p>Correct equivalent holds may have different labels and zero EV loss. A label mismatch alone is not an error.</p></div></div>

@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { canonicalizeHand, parseHand, standardVariant } from "@perfect-draw/engine";
+import { analyzeContext, canonicalizeHand, parseHand, standardVariant } from "@perfect-draw/engine";
 import type { GameAnalysis } from "@perfect-draw/engine";
 import { analysisKey, getLibraryPayTable } from "@perfect-draw/paytables";
 import { decisionSchema, newId } from "@perfect-draw/shared";
@@ -162,6 +162,28 @@ describe("statistics worker and local service", () => {
     await worker.report({ paytableId: table.id });
     expect(loader).toHaveBeenCalledOnce();
   });
+  it("groups context's difficulty adjustment by canonical category, not the saved label", async () => {
+    // Every decision is saved with one original-order label, but the hands are two canonical categories: PAIR_A (hard
+    // here) and DRAW5 (easy). Within each, speed changes nothing; grouping by the saved label would blame fast decisions.
+    const { session } = await setup();
+    const start = Date.now() - 3_600_000;
+    const rows = [
+      ...[[200, 60, 800], [100, 30, 6000]].map(([count, mistakes, ms]) => ({ count, mistakes, ms, other: false })),
+      ...[[100, 2, 800], [200, 4, 6000]].map(([count, mistakes, ms]) => ({ count, mistakes, ms, other: true })),
+    ].flatMap(({ count, mistakes, ms, other }) => Array.from({ length: count }, (_, index) => ({
+      ...decision(session, { other, loss: Math.floor((index + 1) * mistakes / count) > Math.floor(index * mistakes / count) ? 1 : 0 }),
+      decisionMs: ms,
+    }))).map((row, index) => ({ ...row, createdAt: start + index * 1000 }));
+    await db.records("decisions").bulkAdd(rows);
+    const report = await new StatsEngine(async () => game).report({ paytableId: table.id });
+    const canonical = analyzeContext(rows.map(row => ({
+      sessionId: row.sessionId, paytableId: row.paytableId, createdAt: row.createdAt, bestLabel: row.canonicalHandId === otherId ? "DRAW5" : "PAIR_A",
+      evLoss: row.evLoss, decisionMs: row.decisionMs, handIndexInSession: row.handIndexInSession, priorOutcome: row.priorOutcome,
+      firstAnswer: true, mode: "drill" as const, switcherSession: false, inScope: true,
+    })));
+    expect(report.context).toEqual(canonical);
+    expect(report.context.factors.find(factor => factor.id === "decision_time")!.buckets.every(bucket => !bucket.counts)).toBe(true);
+  });
   it("filters dates, modes, coins, deleted records and baselines while preserving correction counts", async () => {
     const { session, machine } = await setup();
     const free = await sessionService.start({ machineId: machine.id, mode: "free_play" });
@@ -228,7 +250,7 @@ describe("statistics worker and local service", () => {
     const upgraded = new LocalDatabase(name);
     try {
       await upgraded.open();
-      expect(upgraded.verno).toBe(6);
+      expect(upgraded.verno).toBe(7);
       expect(await upgraded.records("decisions").get(row.id)).toEqual(row);
       expect(await upgraded.records("decisions").where("paytableId").equals(table.id).count()).toBe(1);
     } finally { upgraded.close(); await upgraded.delete(); }

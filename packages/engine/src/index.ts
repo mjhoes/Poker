@@ -3,6 +3,8 @@ export * from "./cards";
 export { categoryDistribution, computeStatistics, aggregateStatistics, STATS_HALF_LIFE_DAYS, STATS_CONFIDENCE_PRIOR, STATS_ESTIMATE_MIN_COVERAGE } from "./statistics";
 export { localDay, localDayBounds } from "./calendar";
 export type { StatsAggregate } from "./statistics";
+export { analyzeContext, CONTEXT_MIN_HANDS, CONTEXT_SHRINK, CONTEXT_SWITCH_HANDS, CONTEXT_SWITCH_WINDOW_MS } from "./context";
+export type { ContextBucket, ContextDecision, ContextFactor, ContextFactorId, ContextFinding, ContextReport } from "./context";
 export type { StatsReport, StatsObservation, CategoryDistribution, CategoryStats, ConfusionStats, TrendStats } from "./statistics";
 export { dealRound, resolveRound, gradeDecision } from "./play";
 export type { DecisionGrade, DrawLine, RoundOutcome } from "./play";

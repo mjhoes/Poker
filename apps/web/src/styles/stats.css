@@ -49,7 +49,31 @@
 .stats-ceiling { padding-left: 10px; border-left: 2px solid var(--signal); color: #6d6144; }
 .stats-ceiling strong { color: #655225; font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
 .stats-exclusions { margin: 12px 0 0; color: var(--muted); font: 600 11px var(--font-ui); }
-.stats-trend, .stats-weakness, .stats-confusion { margin-top: 16px; }
+.stats-trend, .stats-weakness, .stats-confusion, .stats-context { margin-top: 16px; }
+.context-findings ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.context-findings li { padding: 9px 12px; border-left: 3px solid var(--muted); background: #f6f6f0; font-size: 13px; }
+.context-findings li.is-worse { border-left-color: var(--danger); }
+.context-findings li.is-better { border-left-color: var(--felt); }
+.context-findings p { margin: 0; color: var(--muted); }
+.context-details { margin-top: 12px; }
+.context-details summary { cursor: pointer; color: var(--felt-dark); font-weight: 650; }
+.context-factor { margin-top: 14px; overflow-x: auto; }
+.context-factor h3 { margin: 0; font-size: 14px; }
+.context-factor p { margin: 2px 0 6px; font-size: 12px; }
+.context-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.context-table th, .context-table td { padding: 6px 8px; border-bottom: 1px solid #e4e7df; text-align: right; white-space: nowrap; }
+.context-table th[scope="row"], .context-table thead th:first-child { text-align: left; }
+.context-table tr.is-worse th, .context-table tr.is-worse td b { color: var(--danger); }
+.context-table tr.is-better th, .context-table tr.is-better td b { color: var(--felt); }
+.context-note { margin: 12px 0 0; font-size: 11px; }
+.stats-coach { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.coach-report { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid #e0e5db; background: #f9f9f3; }
+.coach-headline { margin: 0; font: 700 17px var(--display); color: var(--ink); }
+.coach-list h4 { margin: 0 0 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.coach-list ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+.coach-report .btn { justify-self: start; }
+.coach-older summary { cursor: pointer; color: var(--felt-dark); font-weight: 650; }
+.coach-older .coach-report { margin-top: 10px; }
 .stats-section-head { align-items: center; }
 .stats-section-head h2 { font-size: 19px; }
 .stats-section-head .eyebrow { margin-bottom: 6px; }

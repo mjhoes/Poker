@@ -26,7 +26,7 @@ export const recordSchemas = {
   walletLedger: r.ledgerSchema, sessions: r.sessionSchema, decisions: r.decisionSchema,
   categoryMastery: f.masterySchema, heuristicCards: f.heuristicSchema, uploads: f.uploadSchema, scoutingLog: f.scoutingSchema,
   rewardsPrograms: f.rewardsProgramSchema, trips: f.tripSchema, casinoSessions: f.casinoSessionSchema,
-  rewardsReceived: f.rewardSchema, dailyAggregates: f.dailyAggregateSchema,
+  rewardsReceived: f.rewardSchema, dailyAggregates: f.dailyAggregateSchema, coachReports: r.coachReportSchema,
 } as const;
 export type TableName = keyof typeof recordSchemas;
 export type Records = { [K in TableName]: z.infer<(typeof recordSchemas)[K]> };
