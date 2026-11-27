@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@perfect-draw/shared";
-import { creditLabel, money } from "../components/UiHelpers";
+import { creditLabel, grouped, money } from "../components/UiHelpers";
 import { dollarsFor } from "../components/ui";
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -24,8 +24,8 @@ export function useCountUp(target: number, duration = 450) {
   return value;
 }
 
-function Meter({ label, value, dollars, tone }: { label: string; value: string; dollars?: string; tone?: "win" }) {
-  return <div className={`meter ${tone === "win" ? "is-win" : ""}`}>
+function Meter({ label, value, dollars, tone }: { label: string; value: string; dollars?: string; tone?: "win" | "no-win" }) {
+  return <div className={`meter ${tone ? `is-${tone}` : ""}`}>
     <span className="meter-label">{label}</span>
     <span className="meter-value">{value}</span>
     {dollars && <span className="meter-dollars">{dollars}</span>}
@@ -48,8 +48,11 @@ export function CreditMeter({ session, betCoins }: { session: Session; betCoins:
   const bet = betCoins * config.lines;
   const creditsCents = Math.round(state.credits * config.denominationCents) + state.creditRemainderCents;
   return <div className="credit-meter" aria-label="Credit meter">
-    <Meter label="Bet" value={bet.toLocaleString()} dollars={money(bet * config.denominationCents)} />
-    <Meter label="Win" tone="win" value={win ? shownWin.toLocaleString() : "—"} dollars={win ? money(Math.round(win * config.denominationCents)) : undefined} />
+    <Meter label="Bet" value={grouped(bet)} dollars={money(bet * config.denominationCents)} />
+    {/* After a draw the win reads 0 and "No win", never the "—" of a hand not yet played. */}
+    {state.phase === "complete" && state.outcome && !win
+      ? <Meter label="Win" tone="no-win" value="0" dollars="No win" />
+      : <Meter label="Win" tone="win" value={win ? grouped(shownWin) : "—"} dollars={win ? money(Math.round(win * config.denominationCents)) : undefined} />}
     <Meter label="Credits" value={creditLabel(state).replace(" credits", "")} dollars={money(creditsCents)} />
   </div>;
 }

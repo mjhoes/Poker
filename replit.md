@@ -204,10 +204,16 @@ Phase 2 (done):
 
 Phase 3 (done) — the session table:
 - The table lives in `apps/web/src/table/`: `CardFace`/`CardBack` (original SVG card art, colored by
-  `--suit-*` tokens, memoized), `PlayingCard` (hold toggle; keeps the accessible names tests rely on),
+  `--suit-*` tokens, memoized; machine-style faces: a big rank top-left with a small suit under it and one large
+  suit for every rank, no pips or court figures, so hands read at a glance), `PlayingCard` (hold toggle; keeps the accessible names tests rely on),
   `PayTable` (library pay table with the bet column lit and winning rows highlighted), `LineRows`
   (lines 2…N of multi-line play), `CreditMeter` (bet / win / credits, or drill progress),
   `Feedback` (three grade levels) and `TableSettings` (gear popover holding feedback timing).
+- After a draw that pays nothing, the table says so: a slate "No win · −N credits" banner (what the hand cost),
+  the hand faded and grayed, and the credit meter's Win reading "0 · No win" (never the "—" of a hand not yet
+  played). With several lines, a losing line 1 when others paid reads "Line 1 · No win".
+- Deal is gold and square-cornered; Draw and Check answer (a hand in progress) use the blue, pill-shaped `draw`
+  button variant, so it's clear at a glance whether a hand is finished.
 - `winningMask()` in `table/cards.ts` decides which cards light up for a win. It is display-only and
   unit-tested; payouts always come from the engine.
 - Feedback: an optimal hold shows a brief "Optimal" stamp and a small pill (details closed); a weaker
