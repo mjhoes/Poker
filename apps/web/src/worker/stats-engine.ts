@@ -57,7 +57,9 @@ export class StatsEngine {
       db.records("dailyAggregates").where("paytableId").equals(query.paytableId).toArray(),
     ]));
     const decisions = allDecisions.filter(row => row.paytableId === query.paytableId);
-    const inScope = new Set<string>();
+    // In-scope decisions and their canonical category: a saved label keeps the original card order's tie choice, so
+    // grouping by it would change context's difficulty adjustment. Other decisions only give timing.
+    const canonicalLabels = new Map<string, string>();
     const sessionMap = new Map(sessions.filter(live).map(row => [row.id, row]));
     let excludedIncompatible = 0, undenominatedArchived = 0;
     const denominations = new Set<number>();
@@ -74,7 +76,7 @@ export class StatsEngine {
       if (query.denominationCents !== undefined && decision.denominationCents !== query.denominationCents) continue;
       const canonical = analysis.perHand.get(decision.canonicalHandId);
       if (!canonical) throw new Error("A saved decision is absent from the selected game analysis.");
-      inScope.add(decision.id);
+      canonicalLabels.set(decision.id, canonical.bestLabel);
       observations.push({
         bestLabel: canonical.bestLabel, chosenLabel: decision.chosenLabel, evLoss: decision.evLoss,
         createdAt: decision.createdAt, isCorrection: decision.isCorrection,
@@ -98,10 +100,10 @@ export class StatsEngine {
       const session = sessionMap.get(row.sessionId);
       if (!live(row) || !session) continue;
       context.push({
-        sessionId: row.sessionId, paytableId: row.paytableId, createdAt: row.createdAt, bestLabel: row.bestLabel, evLoss: row.evLoss,
+        sessionId: row.sessionId, paytableId: row.paytableId, createdAt: row.createdAt, bestLabel: canonicalLabels.get(row.id) ?? row.bestLabel, evLoss: row.evLoss,
         decisionMs: row.decisionMs, handIndexInSession: row.handIndexInSession, priorOutcome: row.priorOutcome,
         firstAnswer: !row.isCorrection && (row.attemptIndex ?? 0) === 0, mode: session.mode === "free_play" ? "free_play" : "drill",
-        switcherSession: session.training?.kind === "switcher", inScope: inScope.has(row.id),
+        switcherSession: session.training?.kind === "switcher", inScope: canonicalLabels.has(row.id),
       });
     }
     return {

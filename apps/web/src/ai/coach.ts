@@ -30,9 +30,11 @@ export function coachFacts(report: StatsReportView, scope: { payTable: string; s
     firstAnswers: report.n, mistakes: report.errors, accuracyPct: pct(report.accuracyPct),
     evLostPer1000Hands: report.evLostPer1000 === null ? null : fixed(report.evLostPer1000, 2),
     optimalReturnPct: pct(report.optimalReturnPct, 3), returnAsPlayedPct: pct(report.asDrilledReturnPct, 3),
+    // Observed counts and their plain share, not the ranking's recency-weighted estimate (which pulls few hands toward
+    // 50%: one right answer would read 33.3%), so the coach can't state an estimate as a record.
     biggestWeaknesses: observed.slice(0, 5).map(category => ({
       hand: name(category.label), decisions: category.n, mistakes: category.errors,
-      errorRatePct: fixed(category.errorRate * 100, 1), avgLossPerMistake: fixed(category.avgEvLoss, 3),
+      mistakesPctOfDecisions: fixed(category.errors / category.n * 100, 1), avgLossPerMistake: fixed(category.avgEvLoss, 3),
     })),
     costliestConfusions: report.confusion.filter(row => row.errors > 0).sort((a, b) => b.evLostTotal - a.evLostTotal).slice(0, 3).map(row => ({
       bestHold: name(row.bestLabel), youHeld: name(row.chosenLabel), times: row.errors, evLostTotal: fixed(row.evLostTotal, 2),
@@ -42,7 +44,7 @@ export function coachFacts(report: StatsReportView, scope: { payTable: string; s
       ? `Not enough recent hands to check (${report.context.n} of ${report.context.minHands}).`
       : report.context.findings.length ? report.context.findings.map(findingText)
         : "Checked decision time, hand in the session, pay table changes, the previous hand and the previous draw: nothing stands out beyond what the hands explain.",
-    units: "EV and losses are in credits at this bet. Error rates and accuracy are percentages of first answers.",
+    units: "EV and losses are in credits at this bet. accuracyPct and mistakesPctOfDecisions are observed shares of first answers (mistakes ÷ decisions). biggestWeaknesses are listed in the app's weakness order (estimated cost per real hand), most costly first.",
     appFeatures: "Train page: today's review, Weakness Trainer, Close Calls, Strategy Ladder, Pay Table Switcher. Heuristics page: personal rule cards from your mistakes, and a printable strategy PDF. Statistics: Train this, for a focused Rapid Drill.",
   };
 }

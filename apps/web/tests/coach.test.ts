@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { analyzeContext } from "@perfect-draw/engine";
+import { analyzeContext, computeStatistics } from "@perfect-draw/engine";
 import type { StatsReportView } from "@perfect-draw/shared";
 import type { LLMProvider, TextRequest } from "../src/ai/types";
 import { setProviderFactory } from "../src/ai/router";
@@ -52,17 +52,29 @@ describe("the coach report", () => {
     const facts = coachFacts(report, { payTable: "9/6 Jacks or Better", summary: scope.summary });
     expect(facts).toMatchObject({ game: "Jacks or Better", firstAnswers: 240, mistakes: 31, accuracyPct: 87.1, evLostPer1000Hands: 61.23, optimalReturnPct: 99.544 });
     expect(facts.biggestWeaknesses).toEqual([
-      { hand: "4 to a Flush", decisions: 40, mistakes: 9, errorRatePct: 22.3, avgLossPerMistake: 0.412 },
-      { hand: "Low pair (Tens or lower)", decisions: 60, mistakes: 4, errorRatePct: 7, avgLossPerMistake: 0.31 },
+      { hand: "4 to a Flush", decisions: 40, mistakes: 9, mistakesPctOfDecisions: 22.5, avgLossPerMistake: 0.412 },
+      { hand: "Low pair (Tens or lower)", decisions: 60, mistakes: 4, mistakesPctOfDecisions: 6.7, avgLossPerMistake: 0.31 },
     ]);
     expect(facts.costliestConfusions).toEqual([{ bestHold: "4 to a Flush", youHeld: "Low pair (Tens or lower)", times: 7, evLostTotal: 2.9 }]);
     expect(facts.recentDays).toEqual([{ day: "2026-11-26", decisions: 120, accuracyPct: 83.3 }, { day: "2026-11-27", decisions: 120, accuracyPct: 90.8 }]);
     expect(facts.whenMistakesHappen).toBe("Not enough recent hands to check (0 of 30).");
   });
 
+  it("gives observed mistake shares, never the ranking's estimate as a record: one right answer is 0% wrong, not 33.3%", () => {
+    const stats = computeStatistics([{ bestLabel: "LP", chosenLabel: "LP", evLoss: 0, createdAt: Date.now() - 1000 }],
+      { familyId: "jacks_or_better", coins: 5, optimalReturnPct: 99.5439, frequencies: { LP: 0.5, "4FL": 0.5 } }, Date.now());
+    const lowPair = stats.categories.find(category => category.label === "LP")!;
+    expect([lowPair.n, lowPair.errors, Number((lowPair.errorRate * 100).toFixed(1))]).toEqual([1, 0, 33.3]); // the estimate
+    const facts = coachFacts({ ...stats, denominations: [25], undenominatedArchived: 0, context: analyzeContext([]) }, { payTable: "9/6 Jacks or Better", summary: scope.summary });
+    expect(facts.biggestWeaknesses).toEqual([{ hand: "Low pair (Tens or lower)", decisions: 1, mistakes: 0, mistakesPctOfDecisions: 0, avgLossPerMistake: 0 }]);
+    expect(facts.units).toContain("observed shares of first answers (mistakes ÷ decisions)");
+    const reply = { headline: "Low pairs: 33.3% wrong.", wins: [], focus: ["Low pairs."], plan: ["Train."] };
+    expect(coachProblem(reply, facts)).toBe("Numbers not in the DATA: 33.3. Use only numbers that appear in the DATA.");
+  });
+
   it("only takes replies whose numbers are all in the facts, and of the right shape", () => {
     const facts = coachFacts(report, { payTable: "9/6 Jacks or Better", summary: scope.summary });
-    const good = { headline: "Accuracy reached 90.8% on your latest day.", wins: ["Low pairs: 4 mistakes in 60."], focus: ["4 to a Flush: 22.3% wrong."], plan: ["Run the Weakness Trainer."] };
+    const good = { headline: "Accuracy reached 90.8% on your latest day.", wins: ["Low pairs: 4 mistakes in 60."], focus: ["4 to a Flush: 22.5% wrong."], plan: ["Run the Weakness Trainer."] };
     expect(coachProblem(good, facts)).toBeNull();
     expect(coachProblem({ ...good, headline: "You improved by 7.5 points." }, facts)).toBe("Numbers not in the DATA: 7.5. Use only numbers that appear in the DATA.");
     expect(coachProblem({ ...good, focus: [] }, facts)).toBe("Give 1 to 3 focus items.");
@@ -74,7 +86,7 @@ describe("the coach report", () => {
     const facts = coachFacts(report, { payTable: "9/6 Jacks or Better", summary: scope.summary });
     const sent = fake([
       { headline: "Up 7.5 points this week.", wins: [], focus: ["Flush draws."], plan: ["Train."] },
-      { headline: "Accuracy reached 90.8% on your latest day.", wins: ["Low pairs are solid."], focus: ["4 to a Flush: 22.3% wrong."], plan: ["Run the Weakness Trainer.", "Make heuristic cards."] },
+      { headline: "Accuracy reached 90.8% on your latest day.", wins: ["Low pairs are solid."], focus: ["4 to a Flush: 22.5% wrong."], plan: ["Run the Weakness Trainer.", "Make heuristic cards."] },
     ]);
     const { record } = await coachService.write({ scope, facts, provider: "anthropic", tier: "light" });
     expect(sent).toHaveLength(2);

@@ -24,8 +24,8 @@ Status: **built**. This was the last item of Phase 3.
     out of this one.
   - **Previous hand:** after a mistake, or after a right answer (the previous first answer in the same session).
   - **Previous draw** (Free Play): after a losing draw, after a win, after a big win (four of a kind or better).
-- **Expected mistakes.** A decision's expected chance of a mistake is your error rate on its hand type (best-hold
-  category), shrunk toward your overall rate (5 hands' worth) and leaving that decision itself out. A situation's
+- **Expected mistakes.** A decision's expected chance of a mistake is your error rate on its hand type (its canonical
+  best-hold category, as the rest of Statistics uses, not the label saved with the decision), shrunk toward your overall rate (5 hands' worth) and leaving that decision itself out. A situation's
   expected mistakes are the sum over its hands.
 - **What's shown per situation.** Hands; mistakes; expected mistakes; the difference per 100 hands with a 95% interval
   (normal approximation, variance Σ p(1−p)); and EV lost per 100 hands against what the hands would cost at your usual
@@ -41,7 +41,8 @@ Status: **built**. This was the last item of Phase 3.
   - the scope;
   - hands, accuracy and EV lost per 1,000;
   - return against optimal;
-  - the top weaknesses and the costliest confusions;
+  - the top weaknesses, with observed counts and their plain share (mistakes ÷ decisions; the ranking's recency-weighted
+    estimate is never given as a record), and the costliest confusions;
   - recent trend;
   - context findings, only those that count.
 - **Reply.** `{ headline, wins[], focus[], plan[] }` (Tech Spec §7 `coach_report`). Every number must come from the
