@@ -45,6 +45,8 @@ export class LocalDatabase extends Dexie {
     this.version(6).stores({ casinoSessions: "id, tripId, startedAt" }).upgrade(async tx => {
       await tx.table("rewardsPrograms").toCollection().modify(program => { if (program.rounding === "trip_floor") program.rounding = "carryover"; });
     });
+    // Saved AI coach reports (docs/19-CONTEXT-ANALYSIS-PLAN.md), newest first per table.
+    this.version(7).stores({ coachReports: "id, createdAt, scope.paytableId" });
   }
   records<K extends TableName>(name: K): Table<Records[K], string> { return this.table(name); }
 }

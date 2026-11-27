@@ -212,3 +212,85 @@ test("mobile statistics handles empty scopes, exact short-coin baselines and wor
   await page.getByRole("link", { name: "Wallets", exact: true }).click();
   await expect(page.getByRole("button", { name: "Select wallet Play test wallet", exact: true })).toBeVisible();
 });
+
+test("when mistakes happen, and a saved AI coach report written from the statistics", async ({ page }) => {
+  test.setTimeout(180_000);
+  // An intercepted Anthropic API: the coach reply uses only numbers from the facts it was sent.
+  const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
+  let coachCalls = 0;
+  await page.route("https://api.anthropic.com/**", async route => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: CORS });
+    if (request.url().includes("/v1/models")) return route.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ data: [], has_more: false, first_id: null, last_id: null }) });
+    coachCalls++;
+    const body = request.postDataJSON() as { model: string; messages: { content: string | { text?: string }[] }[] };
+    const content = body.messages[0].content, prompt = typeof content === "string" ? content : content.map(part => part.text ?? "").join("");
+    const facts = JSON.parse(prompt.slice(prompt.indexOf("{"))) as { firstAnswers: number; whenMistakesHappen: string[] | string };
+    const reply = { headline: `A report on your ${facts.firstAnswers} first answers.`, wins: [], focus: [Array.isArray(facts.whenMistakesHappen) ? facts.whenMistakesHappen[0] : facts.whenMistakesHappen], plan: ["Slow down and run the Weakness Trainer."] };
+    return route.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({
+      id: `msg_${coachCalls}`, type: "message", role: "assistant", model: body.model, content: [{ type: "text", text: JSON.stringify(reply) }],
+      stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 2500, output_tokens: 600, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+    }) });
+  });
+  await createPlayTable(page, { mode: "drill" });
+  // The same hands twice: decided in under a second, half held wrong; decided in six seconds, almost all right.
+  await page.evaluate(async ({ enginePath, sharedPath }) => {
+    const dbPath = "/src/data/db.ts", clientPath = "/src/worker/client.ts";
+    const [{ db }, { engineClient }, engine, shared] = await Promise.all([import(dbPath), import(clientPath), import(enginePath), import(sharedPath)]);
+    const session = await db.records("sessions").toCollection().first() as Session;
+    const paytableId = session.machineSnapshot.paytableId;
+    const client = engineClient(), analysis = await client.loadAnalysis(paytableId);
+    const rows: Records["decisions"][] = [];
+    let at = Date.now() - 3_600_000;
+    for (let index = 0; index < 60; index++) {
+      const drill = await client.generateDrill({ analysisKey: analysis.key, sampling: "real" });
+      const hand = await client.analyzeHand(drill.hand, paytableId, 5) as HandAnalysis;
+      const worst = hand.results.reduce((a, b) => a.ev < b.ev ? a : b);
+      for (const [ms, wrong] of [[800, index % 2 === 0], [6000, index % 20 === 0]] as const) {
+        const grade = engine.gradeDecision(hand, wrong ? worst.mask : hand.best.mask);
+        rows.push(shared.decisionSchema.parse({
+          id: shared.newId(), updatedAt: Date.now(), sessionId: session.id, paytableId, analysisKey: analysis.key,
+          canonicalHandId: engine.canonicalizeHand(hand.hand).id, dealtCards: hand.hand, ...grade,
+          decisionMs: ms, handIndexInSession: rows.length + 1, msSinceSessionStart: 0, priorOutcome: null, createdAt: at += 20_000, coins: 5,
+        }));
+      }
+    }
+    await db.records("decisions").bulkAdd(rows);
+  }, sourcePaths);
+  await page.getByRole("link", { name: "Statistics", exact: true }).click();
+  const context = page.getByRole("region", { name: "When your mistakes happen" });
+  await expect(context).toBeVisible({ timeout: 60_000 });
+  await expect(context.getByRole("group", { name: "Context findings" })).toContainText(/Decision time, under 2 seconds: \d+\.\d more mistakes per 100 hands than these hands explain \(±\d+\.\d, 60 hands\)\./);
+  await context.getByText("Every situation").click();
+  const timing = context.getByRole("table", { name: "Decision time" });
+  await expect(timing.getByRole("row", { name: /Under 2 seconds/ })).toContainText("60");
+  await expect(timing.getByRole("row", { name: /Under 2 seconds/ })).toContainText("clear");
+
+  // The coach report: needs a key; shows its cost; is saved, survives a reload, and can be deleted.
+  const coach = page.getByRole("region", { name: "Your coach report" });
+  await expect(coach.getByRole("link", { name: "Add an AI key to get a coach report" })).toBeVisible();
+  await page.goto("/#/settings?section=ai");
+  const provider = page.getByRole("group", { name: "Anthropic (Claude)" });
+  await provider.getByRole("textbox", { name: "Anthropic (Claude) API key" }).fill("sk-ant-test-key");
+  await provider.getByRole("button", { name: "Add key" }).click();
+  await expect(provider.getByText("Key added")).toBeVisible();
+  await page.getByRole("link", { name: "Statistics", exact: true }).click();
+  await coach.getByRole("button", { name: /^Write my coach report · about \$/ }).click();
+  const latest = coach.getByRole("article", { name: "Latest coach report" });
+  await expect(latest).toContainText("A report on your 120 first answers.");
+  await expect(latest).toContainText("Decision time, under 2 seconds:");
+  await expect(latest).toContainText("every number checked");
+  expect(coachCalls).toBe(1);
+  if (process.env.SHOTS) {
+    await context.screenshot({ path: `${process.env.SHOTS}/context.png` });
+    await coach.screenshot({ path: `${process.env.SHOTS}/coach.png` });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await context.screenshot({ path: `${process.env.SHOTS}/context-phone.png` });
+    await page.setViewportSize({ width: 1280, height: 720 });
+  }
+  await page.reload();
+  await page.getByRole("link", { name: "Statistics", exact: true }).click();
+  await expect(latest).toContainText("A report on your 120 first answers.", { timeout: 60_000 });
+  await latest.getByRole("button", { name: "Delete" }).click();
+  await expect(latest).toHaveCount(0);
+});

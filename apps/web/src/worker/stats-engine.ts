@@ -1,10 +1,10 @@
 import type { DealTarget } from "./engine-api";
 import {
-  analyzeGame, analyzeHandFast, categoryDistribution, clearSubsetCache, computeStatistics,
+  analyzeContext, analyzeGame, analyzeHandFast, categoryDistribution, clearSubsetCache, computeStatistics,
   clearTrainingCache, generateHand, getCanonicalHands, getTrainingContext, registerTrainingAnalysis, scoreHeuristic, standardVariant,
   suggestExceptions,
 } from "@perfect-draw/engine";
-import type { GameAnalysis, Hand, HandAnalysis, HoldSelector, RuleAST } from "@perfect-draw/engine";
+import type { ContextDecision, GameAnalysis, Hand, HandAnalysis, HoldSelector, RuleAST } from "@perfect-draw/engine";
 import { analysisKey } from "@perfect-draw/paytables";
 import { decisionSchema, recordSchemas, statsQuerySchema } from "@perfect-draw/shared";
 import type { StatsQuery, StatsReportView } from "@perfect-draw/shared";
@@ -50,11 +50,14 @@ export class StatsEngine {
     const { key, analysis } = await this.game(query.paytableId, query.coins);
     const now = Date.now(), until = Math.min(now, query.until ?? now);
     // One read transaction cannot observe the delete and aggregate halves of a rollup separately.
-    const [decisions, sessions, archived] = await db.transaction("r", [db.records("decisions"), db.records("sessions"), db.records("dailyAggregates")], () => Promise.all([
-      db.records("decisions").where("paytableId").equals(query.paytableId).toArray(),
+    // Every recent decision (any table) is read for context timing: the previous hand, and changes of pay table.
+    const [allDecisions, sessions, archived] = await db.transaction("r", [db.records("decisions"), db.records("sessions"), db.records("dailyAggregates")], () => Promise.all([
+      db.records("decisions").toArray(),
       db.records("sessions").toArray(),
       db.records("dailyAggregates").where("paytableId").equals(query.paytableId).toArray(),
     ]));
+    const decisions = allDecisions.filter(row => row.paytableId === query.paytableId);
+    const inScope = new Set<string>();
     const sessionMap = new Map(sessions.filter(live).map(row => [row.id, row]));
     let excludedIncompatible = 0, undenominatedArchived = 0;
     const denominations = new Set<number>();
@@ -71,6 +74,7 @@ export class StatsEngine {
       if (query.denominationCents !== undefined && decision.denominationCents !== query.denominationCents) continue;
       const canonical = analysis.perHand.get(decision.canonicalHandId);
       if (!canonical) throw new Error("A saved decision is absent from the selected game analysis.");
+      inScope.add(decision.id);
       observations.push({
         bestLabel: canonical.bestLabel, chosenLabel: decision.chosenLabel, evLoss: decision.evLoss,
         createdAt: decision.createdAt, isCorrection: decision.isCorrection,
@@ -89,9 +93,20 @@ export class StatsEngine {
       if (query.denominationCents !== undefined && row.denominationCents !== query.denominationCents) continue;
       aggregates.push(row);
     }
+    const context: ContextDecision[] = [];
+    for (const row of allDecisions) {
+      const session = sessionMap.get(row.sessionId);
+      if (!live(row) || !session) continue;
+      context.push({
+        sessionId: row.sessionId, paytableId: row.paytableId, createdAt: row.createdAt, bestLabel: row.bestLabel, evLoss: row.evLoss,
+        decisionMs: row.decisionMs, handIndexInSession: row.handIndexInSession, priorOutcome: row.priorOutcome,
+        firstAnswer: !row.isCorrection && (row.attemptIndex ?? 0) === 0, mode: session.mode === "free_play" ? "free_play" : "drill",
+        switcherSession: session.training?.kind === "switcher", inScope: inScope.has(row.id),
+      });
+    }
     return {
       ...computeStatistics(observations, categoryDistribution(analysis), now, { timeZone: query.timeZone, aggregates }), excludedIncompatible,
-      denominations: [...denominations].sort((a, b) => a - b), undenominatedArchived,
+      denominations: [...denominations].sort((a, b) => a - b), undenominatedArchived, context: analyzeContext(context),
     };
   }
   private readonly bestLabels = new Map<string, string[]>();

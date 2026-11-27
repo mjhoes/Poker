@@ -55,6 +55,26 @@ export const aiExplanationSchema = z.object({
   }),
   inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative(), estCost: z.number().finite().nonnegative(),
 });
+/**
+ * An AI coach report (F5.5, docs/19-CONTEXT-ANALYSIS-PLAN.md), written only from computed statistics: the scope it
+ * covers, the facts it was given and the reply. Kept on this device and in backups.
+ */
+export const coachReportSchema = z.object({
+  ...entity, createdAt: timestamp,
+  scope: z.object({
+    paytableId: hash, coins: z.number().int().min(1).max(5), mode: z.enum(["all", "free_play", "drill"]),
+    since: timestamp.nullable(), until: timestamp.nullable(), denominationCents: z.number().int().positive().nullable(),
+    /** The scope in words, as the Statistics page showed it. */
+    summary: z.string().max(300),
+  }),
+  facts: z.record(z.string(), z.unknown()),
+  report: z.object({
+    headline: z.string().min(1).max(300), wins: z.array(z.string().min(1).max(400)).max(4),
+    focus: z.array(z.string().min(1).max(400)).min(1).max(4), plan: z.array(z.string().min(1).max(400)).min(1).max(4),
+  }),
+  provider: providerSchema, model: z.string().min(1), promptVersion: z.number().int().positive(),
+  inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative(), estCost: z.number().finite().nonnegative(),
+});
 export const aiKeySchema = z.object({ provider: providerSchema, key: z.string().min(1), ...metadata });
 export const aiUsageSchema = z.object({
   ...entity, provider: providerSchema, model: z.string(), task: z.string(),

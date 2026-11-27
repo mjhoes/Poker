@@ -583,6 +583,23 @@ R3 — why one hold beats another:
   `pnpm --filter @perfect-draw/web exec playwright test --project=timing --no-deps` (without `--no-deps`, Playwright
   runs the whole `e2e` project first). The visual and offline configs declare their own single project.
 
+## Context analysis and the AI coach (docs/19-CONTEXT-ANALYSIS-PLAN.md)
+
+- **Statistics → "When your mistakes happen".** `analyzeContext` in `packages/engine/src/context.ts`, via
+  `StatsReportView.context`. It reads all recent decisions for timing; only in-scope first answers are analyzed.
+  - **Situations:** decision time, hand in the session, the first 10 hands after changing pay table (Pay Table
+    Switcher hands left out), the previous answer, and the previous Free Play draw.
+  - **Expected mistakes:** your own rate on each hand type, shrunk toward your overall rate, leaving the hand itself
+    out. A difference counts at 30+ hands when its 95% interval excludes zero.
+  - **Coverage:** decisions not yet archived (90 days).
+- **AI coach report.** `ai/coach.ts` and `components/CoachReportPanel.tsx`.
+  - **Facts:** `coachFacts`, from the report only.
+  - **Reply:** `{ headline, wins, focus, plan }`. Every number is checked (`coachProblem`), with one retry.
+  - **Saved** in `coachReports` (Dexie v7), with its scope and facts, and listed per pay table and bet.
+  - **Backups:** included. `backup.ts` `ADDED_LATER` lets backups made before the table existed restore with none.
+- **Tests:** `packages/engine/tests/context.test.ts` (difficulty adjustment, intervals, placement), `tests/coach.test.ts`
+  (facts, checks, retry, save/list/delete, backups), and `e2e/statistics.spec.ts` "when mistakes happen…".
+
 ## Performance notes
 
 - **Formatters are made once.** `Intl.NumberFormat`/`DateTimeFormat` objects are module constants (`money`, `credits`,

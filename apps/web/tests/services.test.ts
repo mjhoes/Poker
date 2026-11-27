@@ -21,7 +21,7 @@ async function fixture() {
 describe("local services", () => {
   it("initializes all tables, only library/profile/settings data, and is idempotent", async () => {
     await Promise.all([initializeDatabase(), initializeDatabase()]);
-    expect(db.tables).toHaveLength(21);
+    expect(db.tables).toHaveLength(22);
     expect(await db.records("paytables").count()).toBe(8);
     expect(await db.records("profile").count()).toBe(1);
     expect(await walletService.list()).toEqual([]);
