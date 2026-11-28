@@ -1,4 +1,6 @@
 import "fake-indexeddb/auto";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseHand } from "@perfect-draw/engine";
 import { getLibraryPayTable, PAY_TABLE_LIBRARY } from "@perfect-draw/paytables";
@@ -8,7 +10,7 @@ import { matchAnyRank, payingRanks, libraryMatch } from "../src/paytables/model"
 import { closestLibraryTable, returnRank } from "../src/photo/closest-table";
 import { cardFromReply, handProblem, readHand } from "../src/photo/hand-photo";
 import type { HandReply } from "../src/photo/hand-photo";
-import { fitWithin, imageTokens } from "../src/photo/image";
+import { fitWithin, imageTokens, isHeif } from "../src/photo/image";
 import { photoChecks, readPaytable } from "../src/photo/paytable-photo";
 import type { PaytableReply } from "../src/photo/paytable-photo";
 import { photoService } from "../src/photo/photo-service";
@@ -188,5 +190,26 @@ describe("the photo service", () => {
     const result = await photoService.read("hand", { ...image, fingerprint: "e".repeat(64) }, "anthropic", "medium");
     expect(result.calls).toBe(2);
     expect(readHand(result.reply).cards).toEqual([...parseHand("As Ac 8d 8h 3c")]);
+  });
+});
+
+describe("HEIC photos", () => {
+  // An ftyp box: size, "ftyp", major brand, minor version, then compatible brands.
+  const ftyp = (major: string, ...compatible: string[]) => {
+    const text = ["ftyp", major, "\0\0\0\0", ...compatible].join("");
+    const bytes = new Uint8Array(4 + text.length);
+    new DataView(bytes.buffer).setUint32(0, bytes.length);
+    bytes.set([...text].map(char => char.charCodeAt(0)), 4);
+    return new Blob([bytes, new Uint8Array(32)]);
+  };
+  it("are known by their file signature, whatever their name or type", async () => {
+    const fixture = await readFile(fileURLToPath(new URL("../e2e/fixtures/paytable-photo.heic", import.meta.url)));
+    expect(await isHeif(new Blob([fixture]))).toBe(true); // a real HEVC HEIF, typed nothing
+    expect(await isHeif(ftyp("heic", "mif1", "heic"))).toBe(true); // an iPhone photo
+    expect(await isHeif(ftyp("mif1", "heic"))).toBe(true);
+    expect(await isHeif(ftyp("isom", "iso2", "mp41"))).toBe(false); // an MP4 video
+    expect(await isHeif(ftyp("avif", "avif", "miaf"))).toBe(false); // AVIF: browsers open it themselves
+    expect(await isHeif(new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1])]))).toBe(false); // JPEG
+    expect(await isHeif(new Blob(["short"]))).toBe(false);
   });
 });

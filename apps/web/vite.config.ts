@@ -37,8 +37,11 @@ export default defineConfig({
       workbox: {
         // Fonts are part of the app shell: precache them so the interface looks the same offline.
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
-        // The AI SDKs load on first use and need the network anyway; don't make every install download them.
-        globIgnores: ["**/assets/anthropic-*.js", "**/assets/openai-*.js"],
+        // The AI SDKs load on first use and need the network anyway; don't make every install download them. The same goes
+        // for the HEIC decoder (3 MB, only for HEIC photos on browsers that can't open them, which are read online).
+        globIgnores: ["**/assets/anthropic-*.js", "**/assets/openai-*.js", "**/assets/heic-to-*.js"],
+        // Open-source notices, license texts and source archives are files, not app pages: never answer them with the app.
+        navigateFallbackDenylist: [/^\/licenses\//],
         runtimeCaching: [
           {
             urlPattern: /\/analyses\/manifest\.json$/,

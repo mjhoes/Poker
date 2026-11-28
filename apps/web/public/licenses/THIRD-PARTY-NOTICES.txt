@@ -1,0 +1,85 @@
+Perfect Draw: third-party notices
+=================================
+
+HEIC/HEIF photo decoder
+-----------------------
+
+Perfect Draw uses the following libraries, which are covered by the GNU
+Lesser General Public License, version 3 (LGPL-3.0). It uses them only to
+open HEIC/HEIF photos (for example, iPhone photos) in browsers that can't
+decode them themselves.
+
+  heic-to 1.6.7
+    Copyright (c) Hopper Gee
+    https://github.com/hoppergee/heic-to
+    License: GNU LGPL, version 3 or (at your option) any later version.
+
+  libheif 1.23.7 (inside heic-to)
+    Copyright (c) 2017-2025 Dirk Farin <dirk.farin@gmail.com>;
+    copyright (c) struktur AG and the libheif contributors.
+    https://github.com/strukturag/libheif
+    License: GNU LGPL, version 3.
+
+  libde265 1.0.16 (inside heic-to)
+    Copyright (c) 2013-2014 struktur AG, Dirk Farin <farin@struktur.de>,
+    and the libde265 contributors.
+    https://github.com/strukturag/libde265
+    License: GNU LGPL, version 3.
+
+The full license texts are next to this file:
+  LGPL-3.0.txt   GNU Lesser General Public License, version 3
+  GPL-3.0.txt    GNU General Public License, version 3 (which the LGPL
+                 incorporates)
+
+These libraries come WITHOUT ANY WARRANTY; see the licenses for details.
+
+
+How Perfect Draw uses them
+--------------------------
+
+The decoder is heic-to's "csp" build (dist/csp/heic-to.js), unmodified.
+It contains libheif and libde265 compiled to JavaScript by the heic-to
+project. Perfect Draw ships it as a separate file in the built site,
+assets/heic-to-<hash>.js, and loads it only when a browser can't open a
+HEIC/HEIF photo itself. The rest of Perfect Draw uses it only through its
+public interface, the function heicTo({ blob, type: "bitmap" }), which
+returns an ImageBitmap.
+
+
+Corresponding source
+--------------------
+
+The source for exactly these versions is served next to this file, in
+source/:
+
+  source/heic-to-1.6.7.tgz        heic-to 1.6.7 as published (its src/,
+                                  the esbuild.mjs build script, LICENSE,
+                                  and the libheif build it bundles)
+  source/libheif-1.23.7.tar.gz    libheif 1.23.7 release
+  source/libde265-1.0.16.tar.gz   libde265 1.0.16 release
+  source/SHA256SUMS               checksums of these three files
+
+The same releases are published upstream at:
+  https://registry.npmjs.org/heic-to/-/heic-to-1.6.7.tgz
+  https://github.com/strukturag/libheif/releases/tag/v1.23.7
+  https://github.com/strukturag/libde265/releases/tag/v1.0.16
+
+How the decoder is built (as documented in heic-to's README):
+  1. Build libheif 1.23.7 to JavaScript with its build-emscripten.sh:
+       LIBDE265_VERSION=1.0.16 USE_UNSAFE_EVAL=0 USE_WASM=0 \
+         ../build-emscripten.sh ..
+     heic-to's README notes one change to that script: the path of
+     llvm-nm used to list exported functions.
+  2. Build heic-to with its esbuild.mjs, which bundles that libheif build
+     into dist/csp/heic-to.js.
+
+
+Using a modified version
+------------------------
+
+You may replace the decoder with a modified version of these libraries.
+Build a file with the same interface (an ES module that exports
+heicTo({ blob, type: "bitmap" }) and returns an ImageBitmap), and put it
+in place of assets/heic-to-<hash>.js in a copy of the built site. Perfect
+Draw loads that file at run time and works with any version that keeps
+this interface.

@@ -68,6 +68,12 @@ export function SettingsPage({ storageStatus, decisionCount, backupDue, lastBack
       </aside>
     </div>
     <AiSettingsPanel />
+    <section className="panel panel-pad licenses-panel" aria-labelledby="licenses-heading">
+      <p className="eyebrow">OPEN SOURCE</p><h2 id="licenses-heading" className="panel-heading-sm">Open-source licenses</h2>
+      <p className="settings-copy">To open HEIC photos (from an iPhone) in browsers that can't, Perfect Draw uses heic-to with libheif and libde265, which are covered by the GNU LGPL, version 3. Their notices, the license texts and their source code come with the app.</p>
+      <p className="settings-copy"><a href="licenses/THIRD-PARTY-NOTICES.txt" target="_blank" rel="noopener">Third-party notices</a> · <a href="licenses/LGPL-3.0.txt" target="_blank" rel="noopener">LGPL-3.0</a> · <a href="licenses/GPL-3.0.txt" target="_blank" rel="noopener">GPL-3.0</a></p>
+      <p className="settings-copy">Source code: <a href="licenses/source/heic-to-1.6.7.tgz">heic-to 1.6.7</a> · <a href="licenses/source/libheif-1.23.7.tar.gz">libheif 1.23.7</a> · <a href="licenses/source/libde265-1.0.16.tar.gz">libde265 1.0.16</a> (<a href="licenses/source/SHA256SUMS" target="_blank" rel="noopener">checksums</a>)</p>
+    </section>
     <PayTablesPanel paytables={paytables} machines={machines} onNew={onNewPaytable} onPhoto={onPhotoPaytable} onCopy={onCopyPaytable} onRename={onRenamePaytable} onDelete={onDeletePaytable} />
   </>;
 }

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Browser, Page, Route } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 /*
  * Photo capture against intercepted provider APIs. The "photos" are real images rendered here (a printed pay table, a
@@ -295,4 +297,43 @@ test("photos chosen in quick succession show the newest, whichever finishes prep
   expect(await prep.leaked([newest])).toEqual([]);            // A's preview was released, not kept
   await dialog.getByRole("button", { name: "Close dialog" }).click();
   expect(await prep.leaked([])).toEqual([]);                  // and B's on closing
+});
+
+test("an iPhone HEIC photo is converted here and read, whatever type the browser gives it", async ({ page }) => {
+  test.setTimeout(150_000);
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  // Chromium can't decode HEIC itself (Safari can): the app converts it, then sends a JPEG like any other photo.
+  const sent: string[] = [];
+  page.on("request", request => {
+    if (request.url().includes("api.anthropic.com/v1/messages") && request.method() === "POST") {
+      const body = request.postDataJSON() as { messages: { content: { type: string; source?: { media_type: string } }[] }[] };
+      sent.push(body.messages[0].content[0].source?.media_type ?? "none");
+    }
+  });
+  await mockVision(page, { paytable: [paytableReply(jacks75)] });
+  await addKey(page);
+  const heic = await readFile(fileURLToPath(new URL("./fixtures/paytable-photo.heic", import.meta.url)));
+  for (const mimeType of ["", "image/heic"]) { // Windows gives HEIC no type; macOS says image/heic
+    await page.getByRole("button", { name: "From a photo", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Pay table from a photo" });
+    await dialog.getByLabel("Photo of the pay table").setInputFiles({ name: "IMG_0412.HEIC", mimeType, buffer: heic });
+    await expect(dialog.getByRole("img", { name: "Your photo of the pay table" })).toBeVisible({ timeout: 60_000 });
+    await expect(dialog.locator(".photo-meta")).toHaveText("900 × 600 · location and other details removed");
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+  }
+  await page.getByRole("button", { name: "From a photo", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Pay table from a photo" });
+  await dialog.getByLabel("Photo of the pay table").setInputFiles({ name: "IMG_0412.HEIC", mimeType: "image/heic", buffer: heic });
+  await dialog.getByRole("button", { name: /^Read photo with Claude Sonnet 5\.5/ }).click();
+  await expect.poll(() => sent).toEqual(["image/jpeg"]);
+  // A file named .HEIC that isn't one, and a file that isn't a photo at all, still say so.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "From a photo", exact: true }).click();
+  const input = page.getByLabel("Photo of the pay table"), alert = page.getByRole("dialog", { name: "Pay table from a photo" }).getByRole("alert");
+  await input.setInputFiles({ name: "IMG_0413.HEIC", mimeType: "image/heic", buffer: Buffer.from("not really a photo") });
+  await expect(alert).toHaveText("This browser couldn't open that image. Try a JPEG, PNG or HEIC photo.");
+  await input.setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("not a photo") });
+  await expect(alert).toHaveText("That file isn't an image. Choose a photo (JPEG, PNG, HEIC or WebP).");
+  expect(errors).toEqual([]);
 });

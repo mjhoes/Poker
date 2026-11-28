@@ -97,7 +97,7 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
   };
 
   return <div className="photo-reader" role="group" aria-label={`Read a ${what} from a photo`}>
-    <input ref={input} className="visually-hidden" type="file" accept="image/*" capture="environment" aria-label={`Photo of the ${what}`}
+    <input ref={input} className="visually-hidden" type="file" accept="image/*,.heic,.heif" capture="environment" aria-label={`Photo of the ${what}`}
       onChange={event => { void accept(event.target.files?.[0]); event.target.value = ""; }} />
     <div className={`photo-drop ${image ? "has-image" : ""}`}>
       {image ? <img src={image.previewUrl} alt={`Your photo of the ${what}`} /> : <div className="photo-empty"><Icon name="camera" size={28} /><p>Take a photo of the {kind === "paytable" ? "machine's pay table, straight on and filling the frame" : "five cards on the machine's screen"}, or choose one. You can also paste an image.</p></div>}
@@ -106,6 +106,7 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
       <Button variant="secondary" icon="camera" loading={preparing} loadingLabel="Preparing…" onClick={() => input.current?.click()}>{image ? "Use another photo" : "Take or choose a photo"}</Button>
       {image && <span className="photo-meta">{image.width} × {image.height} · location and other details removed</span>}
     </div>
+    <p className="photo-license muted">HEIC photos open with libheif (GNU LGPL-3.0) where the browser can't. <a href="licenses/THIRD-PARTY-NOTICES.txt" target="_blank" rel="noopener">Licenses and source</a></p>
 
     {!chosenProvider ? <p className="photo-invite">Reading photos uses your own Anthropic or OpenAI API key. <a href="#/settings?section=ai">Add an API key</a></p>
       : image && <>

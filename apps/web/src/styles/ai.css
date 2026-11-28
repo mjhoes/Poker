@@ -50,6 +50,8 @@
 .photo-empty p { margin: 0; }
 .photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .photo-meta { color: var(--muted); font-size: 11px; }
+.photo-license { margin: 0; font-size: 11px; }
+.photo-license a, .licenses-panel a { color: var(--felt-dark); font-weight: 650; text-decoration: underline; text-underline-offset: 2px; }
 .photo-invite { margin: 0; color: var(--muted); font-size: var(--text-sm); }
 .photo-invite a { color: var(--felt); font-weight: 700; }
 .photo-flow { display: grid; gap: 14px; }

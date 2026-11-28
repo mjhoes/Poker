@@ -394,7 +394,25 @@ R3 — why one hold beats another:
 - `hand-photo.ts`: five cards (rank, suit, confidence) + HELD flags + whether a pay table is visible; `handProblem`
   triggers the router's one retry when the cards aren't five different real cards.
 - `image.ts`: photos are scaled to ≤ 1,600 px and re-encoded as JPEG on the device (drops EXIF/location); SHA-256
-  fingerprint; `imageTokens` estimates per provider. Photos are never stored: `photo-service.ts` caches only the reading
+  fingerprint; `imageTokens` estimates per provider.
+  - **HEIC/HEIF** (iPhone photos): Chrome, Edge and Firefox can't decode them; only Safari can. When the browser can't
+    open a file that `isHeif` recognizes by its signature (the `ftyp` brands, whatever its name or type; Windows gives
+    HEIC no type), it is decoded with `heic-to/csp` (libheif, **LGPL-3.0**). The decoder is lazy-loaded as its own 3 MB
+    chunk, kept out of the offline precache since photos are read online, and it needs no extra CSP: plain JS in a
+    `blob:` worker.
+  - The file input also accepts `.heic,.heif`, so Windows pickers show them.
+  - **LGPL obligations are shipped with the site**, in `apps/web/public/licenses/` (copied to `dist/licenses/`):
+    - `THIRD-PARTY-NOTICES.txt`: the libraries, versions, copyrights, how the app uses them, the build, and how to
+      replace the decoder file;
+    - `LGPL-3.0.txt` and `GPL-3.0.txt`: verbatim from libheif's COPYING;
+    - `source/`: the corresponding source archives (heic-to 1.6.7 npm package, libheif 1.23.7, libde265 1.0.16) and
+      their `SHA256SUMS`.
+
+    Settings → "Open-source licenses" and a line in the photo reader link to them. The service worker never answers
+    `/licenses/` with the app (`navigateFallbackDenylist`). **When upgrading heic-to, replace the notice and source
+    archives:** `tests/licenses.test.ts` fails until the versions and checksums match. The production check is in
+    `e2e/pwa.spec.ts`.
+  - Photos are never stored: `photo-service.ts` caches only the reading
   in `uploads` (fingerprint + model, 90 days), so the same photo read again with the same model is free.
 - Vision goes through the same router and providers: `TextRequest.image` (Anthropic image block; OpenAI `input_image`
   data URL). Photos default to the Medium tier (`aiSettings.visionTier`, Dexie v5 sets existing rows to medium).
