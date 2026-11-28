@@ -54,6 +54,8 @@ test("a casino session: timed from timestamps through a pause and a reload, then
   // Let the engine answer before the next jump: jumping the fake clock also fires its 3-minute request timeout.
   await expect(page.getByText(/^Return 99\.54% at perfect play/)).toBeVisible({ timeout: 60_000 });
   await page.getByRole("region", { name: "Casino session" }).getByRole("button", { name: "Resume" }).click();
+  // The resume is stamped when the app handles the click: wait for it before moving the clock, or the jump counts as paused.
+  await expect(live).not.toContainText("PAUSED");
   await page.clock.fastForward(30 * 60_000);
   await expect(page.getByRole("timer")).toHaveText("1:00:00");
 
