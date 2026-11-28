@@ -66,3 +66,28 @@ test("production app, saved sessions and cached worker analysis reopen fully off
   expect((await readPlayState(page)).sessions.find(row => row.id === focused.id)!.trainingFocus).toEqual(focused.trainingFocus);
   expect(errors).toEqual([]);
 });
+
+test("the open-source notices, license texts and source archives ship with the production site and open as files", async ({ page, request }) => {
+  await page.goto("/");
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  await page.goto("/#/settings");
+  const panel = page.getByRole("region", { name: "Open-source licenses" });
+  await expect(panel).toContainText("heic-to with libheif and libde265");
+  // Each link resolves to the shipped file, even with the service worker in control (never the app shell).
+  for (const [name, text] of [["Third-party notices", "libheif 1.23.7"], ["LGPL-3.0", "GNU LESSER GENERAL PUBLIC LICENSE"], ["GPL-3.0", "GNU GENERAL PUBLIC LICENSE"], ["checksums", "libde265-1.0.16.tar.gz"]] as const) {
+    const opened = page.waitForEvent("popup");
+    await panel.getByRole("link", { name, exact: true }).click();
+    const tab = await opened;
+    await expect(tab.locator("body")).toContainText(text);
+    await expect(tab.locator("#root")).toHaveCount(0);
+    await tab.close();
+  }
+  for (const name of ["heic-to 1.6.7", "libheif 1.23.7", "libde265 1.0.16"]) {
+    const href = await panel.getByRole("link", { name, exact: true }).getAttribute("href");
+    const response = await request.get(`/${href}`);
+    expect(response.status()).toBe(200);
+    expect((await response.body()).length).toBeGreaterThan(500_000);
+  }
+});

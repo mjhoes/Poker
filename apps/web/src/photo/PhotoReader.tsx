@@ -106,6 +106,7 @@ export function PhotoReader<K extends PhotoKind>({ kind, initialImage, onRead, e
       <Button variant="secondary" icon="camera" loading={preparing} loadingLabel="Preparing…" onClick={() => input.current?.click()}>{image ? "Use another photo" : "Take or choose a photo"}</Button>
       {image && <span className="photo-meta">{image.width} × {image.height} · location and other details removed</span>}
     </div>
+    <p className="photo-license muted">HEIC photos open with libheif (GNU LGPL-3.0) where the browser can't. <a href="licenses/THIRD-PARTY-NOTICES.txt" target="_blank" rel="noopener">Licenses and source</a></p>
 
     {!chosenProvider ? <p className="photo-invite">Reading photos uses your own Anthropic or OpenAI API key. <a href="#/settings?section=ai">Add an API key</a></p>
       : image && <>
